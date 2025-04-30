@@ -52,6 +52,12 @@ function raycaster:init(width, height)
         { 0.7, 0.7, 0.7 },  -- Light Gray
         { 0.3, 0.3, 0.3 }   -- Dark Gray
     }
+    
+    -- Initialize Z-buffer for depth testing
+    self.zBuffer = {}
+    for i = 1, self.viewWidth do
+        self.zBuffer[i] = self.maxDistance
+    end
 end
 
 -- Set camera position
@@ -227,6 +233,11 @@ function raycaster:render(map, entities)
     love.graphics.setColor(0.4, 0.4, 0.2)
     love.graphics.rectangle("fill", 0, self.halfHeight, self.viewWidth, self.halfHeight)
     
+    -- Reset Z-buffer
+    for i = 1, self.viewWidth do
+        self.zBuffer[i] = self.maxDistance
+    end
+    
     -- Cast rays and draw walls
     for x = 0, self.viewWidth - 1 do
         -- Calculate ray position and direction
@@ -237,6 +248,9 @@ function raycaster:render(map, entities)
         
         -- Cast the ray
         local hit = self:castRay(rayAngle, map)
+        
+        -- Store the perpendicular wall distance in the Z-buffer
+        self.zBuffer[x + 1] = hit.distance
         
         -- Choose wall color based on wall type and side
         local wallColor = self.wallColors[((hit.wallType - 1) % #self.wallColors) + 1]
@@ -332,9 +346,18 @@ function raycaster:drawEntity(entity)
     drawStartX = math.max(0, drawStartX)
     drawEndX = math.min(self.viewWidth - 1, drawEndX)
     
-    -- Draw the sprite as a rectangle (placeholder for actual sprite)
-    love.graphics.setColor(entity.color or {1, 0, 0})
-    love.graphics.rectangle("fill", drawStartX, drawStartY, drawEndX - drawStartX, drawEndY - drawStartY)
+    -- Check if entity is behind a wall using the Z-buffer for each column
+    for stripe = drawStartX, drawEndX do
+        -- Only continue if screen column is valid
+        if stripe >= 0 and stripe < self.viewWidth then
+            -- Check if this part of the entity is in front of the wall
+            if transformY < self.zBuffer[stripe + 1] then
+                -- Draw vertical stripe of the entity
+                love.graphics.setColor(entity.color or {1, 0, 0})
+                love.graphics.rectangle("fill", stripe, drawStartY, 1, drawEndY - drawStartY)
+            end
+        end
+    end
 end
 
 return raycaster

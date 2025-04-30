@@ -42,6 +42,7 @@ function dungeon:init()
         function() self:completeQuest() end
     )
     
+    -- Initialize minimap
     self.elements.minimap = {
         x = GAME.width - 220,
         y = 20,
@@ -96,11 +97,13 @@ function dungeon:init()
             
             -- Draw entities
             for _, entity in ipairs(dungeon.entities) do
-                love.graphics.setColor(entity.color or {1, 0, 0})
-                love.graphics.circle("fill", 
-                    self.x + entity.x * cellSize, 
-                    self.y + entity.y * cellSize, 
-                    cellSize/2)
+                if entity.type ~= "objective" then -- Skip the objective entity since we already drew it
+                    love.graphics.setColor(entity.color or {1, 0, 0})
+                    love.graphics.circle("fill", 
+                        self.x + entity.x * cellSize, 
+                        self.y + entity.y * cellSize, 
+                        cellSize/2)
+                end
             end
             
             -- Draw player position
@@ -214,6 +217,15 @@ function dungeon:enter(params)
         -- Populate dungeon with default monsters and items
         self:populateDungeon(1)
     end
+    
+    -- Add objective marker as an entity for proper occlusion
+    table.insert(self.entities, {
+        x = self.objective.x,
+        y = self.objective.y,
+        type = "objective",
+        color = {0, 1, 0},
+        isObjective = true
+    })
     
     -- Update raycaster camera
     raycaster:setCamera(self.playerPos.x, self.playerPos.y, self.playerPos.angle)
@@ -348,18 +360,6 @@ function dungeon:update(dt)
         
         -- Check for entity interaction
         self:checkEntityInteraction()
-        
-        -- Check for objective completion
-        if not self.objective.completed then
-            local dx = self.objective.x - self.playerPos.x
-            local dy = self.objective.y - self.playerPos.y
-            local distance = math.sqrt(dx*dx + dy*dy)
-            
-            if distance < 1.0 then
-                self.objective.completed = true
-                self.state = STATES.COMPLETED
-            end
-        end
         
         -- Update entities
         for i, entity in ipairs(self.entities) do
@@ -496,6 +496,11 @@ function dungeon:checkEntityInteraction()
                 self.state = STATES.EXPLORING
                 self.currentLoot = nil
                 break
+            elseif entity.type == "objective" and entity.isObjective then
+                -- Mark objective as completed
+                self.objective.completed = true
+                self.state = STATES.COMPLETED
+                break
             end
         end
     end
@@ -515,31 +520,6 @@ function dungeon:draw()
         
         -- Draw status bar
         self.elements.statusBar:draw()
-        
-        -- Draw objective indicator if not completed
-        if not self.objective.completed then
-            -- Calculate direction to objective
-            local dx = self.objective.x - self.playerPos.x
-            local dy = self.objective.y - self.playerPos.y
-            local distance = math.sqrt(dx*dx + dy*dy)
-            
-            -- Only show indicator if objective is nearby
-            if distance < 10 then
-                local angle = math.atan2(dy, dx)
-                local angleDiff = (angle - self.playerPos.angle) % (2 * math.pi)
-                if angleDiff > math.pi then angleDiff = angleDiff - 2 * math.pi end
-                
-                local screenX = GAME.width / 2 + angleDiff * GAME.width / 2
-                
-                -- Draw indicator at top of screen
-                love.graphics.setColor(0, 1, 0)
-                love.graphics.polygon("fill", 
-                    screenX, 40,
-                    screenX - 10, 20,
-                    screenX + 10, 20
-                )
-            end
-        end
     elseif self.state == STATES.COMBAT then
         -- Draw combat UI
         if self.combat then
