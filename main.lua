@@ -6,8 +6,8 @@ local saveLoad = require("utils/saveLoad")
 
 -- Global game configuration
 GAME = {
-    width = 800,
-    height = 600,
+    width = 1280,
+    height = 720,
     title = "Dungeon Crawler",
     version = "0.1",
     debug = false,
@@ -25,7 +25,7 @@ GAME.settings = {
     graphics = {
         fullscreen = false,
         texturesEnabled = false,
-        resolution = "800x600"
+        resolution = "1280x720"
     },
     gameplay = {
         difficultyLevel = 2,
@@ -147,4 +147,12 @@ function love.quit()
     -- Handle game cleanup
     saveLoad:saveGameSettings()
     return false
+end
+
+function love.resize(width, height)
+    -- Update game settings for resolution
+    GAME.settings.graphics.resolution = width .. "x" .. height
+    
+    -- Tell the screen manager to handle the resize
+    screens:handleResize(width, height)
 end

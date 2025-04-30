@@ -6,12 +6,12 @@ function love.conf(t)
     
     t.window.title = "Dungeon Crawler"       -- The window title
     t.window.icon = nil                      -- Filepath to an image to use as the window's icon
-    t.window.width = 800                     -- The window width
-    t.window.height = 600                    -- The window height
+    t.window.width = 1280                    -- The window width
+    t.window.height = 720                    -- The window height
     t.window.borderless = false              -- Remove all border visuals from the window
     t.window.resizable = true                -- Let the window be user-resizable
-    t.window.minwidth = 800                  -- Minimum window width if the window is resizable
-    t.window.minheight = 600                 -- Minimum window height if the window is resizable
+    t.window.minwidth = 1280                 -- Minimum window width if the window is resizable
+    t.window.minheight = 720                 -- Minimum window height if the window is resizable
     t.window.fullscreen = false              -- Enable fullscreen
     t.window.fullscreentype = "desktop"      -- Standard fullscreen or desktop fullscreen mode
     t.window.vsync = 1                       -- Vertical sync mode (0 = off, 1 = on, 2 = adaptive)

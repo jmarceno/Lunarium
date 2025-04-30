@@ -4,6 +4,7 @@ local assetManager = require("assets/assetManager")
 local raycaster = require("engine/raycaster")
 local dungeonGenerator = require("gameplay/dungeonGenerator")
 local combatSystem = require("gameplay/combatSystem")
+local layoutHelper = screenManager.layoutHelper
 
 local dungeon = screenManager:createScreen("Dungeon")
 
@@ -17,8 +18,8 @@ local STATES = {
 }
 
 function dungeon:init()
-    -- Initialize raycaster
-    raycaster:init(800, 600)
+    -- Initialize raycaster with game dimensions
+    raycaster:init(GAME.width, GAME.height)
     
     -- Initialize dungeon state
     self.state = STATES.EXPLORING
@@ -299,33 +300,77 @@ function dungeon:populateDungeon(difficulty)
 end
 
 function dungeon:update(dt)
-    -- Update UI elements
-    for _, element in pairs(self.elements) do
-        if element.update then
-            element:update(dt)
-        end
-    end
-    
-    -- Handle different states
+    -- Update based on current state
     if self.state == STATES.EXPLORING then
-        self:updateExploring(dt)
+        -- Handle player movement
+        local playerMoved = false
+        local baseSpeed = 2 -- base speed units per second
+        local baseTurnSpeed = 2 -- base turning speed radians per second
+        
+        -- Calculate speed based on deltaTime
+        local moveSpeed = baseSpeed * dt
+        local turnSpeed = baseTurnSpeed * dt
+        
+        if love.keyboard.isDown("w") then
+            raycaster:moveCamera(moveSpeed, self.map)
+            playerMoved = true
+        end
+        
+        if love.keyboard.isDown("s") then
+            raycaster:moveCamera(-moveSpeed, self.map)
+            playerMoved = true
+        end
+        
+        if love.keyboard.isDown("a") then
+            raycaster:rotateCamera(-turnSpeed)
+            playerMoved = true
+        end
+        
+        if love.keyboard.isDown("d") then
+            raycaster:rotateCamera(turnSpeed)
+            playerMoved = true
+        end
+        
+        if love.keyboard.isDown("q") then
+            raycaster:strafeCamera(-moveSpeed, self.map)
+            playerMoved = true
+        end
+        
+        if love.keyboard.isDown("e") then
+            raycaster:strafeCamera(moveSpeed, self.map)
+            playerMoved = true
+        end
+        
+        -- Update player position from raycaster
+        self.playerPos.x = raycaster.camera.x
+        self.playerPos.y = raycaster.camera.y
+        self.playerPos.angle = raycaster.camera.angle
+        
+        -- Check for entity interaction
+        self:checkEntityInteraction()
+        
+        -- Check for objective completion
+        if not self.objective.completed then
+            local dx = self.objective.x - self.playerPos.x
+            local dy = self.objective.y - self.playerPos.y
+            local distance = math.sqrt(dx*dx + dy*dy)
+            
+            if distance < 1.0 then
+                self.objective.completed = true
+                self.state = STATES.COMPLETED
+            end
+        end
+        
+        -- Update entities
+        for i, entity in ipairs(self.entities) do
+            if entity.update then
+                entity:update(dt, self.map, self.playerPos)
+            end
+        end
     elseif self.state == STATES.COMBAT then
         self:updateCombat(dt)
     elseif self.state == STATES.LOOT then
         self:updateLoot(dt)
-    end
-    
-    -- Check for objective completion
-    if not self.objective.completed then
-        local distToObjective = math.sqrt(
-            (self.playerPos.x - self.objective.x - 0.5)^2 + 
-            (self.playerPos.y - self.objective.y - 0.5)^2
-        )
-        
-        if distToObjective < 1.0 then
-            self.objective.completed = true
-            assetManager:playSound("victory")
-        end
     end
 end
 
@@ -457,68 +502,85 @@ function dungeon:checkEntityInteraction()
 end
 
 function dungeon:draw()
-    -- Clear screen
-    love.graphics.clear(0, 0, 0)
-    
     -- Draw 3D view from raycaster
     love.graphics.setColor(1, 1, 1)
-    local renderedView = raycaster:render(self.map, self.entities)
-    love.graphics.draw(renderedView)
+    raycaster:render(self.map, self.entities)
     
-    -- Draw UI elements based on current state
+    -- Draw UI elements
     if self.state == STATES.EXPLORING then
-        -- Draw minimap
-        self.elements.minimap:draw()
+        -- Draw minimap if visible
+        if self.elements.minimap.visible then
+            self.elements.minimap:draw()
+        end
         
         -- Draw status bar
         self.elements.statusBar:draw()
         
-        -- Draw objective complete message and button if objective is completed
-        if self.objective.completed then
-            love.graphics.setColor(0, 0, 0, 0.7)
-            love.graphics.rectangle("fill", GAME.width / 2 - 200, GAME.height / 2 - 100, 400, 200)
+        -- Draw objective indicator if not completed
+        if not self.objective.completed then
+            -- Calculate direction to objective
+            local dx = self.objective.x - self.playerPos.x
+            local dy = self.objective.y - self.playerPos.y
+            local distance = math.sqrt(dx*dx + dy*dy)
             
-            love.graphics.setColor(1, 1, 1)
-            love.graphics.setFont(screenManager.fonts.large)
-            love.graphics.printf("Objective Complete!", GAME.width / 2 - 200, GAME.height / 2 - 80, 400, "center")
-            
-            -- Draw quest info
-            if self.currentQuest then
-                love.graphics.setFont(screenManager.fonts.medium)
-                love.graphics.printf(self.currentQuest.name, GAME.width / 2 - 180, GAME.height / 2 - 30, 360, "center")
+            -- Only show indicator if objective is nearby
+            if distance < 10 then
+                local angle = math.atan2(dy, dx)
+                local angleDiff = (angle - self.playerPos.angle) % (2 * math.pi)
+                if angleDiff > math.pi then angleDiff = angleDiff - 2 * math.pi end
                 
-                love.graphics.setFont(screenManager.fonts.small)
-                love.graphics.printf(self.currentQuest.description, GAME.width / 2 - 180, GAME.height / 2, 360, "center")
+                local screenX = GAME.width / 2 + angleDiff * GAME.width / 2
+                
+                -- Draw indicator at top of screen
+                love.graphics.setColor(0, 1, 0)
+                love.graphics.polygon("fill", 
+                    screenX, 40,
+                    screenX - 10, 20,
+                    screenX + 10, 20
+                )
             end
-            
-            -- Draw return button
-            self.elements.completeButton:draw()
         end
     elseif self.state == STATES.COMBAT then
         -- Draw combat UI
         if self.combat then
             self.combat:draw()
         end
-    elseif self.state == STATES.LOOT then
-        -- Draw loot UI
+    elseif self.state == STATES.COMPLETED then
+        -- Draw completion message and button
         love.graphics.setColor(0, 0, 0, 0.7)
-        love.graphics.rectangle("fill", GAME.width / 2 - 150, GAME.height / 2 - 100, 300, 200)
+        love.graphics.rectangle("fill", 0, 0, GAME.width, GAME.height)
         
-        love.graphics.setColor(1, 1, 1)
         love.graphics.setFont(screenManager.fonts.large)
-        love.graphics.printf("Loot", GAME.width / 2 - 150, GAME.height / 2 - 90, 300, "center")
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.printf(
+            "Dungeon Completed!",
+            0, GAME.height / 3,
+            GAME.width, "center"
+        )
         
-        if self.currentLoot and self.currentLoot.contents then
+        if self.currentQuest then
             love.graphics.setFont(screenManager.fonts.medium)
-            for i, item in ipairs(self.currentLoot.contents) do
-                local y = GAME.height / 2 - 40 + (i - 1) * 25
-                
-                if item.type == "gold" then
-                    love.graphics.print(item.amount .. " gold", GAME.width / 2 - 130, y)
-                else
-                    love.graphics.print(item.name, GAME.width / 2 - 130, y)
-                end
-            end
+            love.graphics.printf(
+                "Quest: " .. self.currentQuest.name .. " - Complete",
+                0, GAME.height / 3 + 50,
+                GAME.width, "center"
+            )
+        end
+        
+        -- Draw return button
+        self.elements.completeButton:draw()
+    end
+    
+    -- Draw debug info
+    if GAME.debug then
+        love.graphics.setColor(1, 1, 0)
+        love.graphics.setFont(screenManager.fonts.small)
+        love.graphics.print("Player Pos: " .. string.format("%.2f, %.2f", self.playerPos.x, self.playerPos.y), 10, 10)
+        love.graphics.print("Player Angle: " .. string.format("%.2f", self.playerPos.angle), 10, 30)
+        
+        -- Draw entity info
+        for i, entity in ipairs(self.entities) do
+            love.graphics.print("Entity " .. i .. ": " .. string.format("%.2f, %.2f", entity.x, entity.y), 10, 50 + (i-1) * 20)
         end
     end
 end
@@ -582,6 +644,24 @@ function dungeon:failQuest()
     -- For now, just return to town
     local gameState = require("states/gameState")
     gameState:changeState("overworld")
+end
+
+-- Add this method to handle window resizing
+function dungeon:onResize(width, height)
+    -- Update raycaster dimensions
+    raycaster:init(width, height)
+    
+    -- Update raycaster camera
+    raycaster:setCamera(self.playerPos.x, self.playerPos.y, self.playerPos.angle)
+    
+    -- Update UI element positions
+    self.elements.completeButton.x = width / 2 - 100
+    self.elements.completeButton.y = height - 80
+    
+    -- Update minimap position
+    self.elements.minimap.x = width - 220
+    
+    -- You might need to update other position-dependent elements here
 end
 
 return dungeon

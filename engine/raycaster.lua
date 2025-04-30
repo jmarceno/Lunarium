@@ -3,8 +3,8 @@
 local assetManager = require("assets/assetManager")
 
 local raycaster = {
-    viewWidth = 800,
-    viewHeight = 600,
+    viewWidth = 1280,
+    viewHeight = 720,
     fov = 60,
     wallHeight = 1.0,
     maxDistance = 20,
@@ -213,21 +213,24 @@ end
 
 -- Render the scene
 function raycaster:render(map, entities)
+    if not map then return end
+    
+    -- Clear the canvas
     love.graphics.setCanvas(self.canvas)
-    love.graphics.clear()
+    love.graphics.clear(0, 0, 0)
     
     -- Draw ceiling
     love.graphics.setColor(0.3, 0.3, 0.5)
     love.graphics.rectangle("fill", 0, 0, self.viewWidth, self.halfHeight)
     
     -- Draw floor
-    love.graphics.setColor(0.5, 0.5, 0.5)
+    love.graphics.setColor(0.4, 0.4, 0.2)
     love.graphics.rectangle("fill", 0, self.halfHeight, self.viewWidth, self.halfHeight)
     
-    -- Draw walls
+    -- Cast rays and draw walls
     for x = 0, self.viewWidth - 1 do
         -- Calculate ray position and direction
-        local cameraX = 2 * x / self.viewWidth - 1  -- x-coordinate in camera space
+        local cameraX = 2 * x / self.viewWidth - 1  -- x-coordinate in camera space (-1 to 1)
         local rayDirX = self.camera.dirX + self.camera.planeX * cameraX
         local rayDirY = self.camera.dirY + self.camera.planeY * cameraX
         local rayAngle = math.atan2(rayDirY, rayDirX)
@@ -246,7 +249,7 @@ function raycaster:render(map, entities)
         -- Set color and draw the vertical line
         love.graphics.setColor(wallColor)
         
-        if self.texturesEnabled and assetManager.images.walls[hit.wallType] then
+        if self.texturesEnabled and assetManager.images and assetManager.images.walls and assetManager.images.walls[hit.wallType] then
             -- Calculate texture x coordinate
             local texX = math.floor(hit.wallX * 64)
             if (hit.side == 0 and rayDirX > 0) or (hit.side == 1 and rayDirY < 0) then
@@ -267,7 +270,7 @@ function raycaster:render(map, entities)
         end
     end
     
-    -- Draw entities
+    -- Draw entities if provided
     if entities then
         -- Sort entities by distance (painter's algorithm)
         table.sort(entities, function(a, b)
@@ -278,46 +281,60 @@ function raycaster:render(map, entities)
         
         -- Draw each entity
         for _, entity in ipairs(entities) do
-            -- Translate entity position to relative to camera
-            local spriteX = entity.x - self.camera.x
-            local spriteY = entity.y - self.camera.y
-            
-            -- Transform sprite with the inverse camera matrix
-            -- [ planeX   dirX ] -1                                       [ dirY      -dirX ]
-            -- [               ]       =  1/(planeX*dirY-dirX*planeY) *   [                 ]
-            -- [ planeY   dirY ]                                          [ -planeY  planeX ]
-            
-            local invDet = 1.0 / (self.camera.planeX * self.camera.dirY - self.camera.dirX * self.camera.planeY)
-            
-            local transformX = invDet * (self.camera.dirY * spriteX - self.camera.dirX * spriteY)
-            local transformY = invDet * (-self.camera.planeY * spriteX + self.camera.planeX * spriteY)
-            
-            local spriteScreenX = math.floor((self.viewWidth / 2) * (1 + transformX / transformY))
-            
-            -- Calculate sprite height and width
-            local spriteHeight = math.abs(math.floor(self.viewHeight / transformY))
-            local spriteWidth = spriteHeight
-            
-            -- Calculate drawing bounds
-            local drawStartY = math.floor(-spriteHeight / 2 + self.viewHeight / 2)
-            local drawEndY = math.floor(spriteHeight / 2 + self.viewHeight / 2)
-            local drawStartX = math.floor(-spriteWidth / 2 + spriteScreenX)
-            local drawEndX = math.floor(spriteWidth / 2 + spriteScreenX)
-            
-            -- Adjust bounds to be within screen
-            drawStartY = math.max(0, drawStartY)
-            drawEndY = math.min(self.viewHeight - 1, drawEndY)
-            drawStartX = math.max(0, drawStartX)
-            drawEndX = math.min(self.viewWidth - 1, drawEndX)
-            
-            -- Draw the sprite as a rectangle (placeholder for actual sprite)
-            love.graphics.setColor(entity.color or {1, 0, 0})
-            love.graphics.rectangle("fill", drawStartX, drawStartY, drawEndX - drawStartX, drawEndY - drawStartY)
+            self:drawEntity(entity)
         end
     end
     
+    -- Reset canvas
     love.graphics.setCanvas()
+    
+    -- Draw the canvas to the screen
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.draw(self.canvas, 0, 0)
+    
     return self.canvas
+end
+
+-- Draw an entity (monster, item, etc.)
+function raycaster:drawEntity(entity)
+    -- Translate entity position to relative to camera
+    local spriteX = entity.x - self.camera.x
+    local spriteY = entity.y - self.camera.y
+    
+    -- Transform sprite with the inverse camera matrix
+    -- [ planeX   dirX ] -1                                       [ dirY      -dirX ]
+    -- [               ]       =  1/(planeX*dirY-dirX*planeY) *   [                 ]
+    -- [ planeY   dirY ]                                          [ -planeY  planeX ]
+    
+    local invDet = 1.0 / (self.camera.planeX * self.camera.dirY - self.camera.dirX * self.camera.planeY)
+    
+    local transformX = invDet * (self.camera.dirY * spriteX - self.camera.dirX * spriteY)
+    local transformY = invDet * (-self.camera.planeY * spriteX + self.camera.planeX * spriteY)
+    
+    -- Only draw if in front of camera (transformY > 0)
+    if transformY <= 0 then return end
+    
+    local spriteScreenX = math.floor((self.viewWidth / 2) * (1 + transformX / transformY))
+    
+    -- Calculate sprite height and width
+    local spriteHeight = math.abs(math.floor(self.viewHeight / transformY))
+    local spriteWidth = spriteHeight
+    
+    -- Calculate drawing bounds
+    local drawStartY = math.floor(-spriteHeight / 2 + self.viewHeight / 2)
+    local drawEndY = math.floor(spriteHeight / 2 + self.viewHeight / 2)
+    local drawStartX = math.floor(-spriteWidth / 2 + spriteScreenX)
+    local drawEndX = math.floor(spriteWidth / 2 + spriteScreenX)
+    
+    -- Adjust bounds to be within screen
+    drawStartY = math.max(0, drawStartY)
+    drawEndY = math.min(self.viewHeight - 1, drawEndY)
+    drawStartX = math.max(0, drawStartX)
+    drawEndX = math.min(self.viewWidth - 1, drawEndX)
+    
+    -- Draw the sprite as a rectangle (placeholder for actual sprite)
+    love.graphics.setColor(entity.color or {1, 0, 0})
+    love.graphics.rectangle("fill", drawStartX, drawStartY, drawEndX - drawStartX, drawEndY - drawStartY)
 end
 
 return raycaster

@@ -1,8 +1,10 @@
 -- Screen Manager
+local layoutHelper = require("utils/layoutHelper")
 local screenManager = {
     fonts = {},
     colors = {},
-    UI = {}
+    UI = {},
+    layoutHelper = layoutHelper
 }
 
 function screenManager:init()
@@ -37,6 +39,13 @@ function screenManager:init()
     
     -- Initialize UI elements
     self:initUI()
+    
+    -- Set up window resize handler
+    love.window.setMode(GAME.width, GAME.height, {
+        resizable = true,
+        minwidth = 1280,
+        minheight = 720
+    })
 end
 
 function screenManager:initUI()
@@ -506,6 +515,14 @@ function screenManager:createScreen(name)
     }
     
     return screen
+end
+
+-- Handle window resize events
+function screenManager:handleResize(width, height)
+    -- Update any canvas sizes or UI layouts that depend on window size
+    if GAME.currentState and GAME.currentState.onResize then
+        GAME.currentState:onResize(width, height)
+    end
 end
 
 return screenManager
