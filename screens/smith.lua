@@ -1,0 +1,883 @@
+-- Smith Screen
+-- Where players can craft items from monster parts
+local screenManager = require("screens/screenManager")
+local assetManager = require("assets/assetManager")
+local itemSystem = require("gameplay/item")
+
+local smith = screenManager:createScreen("Smith")
+
+function smith:init()
+    -- Initialize state
+    self.state = "main" -- main, recipe_details, craft_result
+    self.recipes = {}
+    self.selectedRecipe = nil
+    self.craftedItem = nil
+    self.selectedCategory = "All"
+    self.pageOffset = 0
+    self.recipesPerPage = 6
+    
+    -- Categories
+    self.categories = {
+        "All",
+        "Weapons",
+        "Armor",
+        "Accessories"
+    }
+    
+    -- Create recipes
+    self:createRecipes()
+    
+    -- Create UI elements
+    self:createUI()
+end
+
+function smith:createRecipes()
+    -- Create crafting recipes
+    self.recipes = {
+        -- Weapon recipes
+        {
+            name = "Iron Sword",
+            description = "A sturdy iron sword.",
+            result = "ShortSword",
+            materials = {
+                ["Iron Ore"] = 3,
+                ["Wood"] = 1
+            },
+            goldCost = 50,
+            category = "Weapons"
+        },
+        {
+            name = "Steel Dagger",
+            description = "A sharp dagger made of steel.",
+            result = "Dagger",
+            materials = {
+                ["Iron Ore"] = 2,
+                ["Coal"] = 1,
+                ["Wood"] = 1
+            },
+            goldCost = 40,
+            category = "Weapons"
+        },
+        {
+            name = "Enchanted Staff",
+            description = "A staff with magical properties.",
+            result = "ApprenticeStaff",
+            materials = {
+                ["Wood"] = 2,
+                ["Magic Crystal"] = 1
+            },
+            goldCost = 60,
+            category = "Weapons"
+        },
+        {
+            name = "Battle Axe",
+            description = "A heavy battle axe for warriors.",
+            result = "BattleAxe",
+            materials = {
+                ["Iron Ore"] = 4,
+                ["Wood"] = 2,
+                ["Monster Bone"] = 1
+            },
+            goldCost = 80,
+            category = "Weapons"
+        },
+        
+        -- Armor recipes
+        {
+            name = "Leather Armor",
+            description = "Basic protective armor made of leather.",
+            result = "LeatherArmor",
+            materials = {
+                ["Monster Hide"] = 3,
+                ["Cloth"] = 1
+            },
+            goldCost = 45,
+            category = "Armor"
+        },
+        {
+            name = "Chain Mail",
+            description = "Armor made of interlocking metal rings.",
+            result = "ChainMail",
+            materials = {
+                ["Iron Ore"] = 5,
+                ["Coal"] = 2
+            },
+            goldCost = 120,
+            category = "Armor"
+        },
+        {
+            name = "Mage Robe",
+            description = "A robe imbued with magical power.",
+            result = "MageRobe",
+            materials = {
+                ["Cloth"] = 3,
+                ["Magic Crystal"] = 2,
+                ["Spider Silk"] = 1
+            },
+            goldCost = 100,
+            category = "Armor"
+        },
+        
+        -- Accessory recipes
+        {
+            name = "Wooden Shield",
+            description = "A basic wooden shield.",
+            result = "WoodenShield",
+            materials = {
+                ["Wood"] = 3,
+                ["Iron Ore"] = 1
+            },
+            goldCost = 35,
+            category = "Accessories"
+        },
+        {
+            name = "Holy Symbol",
+            description = "A symbol of divine power.",
+            result = "HolySymbol",
+            materials = {
+                ["Silver Ore"] = 2,
+                ["Magic Crystal"] = 1
+            },
+            goldCost = 70,
+            category = "Accessories"
+        },
+        {
+            name = "Kite Shield",
+            description = "A large shield that offers excellent protection.",
+            result = "KiteShield",
+            materials = {
+                ["Iron Ore"] = 4,
+                ["Wood"] = 2,
+                ["Monster Hide"] = 1
+            },
+            goldCost = 100,
+            category = "Accessories"
+        }
+    }
+    
+    -- Sort recipes by category then by gold cost
+    table.sort(self.recipes, function(a, b)
+        if a.category == b.category then
+            return a.goldCost < b.goldCost
+        else
+            return self:getCategoryOrder(a.category) < self:getCategoryOrder(b.category)
+        end
+    end)
+end
+
+function smith:createUI()
+    if not screenManager.UI then
+        screenManager:init()  -- Ensure UI is initialized
+    end
+
+    -- Create category buttons
+    self.elements.categoryButtons = {}
+    
+    for i, category in ipairs(self.categories) do
+        self.elements.categoryButtons[i] = screenManager.UI.Button(
+            50 + (i-1) * 180, 70, 
+            160, 30, category, 
+            function() self:selectCategory(category) end
+        )
+    end
+    
+    -- Create recipe list panel
+    self.elements.recipeListPanel = {
+        x = 50,
+        y = 120,
+        width = 700,
+        height = 400,
+        
+        draw = function(self)
+            -- Draw panel background
+            screenManager:drawPanel("Available Recipes", self.x, self.y, self.width, self.height)
+            
+            -- Draw recipes
+            local recipeCount = 0
+            local displayedRecipes = {}
+            
+            -- Filter recipes by category
+            for _, recipe in ipairs(smith.recipes) do
+                if smith.selectedCategory == "All" or recipe.category == smith.selectedCategory then
+                    table.insert(displayedRecipes, recipe)
+                end
+            end
+            
+            -- Apply pagination
+            local startIndex = smith.pageOffset + 1
+            local endIndex = math.min(startIndex + smith.recipesPerPage - 1, #displayedRecipes)
+            
+            -- Draw visible recipes
+            for i = startIndex, endIndex do
+                local recipe = displayedRecipes[i]
+                local recipeY = self.y + 50 + (i - startIndex) * 50
+                
+                -- Draw recipe entry background
+                if recipe == smith.selectedRecipe then
+                    love.graphics.setColor(0.3, 0.3, 0.5)
+                else
+                    love.graphics.setColor(0.2, 0.2, 0.3)
+                end
+                
+                love.graphics.rectangle(
+                    "fill",
+                    self.x + 10, recipeY, 
+                    self.width - 20, 45,
+                    5, 5
+                )
+                
+                -- Draw recipe name
+                love.graphics.setFont(screenManager.fonts.medium)
+                love.graphics.setColor(1, 1, 1)
+                
+                love.graphics.print(
+                    recipe.name,
+                    self.x + 20, recipeY + 5
+                )
+                
+                -- Draw recipe category
+                love.graphics.setFont(screenManager.fonts.small)
+                love.graphics.setColor(0.7, 0.7, 1)
+                
+                love.graphics.print(
+                    recipe.category,
+                    self.x + 20, recipeY + 30
+                )
+                
+                -- Draw recipe gold cost
+                love.graphics.setFont(screenManager.fonts.medium)
+                love.graphics.setColor(1, 1, 0)
+                
+                love.graphics.print(
+                    recipe.goldCost .. " gold",
+                    self.x + self.width - 120, recipeY + 5
+                )
+                
+                -- Check if player has enough materials
+                local hasIngredients = true
+                
+                if GAME.inventory then
+                    local inventoryMaterials = {}
+                    
+                    -- Count materials in inventory
+                    for _, item in ipairs(GAME.inventory) do
+                        if item.type == "material" or item.type == "monster_part" then
+                            inventoryMaterials[item.name] = (inventoryMaterials[item.name] or 0) + (item.count or 1)
+                        end
+                    end
+                    
+                    -- Check each required material
+                    for material, count in pairs(recipe.materials) do
+                        if not inventoryMaterials[material] or inventoryMaterials[material] < count then
+                            hasIngredients = false
+                            break
+                        end
+                    end
+                else
+                    hasIngredients = false
+                end
+                
+                -- Draw availability indicator
+                if not hasIngredients then
+                    love.graphics.setFont(screenManager.fonts.small)
+                    love.graphics.setColor(0.8, 0.2, 0.2)
+                    
+                    love.graphics.print(
+                        "Missing materials",
+                        self.x + self.width - 150, recipeY + 30
+                    )
+                else
+                    love.graphics.setFont(screenManager.fonts.small)
+                    love.graphics.setColor(0.2, 0.8, 0.2)
+                    
+                    love.graphics.print(
+                        "Available",
+                        self.x + self.width - 150, recipeY + 30
+                    )
+                end
+            end
+            
+            -- Draw pagination info
+            love.graphics.setFont(screenManager.fonts.small)
+            love.graphics.setColor(0.7, 0.7, 0.7)
+            
+            local totalPages = math.ceil(#displayedRecipes / smith.recipesPerPage)
+            local currentPage = math.floor(smith.pageOffset / smith.recipesPerPage) + 1
+            
+            love.graphics.print(
+                "Page " .. currentPage .. " of " .. totalPages,
+                self.x + self.width / 2 - 40, self.y + self.height - 30
+            )
+            
+            -- Draw pagination buttons
+            if currentPage > 1 then
+                -- Draw prev button
+                love.graphics.setColor(0.3, 0.3, 0.5)
+                love.graphics.rectangle(
+                    "fill",
+                    self.x + 20, self.y + self.height - 35, 
+                    100, 25,
+                    5, 5
+                )
+                
+                love.graphics.setColor(1, 1, 1)
+                love.graphics.print(
+                    "Previous",
+                    self.x + 40, self.y + self.height - 33
+                )
+            end
+            
+            if currentPage < totalPages then
+                -- Draw next button
+                love.graphics.setColor(0.3, 0.3, 0.5)
+                love.graphics.rectangle(
+                    "fill",
+                    self.x + self.width - 120, self.y + self.height - 35, 
+                    100, 25,
+                    5, 5
+                )
+                
+                love.graphics.setColor(1, 1, 1)
+                love.graphics.print(
+                    "Next",
+                    self.x + self.width - 100, self.y + self.height - 33
+                )
+            end
+            
+            -- Draw message if no recipes
+            if #displayedRecipes == 0 then
+                love.graphics.setFont(screenManager.fonts.medium)
+                love.graphics.setColor(0.7, 0.7, 0.7)
+                
+                love.graphics.printf(
+                    "No recipes available in this category.",
+                    self.x + 20, self.y + 150,
+                    self.width - 40, "center"
+                )
+            end
+        end,
+        
+        clicked = function(self, x, y, button)
+            if button ~= 1 then return false end
+            
+            -- Check if click is within panel
+            if x >= self.x and x <= self.x + self.width and
+               y >= self.y and y <= self.y + self.height then
+                
+                -- Check pagination buttons
+                if y >= self.y + self.height - 35 and y <= self.y + self.height - 10 then
+                    -- Filter recipes by category
+                    local displayedRecipes = {}
+                    for _, recipe in ipairs(smith.recipes) do
+                        if smith.selectedCategory == "All" or recipe.category == smith.selectedCategory then
+                            table.insert(displayedRecipes, recipe)
+                        end
+                    end
+                    
+                    local totalPages = math.ceil(#displayedRecipes / smith.recipesPerPage)
+                    local currentPage = math.floor(smith.pageOffset / smith.recipesPerPage) + 1
+                    
+                    -- Prev button
+                    if x >= self.x + 20 and x <= self.x + 120 and currentPage > 1 then
+                        smith.pageOffset = smith.pageOffset - smith.recipesPerPage
+                        return true
+                    end
+                    
+                    -- Next button
+                    if x >= self.x + self.width - 120 and x <= self.x + self.width - 20 and currentPage < totalPages then
+                        smith.pageOffset = smith.pageOffset + smith.recipesPerPage
+                        return true
+                    end
+                end
+                
+                -- Check recipe entries
+                local displayedRecipes = {}
+                
+                -- Filter recipes by category
+                for _, recipe in ipairs(smith.recipes) do
+                    if smith.selectedCategory == "All" or recipe.category == smith.selectedCategory then
+                        table.insert(displayedRecipes, recipe)
+                    end
+                end
+                
+                -- Apply pagination
+                local startIndex = smith.pageOffset + 1
+                local endIndex = math.min(startIndex + smith.recipesPerPage - 1, #displayedRecipes)
+                
+                for i = startIndex, endIndex do
+                    local recipeY = self.y + 50 + (i - startIndex) * 50
+                    
+                    if y >= recipeY and y <= recipeY + 45 then
+                        smith:selectRecipe(displayedRecipes[i])
+                        return true
+                    end
+                end
+                
+                return true
+            end
+            
+            return false
+        end
+    }
+    
+    -- Create recipe details panel
+    self.elements.recipeDetailsPanel = {
+        x = 50,
+        y = 120,
+        width = 700,
+        height = 400,
+        visible = false,
+        
+        draw = function(self)
+            if not self.visible or not smith.selectedRecipe then
+                return
+            end
+            
+            local recipe = smith.selectedRecipe
+            
+            -- Draw panel background
+            screenManager:drawPanel("Recipe Details", self.x, self.y, self.width, self.height)
+            
+            -- Draw recipe name
+            love.graphics.setFont(screenManager.fonts.large)
+            love.graphics.setColor(1, 1, 1)
+            
+            love.graphics.printf(
+                recipe.name,
+                self.x + 20, self.y + 50,
+                self.width - 40, "center"
+            )
+            
+            -- Draw recipe description
+            love.graphics.setFont(screenManager.fonts.medium)
+            love.graphics.setColor(0.9, 0.9, 0.9)
+            
+            love.graphics.printf(
+                recipe.description,
+                self.x + 30, self.y + 90,
+                self.width - 60, "center"
+            )
+            
+            -- Draw required materials
+            love.graphics.setFont(screenManager.fonts.medium)
+            love.graphics.setColor(1, 1, 1)
+            
+            love.graphics.print(
+                "Required Materials:",
+                self.x + 30, self.y + 140
+            )
+            
+            -- Count materials in inventory
+            local inventoryMaterials = {}
+            
+            if GAME.inventory then
+                for _, item in ipairs(GAME.inventory) do
+                    if item.type == "material" or item.type == "monster_part" then
+                        inventoryMaterials[item.name] = (inventoryMaterials[item.name] or 0) + (item.count or 1)
+                    end
+                end
+            end
+            
+            -- Draw material list
+            love.graphics.setFont(screenManager.fonts.medium)
+            
+            local materialY = self.y + 170
+            for material, count in pairs(recipe.materials) do
+                -- Check if player has enough
+                local playerCount = inventoryMaterials[material] or 0
+                local hasEnough = playerCount >= count
+                
+                -- Draw material name and count
+                if hasEnough then
+                    love.graphics.setColor(0.2, 0.8, 0.2)
+                else
+                    love.graphics.setColor(0.8, 0.2, 0.2)
+                end
+                
+                love.graphics.print(
+                    material .. " x" .. count .. " (" .. playerCount .. " available)",
+                    self.x + 50, materialY
+                )
+                
+                materialY = materialY + 30
+            end
+            
+            -- Draw gold cost
+            love.graphics.setFont(screenManager.fonts.medium)
+            love.graphics.setColor(1, 1, 0)
+            
+            love.graphics.print(
+                "Gold Cost: " .. recipe.goldCost,
+                self.x + 30, self.y + 270
+            )
+            
+            -- Check if player has enough gold
+            if not GAME.gold or GAME.gold < recipe.goldCost then
+                love.graphics.setFont(screenManager.fonts.small)
+                love.graphics.setColor(0.8, 0.2, 0.2)
+                
+                love.graphics.print(
+                    "Not enough gold!",
+                    self.x + 200, self.y + 270
+                )
+            end
+            
+            -- Draw buttons
+            self.craftButton:draw()
+            self.backButton:draw()
+        end,
+        
+        clicked = function(self, x, y, button)
+            if not self.visible then return false end
+            
+            -- Check button clicks
+            if self.craftButton:clicked(x, y, button) then
+                return true
+            end
+            
+            if self.backButton:clicked(x, y, button) then
+                return true
+            end
+            
+            return false
+        end,
+        
+        init = function(self)
+            -- Create buttons
+            self.craftButton = screenManager.UI.Button(
+                self.x + self.width / 2 - 110, self.y + self.height - 70, 
+                100, 40, "Craft", 
+                function() smith:craftItem() end
+            )
+            
+            self.backButton = screenManager.UI.Button(
+                self.x + self.width / 2 + 10, self.y + self.height - 70, 
+                100, 40, "Back", 
+                function() smith:showMainScreen() end
+            )
+        end
+    }
+    
+    -- Create craft result panel
+    self.elements.craftResultPanel = {
+        x = 150,
+        y = 150,
+        width = 500,
+        height = 300,
+        visible = false,
+        
+        draw = function(self)
+            if not self.visible or not smith.craftedItem then
+                return
+            end
+            
+            -- Draw panel background
+            screenManager:drawPanel("Item Crafted!", self.x, self.y, self.width, self.height)
+            
+            -- Draw crafted item name
+            love.graphics.setFont(screenManager.fonts.large)
+            love.graphics.setColor(1, 1, 1)
+            
+            love.graphics.printf(
+                smith.craftedItem.name,
+                self.x + 20, self.y + 50,
+                self.width - 40, "center"
+            )
+            
+            -- Draw crafted item description
+            love.graphics.setFont(screenManager.fonts.medium)
+            love.graphics.setColor(0.9, 0.9, 0.9)
+            
+            love.graphics.printf(
+                smith.craftedItem.description or "No description available.",
+                self.x + 30, self.y + 100,
+                self.width - 60, "center"
+            )
+            
+            -- Draw success message
+            love.graphics.setFont(screenManager.fonts.medium)
+            love.graphics.setColor(0.2, 0.8, 0.2)
+            
+            love.graphics.printf(
+                "The item has been added to your inventory!",
+                self.x + 30, self.y + 170,
+                self.width - 60, "center"
+            )
+            
+            -- Draw button
+            self.closeButton:draw()
+        end,
+        
+        clicked = function(self, x, y, button)
+            if not self.visible then return false end
+            
+            -- Check button click
+            if self.closeButton:clicked(x, y, button) then
+                return true
+            end
+            
+            return false
+        end,
+        
+        init = function(self)
+            -- Create button
+            self.closeButton = screenManager.UI.Button(
+                self.x + self.width / 2 - 50, self.y + self.height - 70, 
+                100, 40, "Close", 
+                function() smith:showMainScreen() end
+            )
+        end
+    }
+    
+    -- Initialize panels
+    self.elements.recipeDetailsPanel:init()
+    self.elements.craftResultPanel:init()
+    
+    -- Create back button
+    self.elements.backToTownButton = screenManager.UI.Button(
+        GAME.width - 170, GAME.height - 70, 
+        150, 40, "Back to Town", 
+        function() self:returnToTown() end
+    )
+end
+
+function smith:enter()
+    -- Start playing smith music
+    -- assetManager:playMusic("town") -- Use town music for now
+    
+    -- Initialize state
+    self.state = "main"
+    self.selectedRecipe = nil
+    self.craftedItem = nil
+    self.elements.recipeDetailsPanel.visible = false
+    self.elements.craftResultPanel.visible = false
+    self.selectedCategory = "All"
+    self.pageOffset = 0
+end
+
+function smith:draw()
+    -- Draw background
+    love.graphics.clear(screenManager.colors.background)
+    
+    -- Draw smith interior (placeholder)
+    love.graphics.setColor(0.4, 0.2, 0.1)
+    love.graphics.rectangle("fill", 0, 0, GAME.width, GAME.height)
+    
+    -- Draw smith forge
+    love.graphics.setColor(0.8, 0.4, 0.0)
+    love.graphics.rectangle("fill", GAME.width - 200, GAME.height - 200, 150, 150)
+    
+    -- Draw smith anvil
+    love.graphics.setColor(0.5, 0.5, 0.5)
+    love.graphics.rectangle("fill", 40, GAME.height - 140, 120, 80)
+    
+    -- Draw smith table
+    love.graphics.setColor(0.6, 0.4, 0.2)
+    love.graphics.rectangle("fill", 40, 20, 720, 80)
+    
+    -- Draw screen title
+    love.graphics.setFont(screenManager.fonts.large)
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.print("Blacksmith", 50, 30)
+    
+    -- Draw current gold
+    if GAME.gold then
+        love.graphics.setFont(screenManager.fonts.medium)
+        love.graphics.setColor(1, 1, 0)
+        
+        love.graphics.print(
+            "Gold: " .. GAME.gold,
+            600, 30
+        )
+    end
+    
+    -- Draw category buttons
+    for _, button in ipairs(self.elements.categoryButtons) do
+        button:draw()
+    end
+    
+    -- Draw state-specific UI
+    if self.state == "main" then
+        self.elements.recipeListPanel:draw()
+    elseif self.state == "recipe_details" then
+        self.elements.recipeDetailsPanel:draw()
+    elseif self.state == "craft_result" then
+        -- Draw background panels
+        self.elements.recipeListPanel:draw()
+        self.elements.craftResultPanel:draw()
+    end
+    
+    -- Draw back button
+    self.elements.backToTownButton:draw()
+end
+
+function smith:mousepressed(x, y, button, istouch, presses)
+    -- Check craft result panel first if visible
+    if self.elements.craftResultPanel.visible and
+       self.elements.craftResultPanel:clicked(x, y, button) then
+        -- Play click sound
+        assetManager:playSound("click")
+        return
+    end
+    
+    -- Pass to UI elements
+    for _, element in pairs(self.elements) do
+        if element.clicked and element.visible ~= false and
+           element ~= self.elements.craftResultPanel then
+            if element:clicked(x, y, button) then
+                -- Play click sound
+                assetManager:playSound("click")
+                return
+            end
+        end
+    end
+    
+    -- Check category buttons
+    for _, button in ipairs(self.elements.categoryButtons) do
+        if button:clicked(x, y, button) then
+            -- Play click sound
+            assetManager:playSound("click")
+            return
+        end
+    end
+end
+
+function smith:getCategoryOrder(category)
+    if category == "Weapons" then
+        return 1
+    elseif category == "Armor" then
+        return 2
+    elseif category == "Accessories" then
+        return 3
+    else
+        return 4
+    end
+end
+
+function smith:selectCategory(category)
+    -- Select category
+    self.selectedCategory = category
+    
+    -- Reset pagination
+    self.pageOffset = 0
+end
+
+function smith:selectRecipe(recipe)
+    -- Select recipe
+    self.selectedRecipe = recipe
+    
+    -- Show recipe details
+    self.state = "recipe_details"
+    self.elements.recipeDetailsPanel.visible = true
+end
+
+function smith:showMainScreen()
+    -- Go back to main screen
+    self.state = "main"
+    self.selectedRecipe = nil
+    self.craftedItem = nil
+    self.elements.recipeDetailsPanel.visible = false
+    self.elements.craftResultPanel.visible = false
+end
+
+function smith:craftItem()
+    if not self.selectedRecipe then
+        return
+    end
+    
+    -- Check if player has enough gold
+    if not GAME.gold or GAME.gold < self.selectedRecipe.goldCost then
+        -- Not enough gold
+        assetManager:playSound("hit")
+        return
+    end
+    
+    -- Check if player has all required materials
+    if not GAME.inventory then
+        -- No inventory
+        assetManager:playSound("hit")
+        return
+    end
+    
+    local inventoryMaterials = {}
+    
+    -- Count materials in inventory
+    for _, item in ipairs(GAME.inventory) do
+        if item.type == "material" or item.type == "monster_part" then
+            inventoryMaterials[item.name] = (inventoryMaterials[item.name] or 0) + (item.count or 1)
+        end
+    end
+    
+    -- Check each required material
+    for material, count in pairs(self.selectedRecipe.materials) do
+        if not inventoryMaterials[material] or inventoryMaterials[material] < count then
+            -- Missing materials
+            assetManager:playSound("hit")
+            return
+        end
+    end
+    
+    -- Deduct gold
+    GAME.gold = GAME.gold - self.selectedRecipe.goldCost
+    
+    -- Remove materials from inventory
+    for material, count in pairs(self.selectedRecipe.materials) do
+        local remaining = count
+        
+        for i = #GAME.inventory, 1, -1 do
+            local item = GAME.inventory[i]
+            
+            if (item.type == "material" or item.type == "monster_part") and item.name == material then
+                local itemCount = item.count or 1
+                
+                if itemCount <= remaining then
+                    -- Remove entire stack
+                    table.remove(GAME.inventory, i)
+                    remaining = remaining - itemCount
+                else
+                    -- Remove part of stack
+                    item.count = itemCount - remaining
+                    remaining = 0
+                end
+                
+                if remaining <= 0 then
+                    break
+                end
+            end
+        end
+    end
+    
+    -- Get crafted item
+    local itemTemplate = itemSystem:getItem(self.selectedRecipe.result)
+    
+    if not itemTemplate then
+        -- Item not found
+        assetManager:playSound("hit")
+        return
+    end
+    
+    self.craftedItem = {}
+    
+    -- Copy item data
+    for key, value in pairs(itemTemplate) do
+        self.craftedItem[key] = value
+    end
+    
+    -- Add to inventory
+    table.insert(GAME.inventory, self.craftedItem)
+    
+    -- Play success sound
+    assetManager:playSound("pickup")
+    
+    -- Show craft result
+    self.state = "craft_result"
+    self.elements.craftResultPanel.visible = true
+end
+
+function smith:returnToTown()
+    -- Return to town
+    local gameState = require("states/gameState")
+    gameState:changeState("overworld")
+end
+
+return smith

@@ -1,0 +1,1 @@
+"C:\Program Files\LOVE\love.exe" D:\DC_Lua_Vibe

@@ -1,0 +1,530 @@
+-- Job System
+-- Defines character jobs, progressions, and abilities
+
+local jobSystem = {
+    jobs = {}
+}
+
+-- Job definitions
+jobSystem.jobs = {
+    -- Base jobs
+    Fighter = {
+        name = "Fighter",
+        description = "A strong physical combatant skilled with weapons and armor.",
+        tier = 1,
+        attributeModifiers = {
+            STR = 3,
+            CON = 2,
+            DEX = 1
+        },
+        startingSkills = {
+            "Attack",
+            "Defend",
+            "PowerStrike"
+        },
+        availableSkills = {
+            "Attack",
+            "Defend",
+            "PowerStrike",
+            "DoubleSlash",
+            "Taunt",
+            "ShieldBash"
+        },
+        startingEquipment = {
+            weapon = "ShortSword",
+            offhand = "WoodenShield",
+            body = "LeatherArmor"
+        },
+        requirements = nil -- No requirements for base jobs
+    },
+    
+    Mage = {
+        name = "Mage",
+        description = "A spellcaster who harnesses the power of the elements.",
+        tier = 1,
+        attributeModifiers = {
+            INT = 3,
+            WIS = 2,
+            WIL = 1
+        },
+        startingSkills = {
+            "Attack",
+            "FireBolt",
+            "ManaShield"
+        },
+        availableSkills = {
+            "Attack",
+            "FireBolt", 
+            "ManaShield",
+            "IceShard",
+            "ThunderBolt",
+            "MagicBarrier"
+        },
+        startingEquipment = {
+            weapon = "ApprenticeStaff",
+            body = "ApprenticeRobe"
+        },
+        requirements = nil
+    },
+    
+    Rogue = {
+        name = "Rogue",
+        description = "A nimble combatant who excels at stealth and precision strikes.",
+        tier = 1,
+        attributeModifiers = {
+            DEX = 3,
+            CHA = 2,
+            INT = 1
+        },
+        startingSkills = {
+            "Attack",
+            "Steal",
+            "PreciseStrike"
+        },
+        availableSkills = {
+            "Attack",
+            "Steal",
+            "PreciseStrike",
+            "Backstab",
+            "Evasion",
+            "PoisonBlade"
+        },
+        startingEquipment = {
+            weapon = "Dagger",
+            offhand = "Dagger",
+            body = "LightLeather"
+        },
+        requirements = nil
+    },
+    
+    Cleric = {
+        name = "Cleric",
+        description = "A holy servant who can heal allies and smite enemies.",
+        tier = 1,
+        attributeModifiers = {
+            WIS = 3,
+            WIL = 2,
+            CON = 1
+        },
+        startingSkills = {
+            "Attack",
+            "Heal",
+            "DivineFavor"
+        },
+        availableSkills = {
+            "Attack", 
+            "Heal",
+            "DivineFavor",
+            "Purify",
+            "Smite",
+            "Blessing"
+        },
+        startingEquipment = {
+            weapon = "Mace",
+            offhand = "HolySymbol",
+            body = "AcolyteRobe"
+        },
+        requirements = nil
+    },
+    
+    -- Advanced jobs (tier 2)
+    Knight = {
+        name = "Knight",
+        description = "A heavily armored warrior who excels at defense and protection.",
+        tier = 2,
+        attributeModifiers = {
+            STR = 2,
+            CON = 3,
+            WIL = 1
+        },
+        startingSkills = {
+            "ShieldWall",
+            "Provoke"
+        },
+        availableSkills = {
+            "ShieldWall",
+            "Provoke",
+            "GuardianStance", 
+            "HolyStrike",
+            "Bulwark",
+            "ChivalricOath"
+        },
+        startingEquipment = {
+            weapon = "Longsword",
+            offhand = "KiteShield",
+            body = "ChainMail"
+        },
+        requirements = {
+            Fighter = 10
+        }
+    },
+    
+    Berserker = {
+        name = "Berserker",
+        description = "A wild warrior who sacrifices defense for pure offensive power.",
+        tier = 2,
+        attributeModifiers = {
+            STR = 4,
+            CON = 1,
+            DEX = 1
+        },
+        startingSkills = {
+            "Rage",
+            "Cleave"
+        },
+        availableSkills = {
+            "Rage",
+            "Cleave",
+            "Bloodlust",
+            "WarCry",
+            "Frenzy",
+            "BrutalSwing"
+        },
+        startingEquipment = {
+            weapon = "BattleAxe",
+            body = "TribalArmor"
+        },
+        requirements = {
+            Fighter = 10
+        }
+    },
+    
+    BlackMage = {
+        name = "Black Mage",
+        description = "A devastatingly powerful destructive magic specialist.",
+        tier = 2,
+        attributeModifiers = {
+            INT = 4,
+            WIL = 1,
+            WIS = 1
+        },
+        startingSkills = {
+            "Fireball",
+            "ArcaneAmplify"
+        },
+        availableSkills = {
+            "Fireball",
+            "ArcaneAmplify",
+            "Thunderstorm",
+            "IceSpike",
+            "DarkVoid",
+            "MeteorShower"
+        },
+        startingEquipment = {
+            weapon = "ElementalRod",
+            body = "MageRobe"
+        },
+        requirements = {
+            Mage = 10
+        }
+    },
+    
+    WhiteMage = {
+        name = "White Mage",
+        description = "A master of healing and supportive magic.",
+        tier = 2,
+        attributeModifiers = {
+            WIS = 3,
+            INT = 2,
+            WIL = 1
+        },
+        startingSkills = {
+            "GroupHeal",
+            "Protection"
+        },
+        availableSkills = {
+            "GroupHeal",
+            "Protection",
+            "Revive",
+            "HolyLight",
+            "Regen",
+            "Barrier"
+        },
+        startingEquipment = {
+            weapon = "HealingStaff",
+            body = "WhiteRobe"
+        },
+        requirements = {
+            Mage = 10,
+            Cleric = 5
+        }
+    },
+    
+    Assassin = {
+        name = "Assassin",
+        description = "A deadly specialist in taking down targets quickly and quietly.",
+        tier = 2,
+        attributeModifiers = {
+            DEX = 4,
+            INT = 1,
+            STR = 1
+        },
+        startingSkills = {
+            "DeadlyStrike",
+            "Vanish"
+        },
+        availableSkills = {
+            "DeadlyStrike",
+            "Vanish",
+            "PoisonMastery",
+            "ShadowStep",
+            "VitalStrike",
+            "Execution"
+        },
+        startingEquipment = {
+            weapon = "AssassinDagger",
+            offhand = "ThrowingKnives",
+            body = "ShadowGarb"
+        },
+        requirements = {
+            Rogue = 10
+        }
+    },
+    
+    Ranger = {
+        name = "Ranger",
+        description = "A skilled marksman who excels at ranged combat.",
+        tier = 2,
+        attributeModifiers = {
+            DEX = 3,
+            WIS = 2,
+            CON = 1
+        },
+        startingSkills = {
+            "PreciseShot",
+            "TrapMastery"
+        },
+        availableSkills = {
+            "PreciseShot",
+            "TrapMastery",
+            "MultiShot",
+            "QuickDraw",
+            "HawkEye",
+            "CripplingShot"
+        },
+        startingEquipment = {
+            weapon = "Bow",
+            offhand = "QuiverOfArrows",
+            body = "RangerLeathers"
+        },
+        requirements = {
+            Rogue = 10,
+            Fighter = 5
+        }
+    },
+    
+    Paladin = {
+        name = "Paladin",
+        description = "A holy knight who combines combat prowess with divine magic.",
+        tier = 2,
+        attributeModifiers = {
+            STR = 2,
+            WIS = 2,
+            CON = 2
+        },
+        startingSkills = {
+            "HolySmite",
+            "LayOnHands"
+        },
+        availableSkills = {
+            "HolySmite",
+            "LayOnHands",
+            "DivineFavor",
+            "Consecration",
+            "HolyProtection",
+            "RighteousStrike"
+        },
+        startingEquipment = {
+            weapon = "BlessedSword",
+            offhand = "PaladinShield",
+            body = "PaladinArmor"
+        },
+        requirements = {
+            Fighter = 10,
+            Cleric = 5
+        }
+    },
+    
+    -- Master jobs (tier 3)
+    HolyKnight = {
+        name = "Holy Knight",
+        description = "A divine warrior blessed with overwhelming holy power.",
+        tier = 3,
+        attributeModifiers = {
+            STR = 3,
+            WIS = 3,
+            CON = 2,
+            WIL = 2
+        },
+        startingSkills = {
+            "DivineBlade",
+            "SacredOath"
+        },
+        availableSkills = {
+            "DivineBlade",
+            "SacredOath",
+            "HolyExplosion",
+            "ImmortalSpirit",
+            "JudgmentStrike",
+            "SacredProtection"
+        },
+        startingEquipment = {
+            weapon = "SacredBlade",
+            offhand = "DivineAegis",
+            body = "HolyCrusaderArmor"
+        },
+        requirements = {
+            Paladin = 15,
+            Knight = 10
+        }
+    },
+    
+    Archmage = {
+        name = "Archmage",
+        description = "A legendary mage who has mastered all forms of magic.",
+        tier = 3,
+        attributeModifiers = {
+            INT = 4,
+            WIS = 3,
+            WIL = 3
+        },
+        startingSkills = {
+            "ArcaneMastery",
+            "ElementalConversion"
+        },
+        availableSkills = {
+            "ArcaneMastery",
+            "ElementalConversion",
+            "TrueSpell",
+            "ArcaneBarrage",
+            "DimensionalRift",
+            "TimeStop"
+        },
+        startingEquipment = {
+            weapon = "ArchmageStaff",
+            body = "ArchmagerobeOfPower"
+        },
+        requirements = {
+            BlackMage = 15,
+            WhiteMage = 10
+        }
+    },
+    
+    Shadowblade = {
+        name = "Shadowblade",
+        description = "A master assassin who has merged with the shadows themselves.",
+        tier = 3,
+        attributeModifiers = {
+            DEX = 5,
+            INT = 2,
+            CHA = 3
+        },
+        startingSkills = {
+            "ShadowMerge",
+            "DeathMark"
+        },
+        availableSkills = {
+            "ShadowMerge",
+            "DeathMark",
+            "PhantomStrike",
+            "ShadowClones",
+            "VoidWalk",
+            "AssassinateNullifier"
+        },
+        startingEquipment = {
+            weapon = "ShadowbladeDaggers",
+            body = "ShadowWalkerCloak"
+        },
+        requirements = {
+            Assassin = 15,
+            BlackMage = 5
+        }
+    }
+}
+
+-- Get a job definition by name
+function jobSystem:getJob(name)
+    return self.jobs[name]
+end
+
+-- Get all available jobs for a character
+function jobSystem:getAvailableJobs(character)
+    local available = {}
+    
+    for name, job in pairs(self.jobs) do
+        local canAccess = true
+        
+        -- Check requirements
+        if job.requirements then
+            for reqJob, reqLevel in pairs(job.requirements) do
+                local hasJob = false
+                local jobLevel = 0
+                
+                -- Check job history
+                for _, historicJob in ipairs(character.jobHistory) do
+                    if historicJob == reqJob then
+                        hasJob = true
+                        -- For now assuming character level is job level
+                        jobLevel = character.level
+                        break
+                    end
+                end
+                
+                if not hasJob or jobLevel < reqLevel then
+                    canAccess = false
+                    break
+                end
+            end
+        end
+        
+        if canAccess then
+            table.insert(available, job)
+        end
+    end
+    
+    -- Sort by tier
+    table.sort(available, function(a, b)
+        return a.tier < b.tier
+    end)
+    
+    return available
+end
+
+-- Get base jobs (tier 1)
+function jobSystem:getBaseJobs()
+    local baseJobs = {}
+    
+    for name, job in pairs(self.jobs) do
+        if job.tier == 1 then
+            table.insert(baseJobs, job)
+        end
+    end
+    
+    return baseJobs
+end
+
+-- Get job progression options
+function jobSystem:getJobProgressions(jobName)
+    local progressions = {}
+    local currentJob = self:getJob(jobName)
+    
+    if not currentJob then
+        return {}
+    end
+    
+    -- Get next tier jobs
+    local nextTier = currentJob.tier + 1
+    
+    for name, job in pairs(self.jobs) do
+        if job.tier == nextTier then
+            -- Check if this job requires the current job
+            if job.requirements and job.requirements[jobName] then
+                table.insert(progressions, job)
+            end
+        end
+    end
+    
+    return progressions
+end
+
+return jobSystem
