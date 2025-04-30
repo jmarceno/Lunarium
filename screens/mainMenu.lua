@@ -543,7 +543,7 @@ function mainMenu:loadSelectedGame()
         GAME.party = gameData.party
         GAME.inventory = gameData.inventory
         GAME.gold = gameData.gold
-        GAME.quests = gameData.quests
+        GAME.activeQuests = gameData.quests
         GAME.completedQuests = gameData.completedQuests
         GAME.flags = gameData.flags
         

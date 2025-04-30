@@ -15,7 +15,9 @@ function gameState:init()
         tavern = require("screens/tavern"),
         guild = require("screens/guild"),
         shop = require("screens/shop"),
-        smith = require("screens/smith")
+        smith = require("screens/smith"),
+        questLog = require("screens/questLog"),
+        characterInfo = require("screens/characterInfo")
     }
     
     -- Initialize all states

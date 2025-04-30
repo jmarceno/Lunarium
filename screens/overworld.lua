@@ -122,6 +122,19 @@ function overworld:createUI()
             end
         end,
         
+        mousereleased = function(self, x, y, button)
+            if not self.visible then return false end
+            
+            -- Handle button releases
+            for _, btn in ipairs(self.buttons) do
+                if btn.released then
+                    btn:released(x, y, button)
+                end
+            end
+            
+            return true
+        end,
+        
         init = function(self)
             -- Create menu buttons
             self.buttons = {
@@ -153,7 +166,9 @@ function overworld:createUI()
                     self.x + 50, self.y + 230, 
                     200, 40, "Character Info", 
                     function() 
-                        -- TODO: Implement character info screen
+                        -- Open the character info screen
+                        local gameState = require("states/gameState")
+                        gameState:changeState("characterInfo")
                         self.visible = false
                     end
                 ),
@@ -162,7 +177,9 @@ function overworld:createUI()
                     self.x + 50, self.y + 280, 
                     200, 40, "Quest Log", 
                     function() 
-                        -- TODO: Implement quest log screen
+                        -- Open the quest log screen
+                        local gameState = require("states/gameState")
+                        gameState:changeState("questLog")
                         self.visible = false
                     end
                 ),
@@ -563,11 +580,27 @@ function overworld:mousepressed(x, y, button, istouch, presses)
 end
 
 function overworld:mousereleased(x, y, button, istouch, presses)
-    -- Pass to UI elements
-    for _, element in pairs(self.elements) do
-        if element.released then
+    -- Check if menu panel is open and has a mousereleased method
+    if self.elements.menuPanel.visible and self.elements.menuPanel.mousereleased then
+        self.elements.menuPanel:mousereleased(x, y, button)
+    end
+
+    -- Check if quest panel is open
+    if self.elements.questPanel.visible and self.elements.questPanel.mousereleased then
+        self.elements.questPanel:mousereleased(x, y, button)
+    end
+    
+    -- Pass to other UI elements
+    for name, element in pairs(self.elements) do
+        if element.released and element.visible ~= false and 
+           element ~= self.elements.menuPanel and
+           element ~= self.elements.questPanel then
             element:released(x, y)
         end
+    end
+    
+    if GAME.debug then
+        print("Overworld mouse released at: " .. x .. "," .. y)
     end
 end
 
@@ -582,7 +615,7 @@ function overworld:saveGame()
         party = GAME.party,
         inventory = GAME.inventory,
         gold = GAME.gold,
-        quests = GAME.quests,
+        quests = GAME.activeQuests,
         completedQuests = GAME.completedQuests,
         flags = GAME.flags,
         gameTime = GAME.gameTime or 0

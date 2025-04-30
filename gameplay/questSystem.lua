@@ -701,4 +701,16 @@ function questSystem:resetAvailableQuests()
     -- TODO: Generate some random quests
 end
 
+-- Get active quests
+function questSystem:getActiveQuests()
+    -- Return the active quests list or empty table if none
+    return GAME.activeQuests or {}
+end
+
+-- Get completed quests
+function questSystem:getCompletedQuests()
+    -- Return the completed quests list or empty table if none
+    return GAME.completedQuests or {}
+end
+
 return questSystem
