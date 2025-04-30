@@ -457,9 +457,40 @@ function guild:mousepressed(x, y, button, istouch, presses)
                 -- Don't break to allow hover effects
             end
         end
-    }
+    end
     
     return clickHandled
+end
+
+function guild:mousereleased(x, y, button, istouch, presses)
+    -- Handle mouse releases for UI elements
+    if self.state == "quest_details" and self.elements.questDetailsPanel.visible then
+        -- Check if any button in the quest details panel was released
+        local acceptButton = self.elements.questDetailsPanel.acceptButton
+        local backButton = self.elements.questDetailsPanel.backButton
+        
+        if acceptButton and acceptButton.released then
+            acceptButton:released(x, y, button)
+        end
+        
+        if backButton and backButton.released then
+            backButton:released(x, y, button)
+        end
+    end
+    
+    -- Check back to town button
+    if self.elements.backToTownButton and self.elements.backToTownButton.released then
+        self.elements.backToTownButton:released(x, y, button)
+    end
+    
+    -- Check refresh button if visible
+    if self.state == "main" and self.elements.refreshButton and self.elements.refreshButton.released then
+        self.elements.refreshButton:released(x, y, button)
+    end
+    
+    if GAME.debug then
+        print("Guild mouse released at: " .. x .. "," .. y)
+    end
 end
 
 function guild:loadQuests()

@@ -553,9 +553,40 @@ function shop:mousepressed(x, y, button, istouch, presses)
                 -- Don't break to allow hover effects
             end
         end
-    }
+    end
     
     return clickHandled
+end
+
+function shop:mousereleased(x, y, button, istouch, presses)
+    -- Handle mouse releases for UI elements
+    
+    -- Handle item details panel button releases
+    if self.state == "item_details" and self.elements.itemDetailsPanel.visible then
+        if self.elements.itemDetailsPanel.buyButton and self.elements.itemDetailsPanel.buyButton.released then
+            self.elements.itemDetailsPanel.buyButton:released(x, y, button)
+        end
+        
+        if self.elements.itemDetailsPanel.backButton and self.elements.itemDetailsPanel.backButton.released then
+            self.elements.itemDetailsPanel.backButton:released(x, y, button)
+        end
+    end
+    
+    -- Handle category buttons
+    for _, button in ipairs(self.elements.categoryButtons) do
+        if button.released then
+            button:released(x, y, button)
+        end
+    end
+    
+    -- Handle back to town button
+    if self.elements.backToTownButton and self.elements.backToTownButton.released then
+        self.elements.backToTownButton:released(x, y, button)
+    end
+    
+    if GAME.debug then
+        print("Shop mouse released at: " .. x .. "," .. y)
+    end
 end
 
 function shop:loadInventory()
@@ -569,7 +600,7 @@ function shop:loadInventory()
         if weapon.tier ~= 3 then
             table.insert(self.inventory, weapon)
         end
-    }
+    end
     
     -- Add armor
     local armors = itemSystem:getItemsByType("armor")
@@ -577,8 +608,8 @@ function shop:loadInventory()
         -- Skip master armor
         if armor.tier ~= 3 then
             table.insert(self.inventory, armor)
-        }
-    }
+        end
+    end
     
     -- Add accessories
     local accessories = itemSystem:getItemsByType("accessory")
@@ -586,14 +617,14 @@ function shop:loadInventory()
         -- Skip master accessories
         if accessory.tier ~= 3 then
             table.insert(self.inventory, accessory)
-        }
-    }
+        end
+    end
     
     -- Add consumables
     local consumables = itemSystem:getItemsByType("consumable")
     for _, consumable in ipairs(consumables) do
         table.insert(self.inventory, consumable)
-    }
+    end
     
     -- Sort inventory by type, then by value
     table.sort(self.inventory, function(a, b)
@@ -601,7 +632,7 @@ function shop:loadInventory()
             return a.value < b.value
         else
             return self:getTypeOrder(a.type) < self:getTypeOrder(b.type)
-        }
+        end
     end)
 end
 
@@ -616,7 +647,7 @@ function shop:getTypeOrder(type)
         return 4
     else
         return 5
-    }
+    end
 end
 
 function shop:selectCategory(category)
@@ -628,7 +659,7 @@ function shop:selectCategory(category)
     
     if GAME.debug then
         print("Selected category: " .. category)
-    }
+    end
 end
 
 function shop:selectItem(item)
@@ -643,7 +674,7 @@ function shop:selectItem(item)
     
     if GAME.debug then
         print("Selected item: " .. item.name)
-    }
+    end
 end
 
 function shop:showMainScreen()
@@ -657,14 +688,14 @@ end
 function shop:buyItem()
     if not self.selectedItem then
         return
-    }
+    end
     
     -- Check if player has enough gold
     if not GAME.gold or GAME.gold < self.selectedItem.value then
         -- Not enough gold
         assetManager:playSound("hit")
         return
-    }
+    end
     
     -- Deduct gold
     GAME.gold = GAME.gold - self.selectedItem.value
@@ -672,7 +703,7 @@ function shop:buyItem()
     -- Add item to inventory
     if not GAME.inventory then
         GAME.inventory = {}
-    }
+    end
     
     -- Check if item already exists in inventory
     local found = false
@@ -682,8 +713,8 @@ function shop:buyItem()
             item.count = (item.count or 1) + 1
             found = true
             break
-        }
-    }
+        end
+    end
     
     -- Add new item if not found
     if not found then
@@ -692,15 +723,15 @@ function shop:buyItem()
         -- Copy item data
         for key, value in pairs(self.selectedItem) do
             newItem[key] = value
-        }
+        end
         
         -- Add count for stackable items
         if newItem.type == "consumable" or newItem.type == "material" then
             newItem.count = 1
-        }
+        end
         
         table.insert(GAME.inventory, newItem)
-    }
+    end
     
     -- Play success sound
     assetManager:playSound("pickup")

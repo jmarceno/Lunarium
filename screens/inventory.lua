@@ -40,6 +40,7 @@ function inventory:createUI()
             115, 30, category, 
             function() self:selectCategory(category) end
         )
+        self.elements.categoryButtons[i].visible = true
     end
     
     -- Create sort buttons
@@ -60,6 +61,11 @@ function inventory:createUI()
             function() self:setSortMethod("value") end
         )
     }
+    
+    -- Set visibility for sort buttons
+    for _, button in ipairs(self.elements.sortButtons) do
+        button.visible = true
+    end
     
     -- Create character selection tabs
     self.elements.characterTabs = {
@@ -639,12 +645,18 @@ function inventory:createUI()
         )
     }
     
+    -- Set visibility for action buttons
+    self.elements.actionButtons.useButton.visible = true
+    self.elements.actionButtons.equipButton.visible = true
+    self.elements.actionButtons.dropButton.visible = true
+    
     -- Create back button
     self.elements.backButton = screenManager.UI.Button(
         20, GAME.height - 60, 
         100, 40, "Back", 
         function() self:close() end
     )
+    self.elements.backButton.visible = true
 end
 
 function inventory:enter(params)
@@ -710,69 +722,133 @@ function inventory:draw()
 end
 
 function inventory:mousepressed(x, y, button, istouch, presses)
+    -- Flag to track if click was handled
+    local clickHandled = false
+    
     -- Pass to character tabs first
     if self.elements.characterTabs:clicked(x, y, button) then
         -- Play click sound
         assetManager:playSound("click")
-        return
+        clickHandled = true
     end
     
-    -- Pass to item list panel
-    if self.elements.itemListPanel:clicked(x, y, button) then
+    -- Pass to item list panel if not yet handled
+    if not clickHandled and self.elements.itemListPanel:clicked(x, y, button) then
         -- Play click sound
         assetManager:playSound("click")
-        return
+        clickHandled = true
     end
     
-    -- Pass to category buttons
-    for _, btn in ipairs(self.elements.categoryButtons) do
-        if btn:clicked(x, y, button) then
-            -- Play click sound
-            assetManager:playSound("click")
-            return
+    -- Pass to category buttons if not yet handled
+    if not clickHandled then
+        for i, btn in ipairs(self.elements.categoryButtons) do
+            if btn:clicked(x, y, button) then
+                -- Play click sound
+                assetManager:playSound("click")
+                
+                if GAME.debug then
+                    print("Category button clicked: " .. self.categories[i])
+                end
+                
+                clickHandled = true
+                break
+            end
         end
     end
     
-    -- Pass to sort buttons
-    for _, btn in ipairs(self.elements.sortButtons) do
-        if btn:clicked(x, y, button) then
-            -- Play click sound
-            assetManager:playSound("click")
-            return
+    -- Pass to sort buttons if not yet handled
+    if not clickHandled then
+        for i, btn in ipairs(self.elements.sortButtons) do
+            if btn:clicked(x, y, button) then
+                -- Play click sound
+                assetManager:playSound("click")
+                
+                if GAME.debug then
+                    print("Sort button clicked: " .. i)
+                end
+                
+                clickHandled = true
+                break
+            end
         end
     end
     
-    -- Pass to action buttons
-    if self.selectedItem then
+    -- Pass to action buttons if not yet handled
+    if not clickHandled and self.selectedItem then
         if self.selectedItem.type == "consumable" and
            self.elements.actionButtons.useButton:clicked(x, y, button) then
             -- Play click sound
             assetManager:playSound("click")
-            return
-        end
-        
-        if (self.selectedItem.type == "weapon" or 
+            clickHandled = true
+        elseif (self.selectedItem.type == "weapon" or 
             self.selectedItem.type == "armor" or 
             self.selectedItem.type == "accessory") and
            self.selectedCharacter and
            self.elements.actionButtons.equipButton:clicked(x, y, button) then
             -- Play click sound
             assetManager:playSound("click")
-            return
-        end
-        
-        if self.elements.actionButtons.dropButton:clicked(x, y, button) then
+            clickHandled = true
+        elseif self.elements.actionButtons.dropButton:clicked(x, y, button) then
             -- Play click sound
             assetManager:playSound("click")
-            return
+            clickHandled = true
         end
     end
     
-    -- Pass to back button
-    if self.elements.backButton:clicked(x, y, button) then
+    -- Pass to back button if not yet handled
+    if not clickHandled and self.elements.backButton:clicked(x, y, button) then
         -- Play click sound
         assetManager:playSound("click")
-        return
+        clickHandled = true
+    end
+    
+    return clickHandled
+end
+
+function inventory:mousereleased(x, y, button, istouch, presses)
+    -- Handle button releases to trigger callbacks
+    
+    -- Handle category buttons
+    for _, btn in ipairs(self.elements.categoryButtons) do
+        if btn.released then
+            btn:released(x, y, button)
+        end
+    end
+    
+    -- Handle sort buttons
+    for _, btn in ipairs(self.elements.sortButtons) do
+        if btn.released then
+            btn:released(x, y, button)
+        end
+    end
+    
+    -- Handle action buttons if item is selected
+    if self.selectedItem then
+        if self.selectedItem.type == "consumable" and
+           self.elements.actionButtons.useButton.released then
+            self.elements.actionButtons.useButton:released(x, y, button)
+        end
+        
+        if (self.selectedItem.type == "weapon" or 
+            self.selectedItem.type == "armor" or 
+            self.selectedItem.type == "accessory") and
+           self.selectedCharacter and
+           self.elements.actionButtons.equipButton.released then
+            self.elements.actionButtons.equipButton:released(x, y, button)
+        end
+        
+        if self.elements.actionButtons.dropButton.released then
+            self.elements.actionButtons.dropButton:released(x, y, button)
+        end
+    end
+    
+    -- Handle back button
+    if self.elements.backButton and self.elements.backButton.released then
+        self.elements.backButton:released(x, y, button)
+    end
+    
+    if GAME.debug then
+        print("Inventory mouse released at: " .. x .. "," .. y)
     end
 end
 

@@ -646,7 +646,7 @@ function tavern:mousepressed(x, y, button, istouch, presses)
                 -- Don't break to allow hover effects
             end
         end
-    }
+    end
     
     return clickHandled
 end
@@ -824,6 +824,64 @@ function tavern:returnToTown()
     -- Return to town
     local gameState = require("states/gameState")
     gameState:changeState("overworld")
+end
+
+function tavern:mousereleased(x, y, button, istouch, presses)
+    -- Handle mouse releases for UI elements based on current state
+    if self.state == "haggle" and self.elements.hagglePanel.visible then
+        -- Handle haggle panel button releases
+        if self.haggleSuccess or self.haggleAttempts >= self.maxHaggleAttempts then
+            if self.elements.hagglePanel.acceptButton and self.elements.hagglePanel.acceptButton.released then
+                self.elements.hagglePanel.acceptButton:released(x, y, button)
+            end
+        else
+            -- Handle haggle option buttons
+            if self.elements.hagglePanel.lowHaggleButton and self.elements.hagglePanel.lowHaggleButton.released then
+                self.elements.hagglePanel.lowHaggleButton:released(x, y, button)
+            end
+            
+            if self.elements.hagglePanel.mediumHaggleButton and self.elements.hagglePanel.mediumHaggleButton.released then
+                self.elements.hagglePanel.mediumHaggleButton:released(x, y, button)
+            end
+            
+            if self.elements.hagglePanel.highHaggleButton and self.elements.hagglePanel.highHaggleButton.released then
+                self.elements.hagglePanel.highHaggleButton:released(x, y, button)
+            end
+        end
+        
+        if self.elements.hagglePanel.cancelButton and self.elements.hagglePanel.cancelButton.released then
+            self.elements.hagglePanel.cancelButton:released(x, y, button)
+        end
+    end
+    
+    -- Handle quest details panel button releases
+    if (self.state == "quest_details" or self.state == "haggle") and self.elements.questDetailsPanel.visible then
+        if self.elements.questDetailsPanel.acceptButton and self.elements.questDetailsPanel.acceptButton.released then
+            self.elements.questDetailsPanel.acceptButton:released(x, y, button)
+        end
+        
+        if self.elements.questDetailsPanel.haggleButton and self.elements.questDetailsPanel.haggleButton.released then
+            self.elements.questDetailsPanel.haggleButton:released(x, y, button)
+        end
+        
+        if self.elements.questDetailsPanel.backButton and self.elements.questDetailsPanel.backButton.released then
+            self.elements.questDetailsPanel.backButton:released(x, y, button)
+        end
+    end
+    
+    -- Handle back to town button
+    if self.elements.backToTownButton and self.elements.backToTownButton.released then
+        self.elements.backToTownButton:released(x, y, button)
+    end
+    
+    -- Handle refresh button if visible
+    if self.state == "main" and self.elements.refreshButton and self.elements.refreshButton.released then
+        self.elements.refreshButton:released(x, y, button)
+    end
+    
+    if GAME.debug then
+        print("Tavern mouse released at: " .. x .. "," .. y)
+    end
 end
 
 return tavern

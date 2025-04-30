@@ -179,6 +179,7 @@ function smith:createUI()
             160, 30, category, 
             function() self:selectCategory(category) end
         )
+        self.elements.categoryButtons[i].visible = true
     end
     
     -- Create recipe list panel
@@ -639,6 +640,50 @@ function smith:createUI()
         150, 40, "Back to Town", 
         function() self:returnToTown() end
     )
+    self.elements.backToTownButton.visible = true
+    
+    -- Set initial visibility
+    self:updateElementVisibility()
+end
+
+function smith:updateElementVisibility()
+    -- Update element visibility based on current state
+    if self.state == "main" then
+        if self.elements.recipeDetailsPanel then
+            self.elements.recipeDetailsPanel.visible = false
+        end
+        if self.elements.craftResultPanel then
+            self.elements.craftResultPanel.visible = false
+        end
+    elseif self.state == "recipe_details" then
+        if self.elements.recipeDetailsPanel then
+            self.elements.recipeDetailsPanel.visible = true
+        end
+        if self.elements.craftResultPanel then
+            self.elements.craftResultPanel.visible = false
+        end
+    elseif self.state == "craft_result" then
+        if self.elements.recipeDetailsPanel then
+            self.elements.recipeDetailsPanel.visible = false
+        end
+        if self.elements.craftResultPanel then
+            self.elements.craftResultPanel.visible = true
+        end
+    end
+    
+    -- Category buttons are always visible
+    for _, button in ipairs(self.elements.categoryButtons) do
+        button.visible = true
+    end
+    
+    -- Back to town button is always visible
+    if self.elements.backToTownButton then
+        self.elements.backToTownButton.visible = true
+    end
+    
+    if GAME.debug then
+        print("Smith UI visibility updated - State: " .. self.state)
+    end
 end
 
 function smith:enter()
@@ -653,6 +698,9 @@ function smith:enter()
     self.elements.craftResultPanel.visible = false
     self.selectedCategory = "All"
     self.pageOffset = 0
+    
+    -- Update element visibility
+    self:updateElementVisibility()
 end
 
 function smith:draw()
@@ -712,33 +760,107 @@ function smith:draw()
 end
 
 function smith:mousepressed(x, y, button, istouch, presses)
+    -- Flag to track if a click was handled
+    local clickHandled = false
+    
     -- Check craft result panel first if visible
-    if self.elements.craftResultPanel.visible and
-       self.elements.craftResultPanel:clicked(x, y, button) then
-        -- Play click sound
-        assetManager:playSound("click")
-        return
+    if self.elements.craftResultPanel.visible then
+        clickHandled = self.elements.craftResultPanel:clicked(x, y, button)
+        if clickHandled then
+            -- Play click sound
+            assetManager:playSound("click")
+            return true
+        end
     end
     
-    -- Pass to UI elements
-    for _, element in pairs(self.elements) do
-        if element.clicked and element.visible ~= false and
-           element ~= self.elements.craftResultPanel then
-            if element:clicked(x, y, button) then
-                -- Play click sound
-                assetManager:playSound("click")
-                return
-            end
+    -- Check recipe details panel if visible
+    if self.state == "recipe_details" and self.elements.recipeDetailsPanel.visible and not clickHandled then
+        clickHandled = self.elements.recipeDetailsPanel:clicked(x, y, button)
+        if clickHandled then
+            -- Play click sound
+            assetManager:playSound("click")
+            return true
+        end
+    end
+    
+    -- Check recipe list panel if in main state
+    if self.state == "main" and not clickHandled then
+        clickHandled = self.elements.recipeListPanel:clicked(x, y, button)
+        if clickHandled then
+            -- Play click sound
+            assetManager:playSound("click")
+            return true
         end
     end
     
     -- Check category buttons
-    for _, button in ipairs(self.elements.categoryButtons) do
-        if button:clicked(x, y, button) then
+    for i, button in ipairs(self.elements.categoryButtons) do
+        if button.visible and button:clicked(x, y, button) then
             -- Play click sound
             assetManager:playSound("click")
-            return
+            
+            if GAME.debug then
+                print("Category button clicked: " .. self.categories[i])
+            end
+            
+            clickHandled = true
+            -- Don't break to allow hover effects
         end
+    end
+    
+    -- Check other UI elements
+    if not clickHandled and self.elements.backToTownButton and 
+       self.elements.backToTownButton.visible and
+       self.elements.backToTownButton:clicked(x, y, button) then
+        
+        -- Play click sound
+        assetManager:playSound("click")
+        
+        if GAME.debug then
+            print("Back to town button clicked")
+        end
+        
+        clickHandled = true
+    end
+    
+    return clickHandled
+end
+
+function smith:mousereleased(x, y, button, istouch, presses)
+    -- Handle mouse releases for UI elements
+    
+    -- Handle craft result panel if visible
+    if self.elements.craftResultPanel.visible then
+        if self.elements.craftResultPanel.closeButton and self.elements.craftResultPanel.closeButton.released then
+            self.elements.craftResultPanel.closeButton:released(x, y, button)
+        end
+    end
+    
+    -- Handle recipe details panel button releases
+    if self.state == "recipe_details" and self.elements.recipeDetailsPanel.visible then
+        if self.elements.recipeDetailsPanel.craftButton and self.elements.recipeDetailsPanel.craftButton.released then
+            self.elements.recipeDetailsPanel.craftButton:released(x, y, button)
+        end
+        
+        if self.elements.recipeDetailsPanel.backButton and self.elements.recipeDetailsPanel.backButton.released then
+            self.elements.recipeDetailsPanel.backButton:released(x, y, button)
+        end
+    end
+    
+    -- Handle category buttons
+    for _, button in ipairs(self.elements.categoryButtons) do
+        if button.released then
+            button:released(x, y, button)
+        end
+    end
+    
+    -- Handle back to town button
+    if self.elements.backToTownButton and self.elements.backToTownButton.released then
+        self.elements.backToTownButton:released(x, y, button)
+    end
+    
+    if GAME.debug then
+        print("Smith mouse released at: " .. x .. "," .. y)
     end
 end
 
@@ -769,6 +891,9 @@ function smith:selectRecipe(recipe)
     -- Show recipe details
     self.state = "recipe_details"
     self.elements.recipeDetailsPanel.visible = true
+    
+    -- Update element visibility
+    self:updateElementVisibility()
 end
 
 function smith:showMainScreen()
@@ -778,6 +903,9 @@ function smith:showMainScreen()
     self.craftedItem = nil
     self.elements.recipeDetailsPanel.visible = false
     self.elements.craftResultPanel.visible = false
+    
+    -- Update element visibility
+    self:updateElementVisibility()
 end
 
 function smith:craftItem()
@@ -872,6 +1000,9 @@ function smith:craftItem()
     -- Show craft result
     self.state = "craft_result"
     self.elements.craftResultPanel.visible = true
+    
+    -- Update element visibility
+    self:updateElementVisibility()
 end
 
 function smith:returnToTown()
