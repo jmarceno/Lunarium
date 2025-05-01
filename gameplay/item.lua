@@ -879,4 +879,29 @@ function itemSystem:craftItem(recipe, inventory)
     return result
 end
 
+-- Generate a random item for stealing based on enemy level
+function itemSystem:generateRandomItem(level)
+    local items = {}
+    level = level or 1
+    
+    -- Determine item type (mostly consumables and monster parts, rarely equipment)
+    local roll = math.random(1, 100)
+    local itemType
+    
+    if roll <= 10 then -- 10% chance for weapon
+        itemType = "weapon"
+    elseif roll <= 15 then -- 5% chance for armor
+        itemType = "armor"
+    elseif roll <= 20 then -- 5% chance for accessory
+        itemType = "accessory"
+    elseif roll <= 50 then -- 30% chance for consumable
+        itemType = "consumable"
+    else -- 50% chance for monster part
+        return self:getRandomMonsterPart(level)
+    end
+    
+    -- Get a random item of the chosen type
+    return self:getRandomItem(itemType, level)
+end
+
 return itemSystem

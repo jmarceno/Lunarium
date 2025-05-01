@@ -100,7 +100,10 @@ function screenManager:initUI()
                 
                 if button == 1 and x >= self.x and x <= self.x + self.width and
                    y >= self.y and y <= self.y + self.height then
-                    self.isPressed = true
+                    -- Execute callback directly when clicked instead of waiting for release
+                    if self.callback then 
+                        self.callback() 
+                    end
                     return true
                 end
                 return false

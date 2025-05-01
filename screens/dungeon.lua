@@ -411,38 +411,11 @@ end
 
 function dungeon:updateCombat(dt)
     if self.combat then
+        -- Update the combat system
         self.combat:update(dt)
         
-        -- Check if combat is over
-        if self.combat:isOver() then
-            if self.combat:isVictory() then
-                -- Handle victory rewards
-                local loot = self.combat:getLoot()
-                
-                -- Add loot to inventory
-                if GAME.inventory and loot then
-                    for _, item in ipairs(loot) do
-                        table.insert(GAME.inventory, item)
-                    end
-                end
-                
-                -- Remove defeated monster from entities
-                for i = #self.entities, 1, -1 do
-                    if self.entities[i] == self.combat.enemy then
-                        table.remove(self.entities, i)
-                        break
-                    end
-                end
-                
-                -- Return to exploring state
-                self.state = STATES.EXPLORING
-                self.combat = nil
-            else
-                -- Handle defeat
-                -- For now, just return to town
-                self:failQuest()
-            end
-        end
+        -- Combat ending logic is now handled directly in keypressed/mousepressed
+        -- based on the return value from self.combat input handlers.
     end
 end
 
@@ -566,32 +539,94 @@ function dungeon:draw()
 end
 
 function dungeon:keypressed(key, scancode, isrepeat)
-    -- Handle key presses
-    if key == "m" then
-        -- Toggle minimap
-        self.elements.minimap.visible = not self.elements.minimap.visible
-    end
-    
-    -- Pass key press to combat system if in combat
-    if self.state == STATES.COMBAT and self.combat then
-        self.combat:keypressed(key)
-    end
-end
-
-function dungeon:mousepressed(x, y, button, istouch, presses)
-    -- Handle mouse presses for UI elements
-    for _, element in pairs(self.elements) do
-        if element.clicked and element.visible ~= false then
-            if element:clicked(x, y, button) then
-                break
+    -- Handle key presses for exploring state (like minimap toggle)
+    if self.state == STATES.EXPLORING then
+        if key == "m" then
+            -- Toggle minimap
+            self.elements.minimap.visible = not self.elements.minimap.visible
+            return true -- Handled
+        end
+    -- Pass key press to combat system ONLY if in combat state
+    elseif self.state == STATES.COMBAT and self.combat then
+        if self.combat:keypressed(key) then
+            -- If combat system signals completion via keypress, handle victory/defeat immediately
+            if self.combat:isVictory() then
+                -- Handle victory rewards
+                local loot = self.combat:getLoot()
+                if GAME.inventory and loot then
+                    for _, item in ipairs(loot) do table.insert(GAME.inventory, item) end
+                end
+                -- Find and remove the defeated monster from entities
+                local enemyToRemove = self.combat.enemy 
+                for i = #self.entities, 1, -1 do
+                    if self.entities[i] == enemyToRemove then
+                        table.remove(self.entities, i)
+                        break
+                    end
+                end
+                -- Return to exploring state
+                self.state = STATES.EXPLORING
+                self.combat = nil 
+                if GAME.debug then print("Combat over (Victory - Key), returning to dungeon") end
+            else
+                -- Handle defeat
+                if GAME.debug then print("Combat over (Defeat - Key), returning to town") end
+                self:failQuest()
             end
+            return true -- Indicate keypress was handled and led to state change
+        end
+    -- Handle keypress for completed state (Return to Town button)
+    elseif self.state == STATES.COMPLETED then
+        if key == "return" or key == "space" then
+             self:completeQuest()
+             return true -- Handled
         end
     end
     
-    -- Pass mouse press to combat system if in combat
+    -- If not handled above, return false
+    return false
+end
+
+function dungeon:mousepressed(x, y, button, istouch, presses)
+    -- Pass mouse press to combat system ONLY if in combat state
     if self.state == STATES.COMBAT and self.combat then
-        self.combat:mousepressed(x, y, button)
+        if self.combat:mousepressed(x, y, button) then
+             -- If combat system signals completion via mouse click (on Continue button)
+            if self.combat:isVictory() then
+                 -- Handle victory rewards
+                local loot = self.combat:getLoot()
+                if GAME.inventory and loot then
+                    for _, item in ipairs(loot) do table.insert(GAME.inventory, item) end
+                end
+                -- Find and remove the defeated monster from entities
+                local enemyToRemove = self.combat.enemy 
+                for i = #self.entities, 1, -1 do
+                    if self.entities[i] == enemyToRemove then
+                        table.remove(self.entities, i)
+                        break
+                    end
+                end
+                -- Return to exploring state
+                self.state = STATES.EXPLORING
+                self.combat = nil 
+                if GAME.debug then print("Combat over (Victory - Mouse), returning to dungeon") end
+            else
+                -- Handle defeat
+                if GAME.debug then print("Combat over (Defeat - Mouse), returning to town") end
+                self:failQuest()
+            end
+            return true -- Indicate click was handled and led to state change
+        end
+    -- Handle mouse press for completed state (Return to Town button)
+    elseif self.state == STATES.COMPLETED then
+        if self.elements.completeButton and self.elements.completeButton:clicked(x, y, button) then
+             self:completeQuest()
+             return true -- Handled
+        end
     end
+    
+    -- If not handled by combat or completion screen, return false
+    return false
 end
 
 function dungeon:completeQuest()

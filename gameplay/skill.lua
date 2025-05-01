@@ -477,6 +477,14 @@ end
 
 -- Calculate damage for a skill
 function skillSystem:calculateDamage(skill, user, target, level)
+    -- Ensure we have a valid skill, user, and target
+    if not skill or not user or not target then
+        if GAME.debug then
+            print("calculateDamage: Missing required parameters")
+        end
+        return 1, false -- Return minimum damage and no critical
+    end
+
     local basePower = skill.basePower or 0
     local power = basePower
     
@@ -496,23 +504,59 @@ function skillSystem:calculateDamage(skill, user, target, level)
     
     if skill.formula == "physical" then
         -- Physical damage formula
-        local attack = user.attackPower or user.attributes.STR
-        local defense = target.defense or target.attributes.CON / 2
+        local attack = 10  -- Default value if no attack power found
+        if user.attackPower ~= nil then
+            attack = user.attackPower
+        elseif user.attributes and user.attributes.STR then
+            attack = user.attributes.STR
+        end
+        
+        local defense = 5  -- Default value if no defense found
+        if target.defense ~= nil then
+            defense = target.defense
+        elseif target.attributes and target.attributes.CON then
+            defense = target.attributes.CON / 2
+        end
+        
+        -- Make sure values are numbers
+        attack = tonumber(attack) or 10
+        defense = tonumber(defense) or 5
         
         damage = (power / 100) * (attack * 2 - defense)
         damage = math.max(1, damage)
         
     elseif skill.formula == "magical" then
         -- Magical damage formula
-        local magicPower = user.magicPower or user.attributes.INT
-        local magicDefense = target.magicDefense or target.attributes.WIL / 2
+        local magicPower = 10  -- Default value if no magic power found
+        if user.magicPower ~= nil then
+            magicPower = user.magicPower
+        elseif user.attributes and user.attributes.INT then
+            magicPower = user.attributes.INT
+        end
+        
+        local magicDefense = 5  -- Default value if no magic defense found
+        if target.magicDefense ~= nil then
+            magicDefense = target.magicDefense
+        elseif target.attributes and target.attributes.WIL then
+            magicDefense = target.attributes.WIL / 2
+        end
+        
+        -- Make sure values are numbers
+        magicPower = tonumber(magicPower) or 10
+        magicDefense = tonumber(magicDefense) or 5
         
         damage = (power / 100) * (magicPower * 2.5 - magicDefense)
         damage = math.max(1, damage)
         
     elseif skill.formula == "healing" then
         -- Healing formula
-        local wisdom = user.attributes.WIS or 10
+        local wisdom = 10  -- Default value
+        if user.attributes and user.attributes.WIS then
+            wisdom = user.attributes.WIS
+        end
+        
+        -- Make sure wisdom is a number
+        wisdom = tonumber(wisdom) or 10
         
         damage = (power / 100) * (wisdom * 3)
         damage = math.max(1, damage)
