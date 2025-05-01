@@ -38,6 +38,8 @@ function dungeon:init()
     self.inventoryPanelVisible = false
     self.questLogPanelVisible = false
     self.selectedInventoryItemIndex = nil
+    self.statusBarVisible = true -- Initially visible
+    self.statusBarTimer = 10 -- 10 seconds timer
     
     -- UI elements (Initialize the table first!)
     self.elements = {}
@@ -111,22 +113,28 @@ function dungeon:init()
         function() self:completeQuest() end
     )
     
-    -- Inventory Button (Top Left)
+    -- Inventory Button (Bottom Right)
     self.elements.inventoryButton = screenManager.UI.Button(
-        10, 10, 100, 30, "Inventory (I)",
+        GAME.width - 110, GAME.height - 110, 100, 30, "Inventory (I)",
         function() self:openInventory() end
     )
     
-    -- Quest Log Button (Top Left, below Inventory)
+    -- Quest Log Button (Bottom Right, above Inventory)
     self.elements.questLogButton = screenManager.UI.Button(
-        10, 50, 100, 30, "Quests (J)",
+        GAME.width - 110, GAME.height - 150, 100, 30, "Quests (J)",
         function() self:toggleQuestLogPanel() end
+    )
+    
+    -- Status Button (Bottom Right, left of Inventory)
+    self.elements.statusButton = screenManager.UI.Button(
+        GAME.width - 220, GAME.height - 110, 100, 30, "Status (K)",
+        function() self:toggleStatusBar() end
     )
     
     -- Initialize minimap
     self.elements.minimap = {
         x = GAME.width - 220,
-        y = 20,
+        y = 10, -- Move down to avoid overlap with status bar
         width = 200,
         height = 200,
         scale = 10,
@@ -220,11 +228,14 @@ function dungeon:init()
     -- Status bar
     self.elements.statusBar = {
         x = 10,
-        y = GAME.height - 70,
-        width = GAME.width - 20,
+        y = 10,
+        width = GAME.width - 240, -- Make room for buttons on the right
         height = 60,
+        visible = true,
         
         draw = function(self)
+            if not self.visible then return end
+            
             -- Draw status bar background
             love.graphics.setColor(0, 0, 0, 0.7)
             love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 5, 5)
@@ -237,13 +248,38 @@ function dungeon:init()
                 love.graphics.setFont(screenManager.fonts.small)
                 love.graphics.print("Current Quest: " .. dungeon.currentQuest.name, self.x + 10, self.y + 10)
                 
-                -- Draw objective status
-                local objectiveText = "Find the target location"
-                if dungeon.objective.reached then
-                    objectiveText = "Return to entrance"
+                -- Draw objective status based on quest type
+                local objectiveText = ""
+                local objectiveColor = {1, 0.8, 0}
+                
+                if dungeon.currentQuest.type == "EXPLORE" then
+                    if dungeon.objective.reached then
+                        objectiveText = "Return to entrance"
+                        objectiveColor = {0, 1, 0}
+                    else
+                        objectiveText = "Find the target location"
+                    end
+                elseif dungeon.currentQuest.type == "KILL" then
+                    local current = dungeon.currentQuest.objective.current or 0
+                    local count = dungeon.currentQuest.objective.count or 0
+                    objectiveText = "Defeat " .. current .. "/" .. count .. " " .. dungeon.currentQuest.objective.targetName
+                    
+                    -- Set color to green if objective is complete
+                    if current >= count then
+                        objectiveColor = {0, 1, 0}
+                    end
+                elseif dungeon.currentQuest.type == "COLLECT" then
+                    local current = dungeon.currentQuest.objective.current or 0
+                    local count = dungeon.currentQuest.objective.count or 0
+                    objectiveText = "Collect " .. current .. "/" .. count .. " " .. dungeon.currentQuest.objective.itemName
+                    
+                    -- Set color to green if objective is complete
+                    if current >= count then
+                        objectiveColor = {0, 1, 0}
+                    end
                 end
                 
-                love.graphics.setColor(dungeon.objective.reached and {0, 1, 0} or {1, 0.8, 0})
+                love.graphics.setColor(objectiveColor)
                 love.graphics.print("Objective: " .. objectiveText, self.x + 10, self.y + 30)
             end
         end
@@ -411,6 +447,7 @@ function dungeon:enter(params)
     self.objective.completed = false
     self.objective.reached = false
     self.fogOfWarRadius = 5 -- Visibility radius for fog of war
+    self.killQuestNotificationShown = false -- Reset notification flag for kill quests
     
     -- Start playing dungeon music
     assetManager:playMusic("dungeon")
@@ -710,11 +747,41 @@ function dungeon:addFillerEntities(difficulty, count, avoidEnd)
 end
 
 function dungeon:update(dt)
+    -- Update status bar timer
+    if self.statusBarVisible and self.statusBarTimer > 0 then
+        self.statusBarTimer = self.statusBarTimer - dt
+        if self.statusBarTimer <= 0 then
+            self.statusBarVisible = false
+            self.elements.statusBar.visible = false
+        end
+    end
+
     -- Update based on current state
     if self.state == STATES.EXPLORING then
         -- If quest log panel is open, don't update exploration logic (movement, etc.)
         if self.elements.questLogPanel.visible then
             return -- Stop further updates for this frame
+        end
+        
+        -- Check if a kill quest was just completed
+        if self.currentQuest and self.currentQuest.type == "KILL" and 
+           self.currentQuest.objective.current >= self.currentQuest.objective.count and
+           not self.killQuestNotificationShown then
+            
+            -- Show completion notification
+            self.elements.confirmDialog:show(
+                "You've defeated all the " .. self.currentQuest.objective.targetName .. "s! Would you like to return to town now?",
+                function() -- onConfirm (Yes - Return to town)
+                    print("Returning to town after completing kill quest.")
+                    -- Complete quest and return to town
+                    self:completeQuest()
+                end,
+                function() -- onCancel (No - Continue exploring)
+                    print("Continuing to explore after completing kill quest.")
+                    -- Just close the dialog and continue
+                    self.killQuestNotificationShown = true
+                end
+            )
         end
         
         -- Track if player moved this frame
@@ -1049,6 +1116,7 @@ function dungeon:draw()
     if self.state ~= STATES.COMBAT then
         self.elements.inventoryButton:draw()
         self.elements.questLogButton:draw()
+        self.elements.statusButton:draw()
     end
     
     -- Draw any panels that should appear on top
@@ -1090,6 +1158,12 @@ function dungeon:keypressed(key, scancode, isrepeat)
             return true
         end
         
+        -- Status bar shortcut
+        if key == 'k' then
+            self:toggleStatusBar()
+            return true
+        end
+        
         -- Handle key presses for exploring state (like minimap toggle)
         if key == "m" then
             -- Toggle minimap
@@ -1116,6 +1190,8 @@ function dungeon:keypressed(key, scancode, isrepeat)
                 -- Return to exploring state
                 self.state = STATES.EXPLORING
                 self.combat = nil 
+                -- Reset kill quest notification flag so we can check if quest is completed
+                self.killQuestNotificationShown = false
                 if GAME.debug then print("Combat over (Victory - Key), returning to dungeon") end
             else
                 -- Handle defeat
@@ -1159,6 +1235,7 @@ function dungeon:mousepressed(x, y, button, istouch, presses)
     if self.state == STATES.EXPLORING then
         if self.elements.inventoryButton:clicked(x, y, button) then return true end
         if self.elements.questLogButton:clicked(x, y, button) then return true end
+        if self.elements.statusButton:clicked(x, y, button) then return true end
     end
 
     -- Pass mouse press to combat system ONLY if in combat state
@@ -1182,6 +1259,8 @@ function dungeon:mousepressed(x, y, button, istouch, presses)
                 -- Return to exploring state
                 self.state = STATES.EXPLORING
                 self.combat = nil 
+                -- Reset kill quest notification flag so we can check if quest is completed
+                self.killQuestNotificationShown = false
                 if GAME.debug then print("Combat over (Victory - Mouse), returning to dungeon") end
             else
                 -- Handle defeat
@@ -1269,8 +1348,8 @@ function dungeon:drawExploringState()
     love.graphics.setColor(1, 1, 1)
     raycaster:render(self.map, self.entities)
     
-    -- Draw status bar if it exists
-    if self.elements.statusBar then
+    -- Draw status bar if it exists and is visible
+    if self.elements.statusBar and self.statusBarVisible then
         self.elements.statusBar:draw()
     end
     
@@ -1297,6 +1376,16 @@ function dungeon:drawExploringState()
         for i, entity in ipairs(self.entities) do
             love.graphics.print("Entity " .. i .. ": " .. string.format("%.2f, %.2f", entity.x, entity.y), 10, 50 + (i-1) * 20)
         end
+    end
+end
+
+-- Toggle Status Bar Visibility
+function dungeon:toggleStatusBar()
+    self.statusBarVisible = not self.statusBarVisible
+    self.elements.statusBar.visible = self.statusBarVisible
+    if self.statusBarVisible then
+        -- Reset timer when manually shown
+        self.statusBarTimer = 10
     end
 end
 
