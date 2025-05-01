@@ -206,15 +206,12 @@ questSystem.quests = {
         giver = "Tavern",
         objective = {
             type = "kill",
-            targetId = 1, -- Rat ID
+            targetId = "monster_rat",
             targetName = "Giant Rat",
             count = 5,
             current = 0
         },
-        rewards = {
-            gold = 50,
-            items = {}
-        },
+        rewards = { gold = 50, items = {} },
         status = questSystem.STATUS.AVAILABLE,
         seed = 12345 -- Seed for dungeon generation
     },
@@ -256,10 +253,7 @@ questSystem.quests = {
             count = 8,
             current = 0
         },
-        rewards = {
-            gold = 150,
-            items = {}
-        },
+        rewards = { gold = 150, items = {} },
         status = questSystem.STATUS.AVAILABLE,
         seed = 34567
     },
@@ -273,18 +267,18 @@ questSystem.quests = {
         giver = "Tavern",
         objective = {
             type = "collect",
-            itemId = "RareHerb",
+            itemId = "item_rare_herb",
             itemName = "Rare Healing Herb",
             count = 5,
             current = 0
         },
         rewards = {
-            gold = 100,
+            gold = 500,
             items = {
                 {
-                    type = "consumable",
-                    name = "Healing Potion",
-                    count = 3
+                    type = "weapon",
+                    name = "item_troll_crusher",
+                    count = 1
                 }
             }
         },
@@ -407,11 +401,11 @@ function questSystem:generateRandomQuest(giver, level, difficulty)
     elseif questType == "COLLECT" then
         -- Item targets
         local items = {
-            {id = "RareHerb", name = "Rare Healing Herb"},
-            {id = "MagicCrystal", name = "Magic Crystal"},
-            {id = "AncientRelic", name = "Ancient Relic"},
-            {id = "DragonScale", name = "Dragon Scale"},
-            {id = "EnchantedGem", name = "Enchanted Gem"}
+            {id = "item_rare_herb", name = "Rare Healing Herb"},
+            {id = "item_magic_crystal", name = "Magic Crystal"},
+            {id = "item_ancient_relic", name = "Ancient Relic"},
+            {id = "item_dragon_scale", name = "Dragon Scale"},
+            {id = "item_enchanted_gem", name = "Enchanted Gem"}
         }
         
         -- Select item based on level
@@ -473,11 +467,11 @@ function questSystem:generateRandomQuest(giver, level, difficulty)
     elseif questType == "BOSS" then
         -- Bosses
         local bosses = {
-            {id = 1, name = "Giant Spider"},
-            {id = 2, name = "Ogre Chieftain"},
-            {id = 3, name = "Necromancer"},
-            {id = 4, name = "Wyvern"},
-            {id = 5, name = "Ancient Dragon"}
+            {id = "boss_spider", name = "Giant Spider"},
+            {id = "boss_ogre_chief", name = "Ogre Chieftain"},
+            {id = "boss_necromancer", name = "Necromancer"},
+            {id = "boss_wyvern", name = "Wyvern"},
+            {id = "boss_dragon", name = "Ancient Dragon"}
         }
         
         -- Locations
@@ -653,26 +647,42 @@ end
 
 -- Update quest progress
 function questSystem:updateProgress(event, data)
-    if not GAME.activeQuests then return end
+    if not GAME.activeQuests then return {} end
     
     local completedQuests = {}
     
-    for _, quest in ipairs(GAME.activeQuests) do
-        -- Get quest type template
+    -- Iterate backwards to safely remove completed quests
+    for i = #GAME.activeQuests, 1, -1 do
+        local quest = GAME.activeQuests[i]
         local questType = self.questTypes[quest.type]
+        local objectiveMet = false
         
         if questType and questType.checkCompletion then
-            -- Check if event completes this quest
-            if questType.checkCompletion(quest.objective, event, data) then
-                local completedQuest = self:completeQuest(quest.id)
-                if completedQuest then
-                    table.insert(completedQuests, completedQuest)
+            -- Check if event updates this quest's objective
+            local objectiveUpdated = questType.checkCompletion(quest.objective, event, data)
+            
+            if objectiveUpdated then
+                -- Objective was updated, now check if it's met
+                if quest.type == "KILL" or quest.type == "COLLECT" then
+                    objectiveMet = quest.objective.current >= quest.objective.count
+                elseif quest.type == "EXPLORE" or quest.type == "BOSS" or quest.type == "ESCORT" then
+                    objectiveMet = quest.objective.completed
                 end
             end
         end
+        
+        -- If objective is met, complete the quest
+        if objectiveMet then
+            if GAME.debug then print("Objective met for quest: " .. quest.id) end
+            local completedQuest = self:completeQuest(quest.id) -- completeQuest handles removal from activeQuests
+            if completedQuest then
+                table.insert(completedQuests, completedQuest)
+            end
+            -- Since we iterated backwards and removed via completeQuest, the loop index remains valid.
+        end
     end
     
-    return completedQuests
+    return completedQuests -- Return list of quests completed by this event
 end
 
 -- Get available quest count for a location

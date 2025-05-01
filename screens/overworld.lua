@@ -59,6 +59,49 @@ function overworld:init()
     -- Initialize hover state
     self.hoverLocation = nil
     
+    -- Popup message element
+    self.elements.popupMessage = {
+        visible = false,
+        message = "",
+        x = GAME.width / 2 - 150,
+        y = GAME.height / 2 - 50,
+        width = 300,
+        height = 100,
+        okButton = nil,
+        
+        init = function(self)
+            self.okButton = screenManager.UI.Button(
+                self.x + self.width/2 - 50, self.y + self.height - 55, 
+                100, 40, "OK", function() self.visible = false end
+            )
+        end,
+        
+        show = function(self, message)
+            if not self.okButton then self:init() end
+            self.message = message
+            self.visible = true
+        end,
+        
+        draw = function(self)
+            if not self.visible then return end
+            screenManager:drawPanel(nil, self.x, self.y, self.width, self.height)
+            love.graphics.setFont(screenManager.fonts.medium)
+            love.graphics.setColor(1,1,1)
+            love.graphics.printf(self.message, self.x + 10, self.y + 20, self.width - 20, "center")
+            self.okButton:draw()
+        end,
+        
+        clicked = function(self, x, y, button)
+            if not self.visible then return false end
+            if self.okButton:clicked(x, y, button) then return true end
+            -- Consume clicks inside the panel even if not on button
+            if x >= self.x and x <= self.x + self.width and y >= self.y and y <= self.y + self.height then
+               return true
+            end
+            return false
+        end
+    }
+    
     -- Create UI elements
     self:createUI()
 end
@@ -525,6 +568,9 @@ function overworld:draw()
     self.elements.menuPanel:draw()
     self.elements.questPanel:draw()
     
+    -- Draw popup last so it's on top
+    self.elements.popupMessage:draw()
+    
     -- Draw title
     love.graphics.setFont(screenManager.fonts.large)
     love.graphics.setColor(screenManager.colors.title)
@@ -534,6 +580,11 @@ end
 function overworld:mousepressed(x, y, button, istouch, presses)
     -- Flag to track if a click was handled
     local clickHandled = false
+    
+    -- Check popup first
+    if self.elements.popupMessage.visible then
+        return self.elements.popupMessage:clicked(x, y, button)
+    end
     
     -- Check if menu panel is open
     if self.elements.menuPanel.visible then
@@ -638,7 +689,27 @@ function overworld:selectLocation(location)
     
     -- Change to selected location
     local gameState = require("states/gameState")
-    gameState:changeState(location.state)
+    
+    -- Prepare parameters to pass to the next state
+    local params = {}
+    
+    -- Special handling for dungeon entry
+    if location.state == "dungeon" then
+        -- Check for active quests
+        if not GAME.activeQuests or #GAME.activeQuests == 0 then
+            -- Show popup message instead of printing
+            self.elements.popupMessage:show("You need an active quest to enter the dungeon!\nVisit the Guild or Tavern.")
+            -- TODO: Replace print with a proper UI message popup
+            return -- Stop execution, don't change state
+        end
+        
+        -- If entering dungeon, pass the first active quest
+        params.quest = GAME.activeQuests[1]
+        if GAME.debug then print("Passing quest to dungeon:", params.quest.name) end
+    end
+    
+    -- Pass the location state and any relevant parameters
+    gameState:changeState(location.state, params)
 end
 
 return overworld

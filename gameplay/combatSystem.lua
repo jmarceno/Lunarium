@@ -1739,6 +1739,18 @@ function combatSystem:createCombat(party, enemy)
         enemyDefeated = function(self)
             self:addLog(self.enemy.name .. " is defeated!", {0, 1, 0})
             
+            -- Notify quest system about the kill
+            local questSystem = require("gameplay/questSystem")
+            -- Pass relevant data: monster ID and potentially boss flag
+            local eventData = { 
+                monsterId = self.enemy.id or "unknown", -- Pass the actual monster ID
+                isBoss = self.enemy.isBoss or false -- Check for the boss flag
+            }
+            -- If it's a boss, trigger the boss kill event specifically
+            local eventName = eventData.isBoss and "boss_kill" or "kill"
+            questSystem:updateProgress(eventName, eventData) 
+            -- TODO: Check return value from updateProgress if needed for immediate completion logic
+            
             -- Calculate rewards
             self.rewards = {
                 exp = self.enemy.stats.level * 10,

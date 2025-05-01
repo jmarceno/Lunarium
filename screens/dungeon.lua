@@ -4,6 +4,9 @@ local assetManager = require("assets/assetManager")
 local raycaster = require("engine/raycaster")
 local dungeonGenerator = require("gameplay/dungeonGenerator")
 local combatSystem = require("gameplay/combatSystem")
+local questSystem = require("gameplay/questSystem")
+local itemSystem = require("gameplay/item")
+local monsterDataModule = require("gameplay/monsterData")
 local layoutHelper = screenManager.layoutHelper
 
 local dungeon = screenManager:createScreen("Dungeon")
@@ -31,15 +34,93 @@ function dungeon:init()
     self.seed = 0
     self.moveSpeed = 0.05
     self.turnSpeed = 0.03
-    self.objective = {x = 0, y = 0, completed = false}
+    self.objective = {x = 0, y = 0, completed = false, reached = false}
+    self.inventoryPanelVisible = false
+    self.questLogPanelVisible = false
+    self.selectedInventoryItemIndex = nil
     
-    -- UI elements
+    -- UI elements (Initialize the table first!)
     self.elements = {}
     
+    -- Confirmation Dialog
+    self.elements.confirmDialog = {
+        visible = false,
+        message = "",
+        confirmCallback = nil,
+        cancelCallback = nil,
+        x = GAME.width / 2 - 175,
+        y = GAME.height / 2 - 75,
+        width = 350,
+        height = 150,
+        yesButton = nil,
+        noButton = nil,
+
+        init = function(self)
+            self.yesButton = screenManager.UI.Button(
+                self.x + self.width - 110, self.y + self.height - 55,
+                100, 40, "Yes", 
+                function() 
+                    self.visible = false 
+                    if self.confirmCallback then self.confirmCallback() end 
+                end
+            )
+            self.noButton = screenManager.UI.Button(
+                self.x + 10, self.y + self.height - 55, 
+                100, 40, "No", 
+                function() 
+                    self.visible = false 
+                    if self.cancelCallback then self.cancelCallback() end 
+                end
+            )
+        end,
+
+        show = function(self, message, onConfirm, onCancel)
+            if not self.yesButton then self:init() end
+            self.message = message
+            self.confirmCallback = onConfirm
+            self.cancelCallback = onCancel
+            self.visible = true
+        end,
+
+        draw = function(self)
+            if not self.visible then return end
+            screenManager:drawPanel(nil, self.x, self.y, self.width, self.height)
+            love.graphics.setFont(screenManager.fonts.medium)
+            love.graphics.setColor(1,1,1)
+            love.graphics.printf(self.message, self.x + 10, self.y + 20, self.width - 20, "center")
+            self.yesButton:draw()
+            self.noButton:draw()
+        end,
+
+        clicked = function(self, x, y, button)
+            if not self.visible then return false end
+            if self.yesButton:clicked(x, y, button) then return true end
+            if self.noButton:clicked(x, y, button) then return true end
+            -- Consume clicks inside the panel
+            if x >= self.x and x <= self.x + self.width and y >= self.y and y <= self.y + self.height then
+               return true
+            end
+            return false
+        end
+    }
+    
+    -- Add other UI elements
     self.elements.completeButton = screenManager.UI.Button(
         GAME.width / 2 - 100, GAME.height - 80, 
         200, 50, "Return to Town", 
         function() self:completeQuest() end
+    )
+    
+    -- Inventory Button (Top Left)
+    self.elements.inventoryButton = screenManager.UI.Button(
+        10, 10, 100, 30, "Inventory (I)",
+        function() self:toggleInventoryPanel() end
+    )
+    
+    -- Quest Log Button (Top Left, below Inventory)
+    self.elements.questLogButton = screenManager.UI.Button(
+        10, 50, 100, 30, "Quests (J)",
+        function() self:toggleQuestLogPanel() end
     )
     
     -- Initialize minimap
@@ -162,11 +243,224 @@ function dungeon:init()
             end
         end
     }
+    
+    -- Inventory Panel (Hidden Initially)
+    self.elements.inventoryPanel = {
+        visible = false,
+        x = GAME.width / 2 - 300, -- Adjusted size/position
+        y = GAME.height / 2 - 250,
+        width = 600,
+        height = 500,
+        selectedItemIndex = nil,
+        scrollOffset = 0, -- For scrolling if list is long
+        itemHeight = 30, -- Height of each item row
+        itemsPerPage = 12, -- Max items visible without scrolling
+        useButton = nil, -- Button for using items
+        closeButton = nil, -- Button to close the panel
+        
+        init = function(self)
+            -- Create Use and Close buttons relative to the panel
+            self.useButton = screenManager.UI.Button(
+                self.x + self.width - 130, self.y + self.height - 60,
+                120, 40, "Use",
+                function() dungeon:useSelectedItem() end -- Call dungeon method
+            )
+            self.closeButton = screenManager.UI.Button(
+                self.x + 10, self.y + self.height - 60,
+                120, 40, "Close (ESC)",
+                function() dungeon:toggleInventoryPanel() end -- Call dungeon method
+            )
+        end,
+        
+        draw = function(self)
+            if not self.visible then return end
+            
+            -- Initialize buttons if not done yet (needs to happen after panel created)
+            if not self.useButton then self:init() end
+            
+            -- Draw background
+            love.graphics.setColor(0.1, 0.1, 0.15, 0.95)
+            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height)
+            love.graphics.setColor(0.8, 0.8, 0.8)
+            love.graphics.rectangle("line", self.x, self.y, self.width, self.height)
+            love.graphics.setFont(screenManager.fonts.large)
+            love.graphics.printf("Inventory", self.x, self.y + 10, self.width, "center")
+            
+            -- Draw Items
+            love.graphics.setFont(screenManager.fonts.small)
+            local currentY = self.y + 50
+            local displayIndex = 1
+            
+            -- Only iterate through GAME.inventory if it exists
+            if GAME.inventory then
+                for i, item in ipairs(GAME.inventory) do
+                    -- Apply scrolling
+                    if i > self.scrollOffset and displayIndex <= self.itemsPerPage then
+                        local itemText = item.name or "Unknown Item"
+                        local count = item.count or 1
+                        if count > 1 then itemText = itemText .. " (x" .. count .. ")" end
+                        
+                        -- Highlight selected item
+                        if i == self.selectedItemIndex then
+                            love.graphics.setColor(0.3, 0.3, 0.7, 0.8)
+                            love.graphics.rectangle("fill", self.x + 10, currentY - 2, self.width - 20, self.itemHeight - 4)
+                        end
+                        
+                        -- Check if item is usable (simple check for now)
+                        local isUsable = item.type == "consumable" and item.effect and item.effect.hp
+                        if isUsable then
+                            love.graphics.setColor(0.8, 1.0, 0.8) -- Greenish tint for usable
+                        else
+                            love.graphics.setColor(1, 1, 1) -- White for non-usable
+                        end
+                        
+                        love.graphics.print(itemText, self.x + 20, currentY)
+                        
+                        currentY = currentY + self.itemHeight
+                        displayIndex = displayIndex + 1
+                    end
+                end
+            else
+                love.graphics.setColor(0.7, 0.7, 0.7)
+                love.graphics.printf("Inventory is empty.", self.x, self.y + 100, self.width, "center")
+            end
+            
+            -- Draw Buttons
+            self.closeButton:draw()
+            -- Only draw Use button if a usable item is selected
+            if self.selectedItemIndex and GAME.inventory[self.selectedItemIndex] then
+                local selectedItem = GAME.inventory[self.selectedItemIndex]
+                if selectedItem.type == "consumable" and selectedItem.effect and selectedItem.effect.hp then
+                    self.useButton:draw()
+                end
+            end
+        end,
+        
+        clicked = function(self, x, y, button)
+            if not self.visible then return false end
+            
+            -- Check button clicks first
+            if self.closeButton:clicked(x, y, button) then return true end
+            if self.useButton.visible and self.useButton:clicked(x, y, button) then return true end 
+            
+            -- Check item list clicks
+            local currentY = self.y + 50
+            local displayIndex = 1
+            if GAME.inventory then
+                for i, item in ipairs(GAME.inventory) do
+                    if i > self.scrollOffset and displayIndex <= self.itemsPerPage then
+                        if x >= self.x + 10 and x <= self.x + self.width - 10 and
+                           y >= currentY - 2 and y <= currentY + self.itemHeight - 2 then
+                            -- Clicked on this item
+                            self.selectedItemIndex = i
+                            if GAME.debug then print("Selected item index: " .. i) end
+                            return true -- Handled click
+                        end
+                        currentY = currentY + self.itemHeight
+                        displayIndex = displayIndex + 1
+                    end
+                end
+            end
+            
+            return false -- Click was inside panel but not on an item/button
+        end
+    }
+    
+    -- Quest Log Panel (Hidden Initially)
+    self.elements.questLogPanel = {
+        visible = false,
+        x = GAME.width / 2 - 250,
+        y = GAME.height / 2 - 150,
+        width = 500,
+        height = 300,
+        closeButton = nil,
+        
+        init = function(self)
+            self.closeButton = screenManager.UI.Button(
+                self.x + self.width / 2 - 60, self.y + self.height - 60,
+                120, 40, "Close (ESC)",
+                function() dungeon:toggleQuestLogPanel() end
+            )
+        end,
+        
+        draw = function(self)
+            if not self.visible then return end
+            if not self.closeButton then self:init() end
+            
+            -- Placeholder draw function
+            love.graphics.setColor(0.15, 0.1, 0.1, 0.95)
+            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height)
+            love.graphics.setColor(0.8, 0.8, 0.8)
+            love.graphics.rectangle("line", self.x, self.y, self.width, self.height)
+            love.graphics.setFont(screenManager.fonts.large)
+            love.graphics.printf("Quest Log", self.x, self.y + 10, self.width, "center")
+            
+            -- Display Current Quest
+            if GAME.debug then
+                print("Drawing Quest Log Panel. dungeon.currentQuest is:", dungeon.currentQuest)
+                if dungeon.currentQuest then
+                    print("  Quest Name:", dungeon.currentQuest.name)
+                    print("  Quest Desc:", dungeon.currentQuest.description)
+                end
+            end
+            
+            love.graphics.setFont(screenManager.fonts.medium)
+            if dungeon.currentQuest then
+                love.graphics.setColor(1, 1, 0)
+                love.graphics.print("Current Quest:", self.x + 20, self.y + 60)
+                love.graphics.setColor(1, 1, 1)
+                love.graphics.print(dungeon.currentQuest.name, self.x + 40, self.y + 90)
+                
+                love.graphics.setFont(screenManager.fonts.small)
+                love.graphics.setColor(0.9, 0.9, 0.9)
+                -- Simple word wrapping for description
+                local description = dungeon.currentQuest.description or "No description available."
+                local wrappedText = {}
+                local maxWidth = self.width - 60
+                local font = screenManager.fonts.small
+                local lines = {}
+                for line in string.gmatch(description, "([^\\n]*)\\n?") do
+                    local currentLine = ""
+                    for word in string.gmatch(line .. " ", "(%S+)%s*") do
+                        local testLine = currentLine .. word .. " "
+                        if font:getWidth(testLine) <= maxWidth then
+                            currentLine = testLine
+                        else
+                            table.insert(lines, currentLine)
+                            currentLine = word .. " "
+                        end
+                    end
+                    table.insert(lines, currentLine)
+                end
+                
+                local textY = self.y + 120
+                for _, line in ipairs(lines) do
+                    love.graphics.print(line, self.x + 40, textY)
+                    textY = textY + font:getHeight() + 2
+                end
+            else
+                love.graphics.setColor(0.7, 0.7, 0.7)
+                love.graphics.printf("No active quest.", self.x, self.y + 100, self.width, "center")
+            end
+            
+            -- Draw Close button
+            self.closeButton:draw()
+        end,
+        
+        clicked = function(self, x, y, button)
+            if not self.visible then return false end
+            
+            if self.closeButton:clicked(x, y, button) then return true end
+            
+            return false -- Click was inside but not on the button
+        end
+    }
 end
 
 function dungeon:enter(params)
     self.state = STATES.EXPLORING
     self.objective.completed = false
+    self.objective.reached = false
     
     -- Start playing dungeon music
     assetManager:playMusic("dungeon")
@@ -218,14 +512,27 @@ function dungeon:enter(params)
         self:populateDungeon(1)
     end
     
-    -- Add objective marker as an entity for proper occlusion
-    table.insert(self.entities, {
-        x = self.objective.x,
-        y = self.objective.y,
-        type = "objective",
-        color = {0, 1, 0},
-        isObjective = true
+    -- Add Entrance marker entity at the start
+    table.insert(self.entities, { 
+        x = self.map.start.x + 0.5,
+        y = self.map.start.y + 0.5,
+        type = "entrance",
+        name = "Dungeon Entrance",
+        color = {0.2, 0.8, 1.0} -- Light blue
     })
+    
+    -- Add Objective marker entity ONLY if it's an Explore quest or similar
+    -- (Boss quests place the boss here, Kill/Collect quests might not need an end marker)
+    if self.currentQuest and self.currentQuest.type == "EXPLORE" then
+        table.insert(self.entities, {
+            x = self.objective.x,
+            y = self.objective.y,
+            type = "objective",
+            name = "Quest Objective",
+            color = {0, 1, 0},
+            isObjective = true
+        })
+    end
     
     -- Update raycaster camera
     raycaster:setCamera(self.playerPos.x, self.playerPos.y, self.playerPos.angle)
@@ -234,86 +541,188 @@ end
 function dungeon:populateDungeon(difficulty)
     self.entities = {}
     
-    -- Add monsters based on difficulty
-    local monsterCount = 5 + difficulty * 2
-    
-    for i = 1, monsterCount do
-        -- Find a valid position for the monster
-        local x, y
-        repeat
-            x = math.random(1, self.map.width - 2)
-            y = math.random(1, self.map.height - 2)
-        until self.map:getCell(x, y) == 0 and
-              (math.abs(x - self.map.start.x) > 3 or math.abs(y - self.map.start.y) > 3) and
-              (math.abs(x - self.map.end_.x) > 3 or math.abs(y - self.map.end_.y) > 3)
-        
-        -- Create monster entity
-        local monster = {
-            x = x + 0.5,
-            y = y + 0.5,
-            type = "monster",
-            id = math.random(1, 10),  -- Random monster type
-            color = {1, 0, 0},
-            stats = {
-                level = difficulty,
-                hp = 10 * difficulty,
-                attack = 5 + difficulty,
-                defense = 2 + difficulty * 0.5
-            }
-        }
-        
-        table.insert(self.entities, monster)
+    -- Check if we have a quest, otherwise populate randomly
+    local hasQuest = self.currentQuest and self.currentQuest.objective
+    if not hasQuest then
+        print("Warning: Populating dungeon without a valid quest! Using random population.")
+        self:addFillerEntities(difficulty, 10, false) -- Add more filler if no quest
+        return
     end
+
+    local questType = self.currentQuest.type
+    local objective = self.currentQuest.objective
+
+    -- Add quest-specific entities
+    if questType == "KILL" then
+        local fetchedMonsterData = monsterDataModule:getMonsterData(objective.targetId)
+        if not fetchedMonsterData then print("Error: Cannot find monster data for KILL quest target: " .. objective.targetId); return end
+        for i = 1, objective.count do
+            local x, y = self:findValidSpawnPosition()
+            if x then 
+                table.insert(self.entities, {
+                    x = x + 0.5,
+                    y = y + 0.5,
+                    type = "monster",
+                    id = objective.targetId,
+                    name = fetchedMonsterData.name, 
+                    color = fetchedMonsterData.color,
+                    stats = fetchedMonsterData.stats
+                })
+            end
+        end
+        -- Optionally add some unrelated filler monsters/items
+        self:addFillerEntities(difficulty, 3, false) -- Add 3 filler monsters/items
+
+    elseif questType == "COLLECT" then
+        local fetchedItemData = itemSystem:getItemData(objective.itemId)
+        -- Handle case where item might not be in main item list (e.g., pure quest item)
+        if not fetchedItemData then 
+             print("Warning: Item data not found for COLLECT quest target: " .. objective.itemId .. ". Using generic quest item.")
+             fetchedItemData = { name = objective.itemName or objective.itemId, type = "quest_item", questItemId = objective.itemId, color = {1, 1, 0} }
+        end
+        for i = 1, objective.count do
+            local x, y = self:findValidSpawnPosition()
+             if x then 
+                table.insert(self.entities, {
+                    x = x + 0.5,
+                    y = y + 0.5,
+                    type = "quest_item", -- Special type for quest items
+                    questItemId = objective.itemId,
+                    name = fetchedItemData.name,
+                    color = fetchedItemData.color or {1,1,0}
+                })
+            end
+        end
+         -- Optionally add filler monsters/items
+        self:addFillerEntities(difficulty, 5, false) -- avoidEnd is false here
+
+    elseif questType == "BOSS" then
+        -- Place boss at the end location
+        local fetchedBossData = monsterDataModule:getMonsterData(objective.bossId)
+        if not fetchedBossData then print("Error: Cannot find monster data for BOSS quest target: " .. objective.bossId); return end
+        table.insert(self.entities, {
+            x = self.map.end_.x + 0.5,
+            y = self.map.end_.y + 0.5,
+            type = "monster", -- Treat boss as a monster
+            isBoss = true, -- Add a flag
+            id = objective.bossId,
+            name = fetchedBossData.name,
+            color = fetchedBossData.color,
+            stats = fetchedBossData.stats -- Make sure boss stats are defined
+        })
+         -- Optionally add filler monsters/items, avoiding the end room
+        self:addFillerEntities(difficulty, 5, true) 
+
+    elseif questType == "ESCORT" then
+        -- TODO: Add NPC entity to follow player
+        print("ESCORT quest population not fully implemented.")
+        self:addFillerEntities(difficulty, 5)
+        
+    elseif questType == "EXPLORE" then
+        -- No specific entities needed, objective is reaching the end
+        -- Add filler monsters/items
+        self:addFillerEntities(difficulty, 5)
+        
+    else 
+        -- Fallback for unknown quest types
+        self:addFillerEntities(difficulty, 5)
+    end
+
+end
+
+-- Helper to find a valid spawn position away from start/end
+function dungeon:findValidSpawnPosition(avoidEnd)
+    local attempts = 0
+    local maxAttempts = 50
+    while attempts < maxAttempts do
+        attempts = attempts + 1
+        local x = math.random(1, self.map.width - 2)
+        local y = math.random(1, self.map.height - 2)
+        local isEndPos = (x == self.map.end_.x and y == self.map.end_.y)
+        
+        if self.map:getCell(x, y) == 0 and
+           (math.abs(x - self.map.start.x) > 2 or math.abs(y - self.map.start.y) > 2) and
+           (not avoidEnd or not isEndPos) then
+             -- Check proximity to other entities to avoid stacking
+            local tooClose = false
+            for _, entity in ipairs(self.entities) do
+                if math.abs(x - entity.x) < 1 and math.abs(y - entity.y) < 1 then
+                    tooClose = true
+                    break
+                end
+            end
+            if not tooClose then
+                return x, y
+            end
+        end
+    end
+    print("Warning: Could not find valid spawn position after " .. maxAttempts .. " attempts.")
+    return nil, nil -- Indicate failure
+end
+
+-- Helper function to add some random filler monsters and chests
+function dungeon:addFillerEntities(difficulty, count, avoidEnd)
+    local monsterCount = math.floor(count / 2)
+    local itemCount = count - monsterCount
     
-    -- Add items and chests
-    local itemCount = 2 + math.floor(difficulty / 2)
-    
+    local usedMonsterData = require("gameplay/monsterData") -- Require inside helper
+
+    -- Add filler monsters
+    for i = 1, monsterCount do
+        local x, y = self:findValidSpawnPosition(avoidEnd)
+        if x then
+            -- Choose a random non-quest monster type
+            local randomMonsterId = usedMonsterData:getRandomMonsterId(difficulty) 
+            local fetchedMonsterData = usedMonsterData:getMonsterData(randomMonsterId) 
+            if fetchedMonsterData then
+                table.insert(self.entities, {
+                    x = x + 0.5,
+                    y = y + 0.5,
+                    type = "monster",
+                    id = randomMonsterId,
+                    name = fetchedMonsterData.name, 
+                    color = fetchedMonsterData.color,
+                    stats = fetchedMonsterData.stats
+                })
+            else
+                print("Warning: Could not get data for random filler monster ID: " .. tostring(randomMonsterId))
+            end
+        end
+    end
+
+    -- Add filler chests
     for i = 1, itemCount do
-        -- Find a valid position for the item
-        local x, y
-        repeat
-            x = math.random(1, self.map.width - 2)
-            y = math.random(1, self.map.height - 2)
-        until self.map:getCell(x, y) == 0 and
-              (math.abs(x - self.map.start.x) > 2 or math.abs(y - self.map.start.y) > 2) and
-              (math.abs(x - self.map.end_.x) > 2 or math.abs(y - self.map.end_.y) > 2)
-        
-        -- Create item entity (chest)
-        local item = {
-            x = x + 0.5,
-            y = y + 0.5,
-            type = "chest",
-            color = {1, 0.8, 0},
-            contents = {}
-        }
-        
-        -- Add random loot to chest
-        local lootCount = math.random(1, 3)
-        for j = 1, lootCount do
-            -- Simple random loot generation
-            table.insert(item.contents, {
-                type = "monster_part",
-                id = math.random(1, 20),
-                name = "Monster Part",
-                value = 10 * difficulty * math.random(5, 15) / 10
-            })
+        local x, y = self:findValidSpawnPosition(avoidEnd)
+        if x then
+            local item = {
+                x = x + 0.5,
+                y = y + 0.5,
+                type = "chest",
+                color = {1, 0.8, 0},
+                contents = {}
+            }
+            -- Add random loot to chest
+            item.contents = itemSystem:generateRandomLoot(difficulty, math.random(1,2)) -- Use itemSystem
+            table.insert(self.entities, item)
         end
-        
-        -- Add gold to chest with low probability
-        if math.random() < 0.2 then
-            table.insert(item.contents, {
-                type = "gold",
-                amount = 10 * difficulty * math.random(5, 20)
-            })
-        end
-        
-        table.insert(self.entities, item)
     end
 end
 
 function dungeon:update(dt)
     -- Update based on current state
     if self.state == STATES.EXPLORING then
+        -- If panels are open, don't update exploration logic (movement, etc.)
+        if self.elements.inventoryPanel.visible or self.elements.questLogPanel.visible then
+            -- Potentially update panel elements if needed (e.g., animations)
+            -- if self.elements.inventoryPanel.visible and self.elements.inventoryPanel.update then
+            --     self.elements.inventoryPanel:update(dt)
+            -- end
+            -- if self.elements.questLogPanel.visible and self.elements.questLogPanel.update then
+            --     self.elements.questLogPanel:update(dt)
+            -- end
+            return -- Stop further updates for this frame
+        end
+        
         -- Handle player movement
         local playerMoved = false
         local baseSpeed = 2 -- base speed units per second
@@ -372,6 +781,30 @@ function dungeon:update(dt)
     elseif self.state == STATES.LOOT then
         self:updateLoot(dt)
     end
+    
+    -- Check for quest completion if exploring (not in combat/loot)
+    if self.state == STATES.EXPLORING and self.currentQuest then
+        -- Check if the quest status in the global game state has changed to completed
+        -- This relies on questSystem:updateProgress modifying the quest in GAME.activeQuests
+        local isActive = false
+        if GAME.activeQuests then
+            for _, q in ipairs(GAME.activeQuests) do
+                if q.id == self.currentQuest.id then
+                    isActive = true
+                    break
+                end
+            end
+        end
+        
+        if not isActive and self.currentQuest.status ~= questSystem.STATUS.COMPLETED then 
+            -- The quest is no longer in the active list, assume completed
+            -- Double check status isn't already completed to prevent loops if returning
+            print("Quest " .. self.currentQuest.name .. " detected as completed!")
+            self.objective.completed = true -- Mark dungeon objective as met
+            self.state = STATES.COMPLETED -- Trigger dungeon completion screen
+            -- The actual quest completion rewards are handled by questSystem/overworld
+        end
+    end
 end
 
 function dungeon:updateExploring(dt)
@@ -426,6 +859,11 @@ end
 function dungeon:checkEntityInteraction()
     -- Check for nearby entities to interact with
     for _, entity in ipairs(self.entities) do
+        -- Skip interaction if entity is nil or position is invalid (safety check)
+        if not entity or not entity.x or not entity.y then 
+            goto continue 
+        end
+
         local distToEntity = math.sqrt(
             (self.playerPos.x - entity.x)^2 + 
             (self.playerPos.y - entity.y)^2
@@ -441,6 +879,7 @@ function dungeon:checkEntityInteraction()
             elseif entity.type == "chest" then
                 -- Open chest/collect item
                 self.state = STATES.LOOT
+                print("Opening chest...") -- Debug
                 self.currentLoot = entity
                 
                 -- For now, automatically collect loot
@@ -448,8 +887,18 @@ function dungeon:checkEntityInteraction()
                     for _, item in ipairs(entity.contents) do
                         if item.type == "gold" then
                             GAME.gold = (GAME.gold or 0) + item.amount
+                            print("Collected Gold: " .. item.amount) -- Debug
                         else
+                            -- Check if this collected item is a quest item
+                            if item.questItemId and self.currentQuest and 
+                               self.currentQuest.type == "COLLECT" and 
+                               item.questItemId == self.currentQuest.objective.itemId then
+                                print("Collected QUEST ITEM from chest: " .. item.name)
+                                questSystem:updateProgress("item_pickup", {itemId = item.questItemId, count = item.count or 1})
+                            end
                             table.insert(GAME.inventory, item)
+                            print("Collected Item: " .. item.name) -- Debug
+                            -- Notify quest system if it's a regular item pickup (might be relevant for some quests)
                         end
                     end
                 end
@@ -468,14 +917,73 @@ function dungeon:checkEntityInteraction()
                 -- Return to exploring state
                 self.state = STATES.EXPLORING
                 self.currentLoot = nil
-                break
+                -- No break here, check other interactions too
             elseif entity.type == "objective" and entity.isObjective then
-                -- Mark objective as completed
-                self.objective.completed = true
-                self.state = STATES.COMPLETED
+                -- Mark objective as reached (but don't complete it yet)
+                self.objective.reached = true
+                
+                -- For EXPLORE quests, reaching the objective marks the goal as reached
+                if self.currentQuest and self.currentQuest.type == "EXPLORE" then
+                    print("Reached EXPLORE quest objective!")
+                    -- Show confirmation dialog with options
+                    self.elements.confirmDialog:show(
+                        "You've reached the objective! Would you like to return to town now?", 
+                        function() -- onConfirm (Yes - Return to town)
+                            print("Returning to town after reaching objective.")
+                            -- Update quest progress
+                            local questSystem = require("gameplay/questSystem")
+                            questSystem:updateProgress("explore", {locationId = self.currentQuest.objective.locationId})
+                            -- Return to town with quest progress saved
+                            self:completeQuest()
+                        end,
+                        function() -- onCancel (No - Continue exploring)
+                            print("Continuing to explore after reaching objective.")
+                            -- Update quest progress but stay in dungeon
+                            local questSystem = require("gameplay/questSystem")
+                            questSystem:updateProgress("explore", {locationId = self.currentQuest.objective.locationId})
+                            -- Don't immediately complete quest or return to town
+                        end
+                    )
+                end
+                break
+            elseif entity.type == "entrance" then
+                print("Interacting with entrance...")
+                
+                -- Check if this is an EXPLORE quest and the objective was reached
+                if self.currentQuest and self.currentQuest.type == "EXPLORE" and self.objective.reached then
+                    -- Show different message for completed objective
+                    self.elements.confirmDialog:show(
+                        "Return to town and complete your quest?", 
+                        function() -- onConfirm
+                            print("Returning to town with completed quest.")
+                            -- Mark objective as fully completed
+                            self.objective.completed = true
+                            self:completeQuest()
+                        end,
+                        function() -- onCancel
+                            print("Staying in dungeon.")
+                        end
+                    )
+                else
+                    -- Standard entrance dialog for non-completed quests
+                    self.elements.confirmDialog:show(
+                        "Return to town? Quest progress might be lost!", 
+                        function() -- onConfirm
+                            print("Confirmed returning to town.")
+                            local gameState = require("states/gameState")
+                            gameState:changeState("overworld")
+                            -- Optionally fail quest here if needed (e.g., escort)
+                            -- if self.currentQuest then questSystem:failQuest(self.currentQuest.id) end
+                        end,
+                        function() -- onCancel
+                            print("Cancelled returning to town.")
+                        end
+                    )
+                end
                 break
             end
         end
+        ::continue:: -- Label for goto
     end
 end
 
@@ -486,6 +994,10 @@ function dungeon:draw()
     
     -- Draw UI elements
     if self.state == STATES.EXPLORING then
+        -- Draw Inventory/Quest buttons
+        self.elements.inventoryButton:draw()
+        self.elements.questLogButton:draw()
+        
         -- Draw minimap if visible
         if self.elements.minimap.visible then
             self.elements.minimap:draw()
@@ -493,6 +1005,35 @@ function dungeon:draw()
         
         -- Draw status bar
         self.elements.statusBar:draw()
+        
+        -- Draw objective reached reminder if applicable
+        if self.objective.reached and not self.objective.completed and 
+           self.currentQuest and self.currentQuest.type == "EXPLORE" then
+            -- Display a message indicating the player should return to entrance
+            love.graphics.setColor(0, 1, 0, 0.7 + math.sin(love.timer.getTime() * 2) * 0.3) -- Pulsing green
+            love.graphics.setFont(screenManager.fonts.medium)
+            love.graphics.printf(
+                "Objective reached! Return to the entrance to complete your quest.",
+                0, 100, GAME.width, "center"
+            )
+        end
+        
+        -- Draw panels IF they are visible (potentially dim background)
+        if self.elements.inventoryPanel.visible or self.elements.questLogPanel.visible then
+            -- Dim background
+            love.graphics.setColor(0, 0, 0, 0.5)
+            love.graphics.rectangle("fill", 0, 0, GAME.width, GAME.height)
+            
+            -- Draw the visible panel
+            if self.elements.inventoryPanel.visible then
+                self.elements.inventoryPanel:draw()
+            elseif self.elements.questLogPanel.visible then
+                self.elements.questLogPanel:draw()
+            end
+        end
+        
+        -- Draw confirm dialog if visible
+        self.elements.confirmDialog:draw()
     elseif self.state == STATES.COMBAT then
         -- Draw combat UI
         if self.combat then
@@ -539,11 +1080,47 @@ function dungeon:draw()
 end
 
 function dungeon:keypressed(key, scancode, isrepeat)
+    -- First, check if panels are open and handle their input (e.g., ESC to close)
+    if self.elements.inventoryPanel.visible then
+        if key == 'escape' then self:toggleInventoryPanel(); return true end
+        -- Allow 'i' to toggle even if open
+        if key == 'i' then 
+            self:toggleInventoryPanel()
+            return true -- Handled
+        end
+        return true -- Consume input while panel is open
+    elseif self.elements.questLogPanel.visible then
+        if key == 'escape' or key == 'j' then -- 'j' toggles, ESC closes
+            self:toggleQuestLogPanel()
+            return true -- Handled
+        end
+        return true -- Consume input while panel is open
+    end
+    
+    -- Handle confirm dialog input
+    if self.elements.confirmDialog.visible then
+        if key == 'escape' then
+            self.elements.confirmDialog.visible = false
+            if self.elements.confirmDialog.cancelCallback then self.elements.confirmDialog.cancelCallback() end
+            return true
+        end
+        -- TODO: Add Enter/Y/N key handling?
+        return true -- Consume input
+    end
+    
     -- Handle key presses for exploring state (like minimap toggle)
     if self.state == STATES.EXPLORING then
         if key == "m" then
             -- Toggle minimap
             self.elements.minimap.visible = not self.elements.minimap.visible
+            return true -- Handled
+        end
+        -- Toggle panels with keys
+        if key == 'i' then
+            self:toggleInventoryPanel()
+            return true -- Handled
+        elseif key == 'j' then
+            self:toggleQuestLogPanel()
             return true -- Handled
         end
     -- Pass key press to combat system ONLY if in combat state
@@ -588,6 +1165,43 @@ function dungeon:keypressed(key, scancode, isrepeat)
 end
 
 function dungeon:mousepressed(x, y, button, istouch, presses)
+    -- First, check if panels are open and handle their clicks
+    if self.elements.confirmDialog.visible then
+        return self.elements.confirmDialog:clicked(x, y, button)
+    end
+    
+    if self.elements.inventoryPanel.visible then
+        if self.elements.inventoryPanel:clicked(x, y, button) then
+            return true -- Click handled by inventory panel
+        else
+            -- Check if click was *outside* the panel bounds; if so, close it
+            local panel = self.elements.inventoryPanel
+            if not (x >= panel.x and x <= panel.x + panel.width and y >= panel.y and y <= panel.y + panel.height) then
+                self:toggleInventoryPanel() 
+                return true -- Consumed click outside panel to close it
+            end
+            return true -- Consume click even if not handled inside panel, to prevent interaction behind it
+        end
+    elseif self.elements.questLogPanel.visible then
+        if self.elements.questLogPanel:clicked(x, y, button) then
+            return true -- Click handled by quest panel
+        else
+            -- Check if click was *outside* the panel bounds; if so, close it
+            local panel = self.elements.questLogPanel
+            if not (x >= panel.x and x <= panel.x + panel.width and y >= panel.y and y <= panel.y + panel.height) then
+                self:toggleQuestLogPanel()
+                return true -- Consumed click outside panel to close it
+            end
+            return true -- Consume click even if not handled inside panel
+        end
+    end
+    
+    -- Handle Inventory/Quest button clicks ONLY if panels are NOT open
+    if self.state == STATES.EXPLORING then
+        if self.elements.inventoryButton:clicked(x, y, button) then return true end
+        if self.elements.questLogButton:clicked(x, y, button) then return true end
+    end
+
     -- Pass mouse press to combat system ONLY if in combat state
     if self.state == STATES.COMBAT and self.combat then
         if self.combat:mousepressed(x, y, button) then
@@ -677,6 +1291,67 @@ function dungeon:onResize(width, height)
     self.elements.minimap.x = width - 220
     
     -- You might need to update other position-dependent elements here
+end
+
+-- Toggle Inventory Panel Visibility
+function dungeon:toggleInventoryPanel()
+    self.elements.inventoryPanel.visible = not self.elements.inventoryPanel.visible
+    -- Close quest log if inventory is opened
+    if self.elements.inventoryPanel.visible then
+        self.elements.questLogPanel.visible = false
+        self.elements.inventoryPanel.selectedItemIndex = nil -- Reset selection
+    end
+end
+
+-- Toggle Quest Log Panel Visibility
+function dungeon:toggleQuestLogPanel()
+    self.elements.questLogPanel.visible = not self.elements.questLogPanel.visible
+    -- Close inventory if quest log is opened
+    if self.elements.questLogPanel.visible then
+        self.elements.inventoryPanel.visible = false
+    end
+end
+
+-- Add method to use selected item
+function dungeon:useSelectedItem()
+    local panel = self.elements.inventoryPanel
+    if not panel.selectedItemIndex or not GAME.inventory[panel.selectedItemIndex] then
+        if GAME.debug then print("No item selected or index invalid") end
+        return 
+    end
+    
+    local itemIndex = panel.selectedItemIndex
+    local item = GAME.inventory[itemIndex]
+    
+    -- Check if item is usable (e.g., potion)
+    if item.type == "consumable" and item.effect and item.effect.hp then
+        -- TODO: Improve this - target selection? For now, assume first party member
+        local target = GAME.party and GAME.party[1]
+        if not target then
+            if GAME.debug then print("No party member found to use item on") end
+            return
+        end
+        
+        local hpHealed = item.effect.hp
+        target.currentHP = math.min(target.maxHP, target.currentHP + hpHealed)
+        
+        print(target.name .. " used " .. item.name .. " and recovered " .. hpHealed .. " HP.") -- TODO: Show message in UI
+        assetManager:playSound("heal") -- Assuming a heal sound exists
+        
+        -- Consume item
+        if item.count and item.count > 1 then
+            item.count = item.count - 1
+        else
+            table.remove(GAME.inventory, itemIndex)
+        end
+        
+        -- Deselect item after use
+        panel.selectedItemIndex = nil 
+        
+    else
+        if GAME.debug then print(item.name .. " cannot be used right now.") end
+        -- TODO: Show message in UI
+    end
 end
 
 return dungeon

@@ -708,12 +708,37 @@ function itemSystem:generateRandomLoot(difficulty, count)
     local loot = {}
     count = count or math.random(1, 3)
     
+    -- Check if a COLLECT quest is active for a specific item
+    local collectQuestItem = nil
+    if GAME.activeQuests and #GAME.activeQuests > 0 then
+        local quest = GAME.activeQuests[1] -- Assuming first quest
+        if quest.type == "COLLECT" and quest.objective then
+            collectQuestItem = quest.objective.itemId 
+            if GAME.debug then print("Collect quest active for item: " .. collectQuestItem) end
+        end
+    end
+    
     for i = 1, count do
         local roll = math.random(1, 100)
         
-        if roll <= 5 + (difficulty * 2) then
-            -- Rare item drop (5% base + 2% per difficulty level)
-            table.insert(loot, self:getRandomItem("consumable", difficulty))
+        -- Higher chance to drop quest item if needed
+        if collectQuestItem and roll <= 30 then -- 30% chance if quest active
+            local itemData = self:getItemData(collectQuestItem)
+            if itemData then
+                table.insert(loot, { 
+                    name = itemData.name, 
+                    type = itemData.type, 
+                    questItemId = collectQuestItem, -- Add quest ID flag
+                    value = itemData.value or 0 
+                })
+                if GAME.debug then print("Added quest item to loot: " .. itemData.name) end
+            else
+                 print("Warning: Quest item data not found for " .. collectQuestItem)
+                 table.insert(loot, self:getRandomMonsterPart(difficulty)) -- Fallback
+            end
+        elseif roll <= 5 + (difficulty * 2) then
+            -- Regular rare item drop (consumable for now)
+            table.insert(loot, self:getRandomItem("consumable", difficulty)) 
         else
             -- Monster part drop
             table.insert(loot, self:getRandomMonsterPart(difficulty))
@@ -902,6 +927,11 @@ function itemSystem:generateRandomItem(level)
     
     -- Get a random item of the chosen type
     return self:getRandomItem(itemType, level)
+end
+
+-- Get an item by name (ID)
+function itemSystem:getItemData(itemId)
+    return self.items[itemId]
 end
 
 return itemSystem

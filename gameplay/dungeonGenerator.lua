@@ -74,7 +74,7 @@ function dungeonGenerator:generate(width, height, seed)
 end
 
 function dungeonGenerator:generateRooms(map)
-    local roomCount = math.floor(map.width * map.height / 100) + math.random(3, 6)
+    local roomCount = math.floor(map.width * map.height / 100) + math.random(6, 10)
     local attempts = 0
     local maxAttempts = 100
     
