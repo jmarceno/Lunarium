@@ -15,6 +15,9 @@ function inventory:init()
     self.pageOffset = 0
     self.itemsPerPage = 12
     self.sortBy = "type" -- type, name, value
+    self.contextMenuVisible = false
+    self.confirmDialogVisible = false
+    self.openedFrom = nil -- Track which state opened the inventory
     
     -- Categories
     self.categories = {
@@ -124,6 +127,11 @@ function inventory:createUI()
                         local tabX = self.x + (i-1) * tabWidth
                         
                         if x >= tabX and x <= tabX + tabWidth - 2 then
+                            -- Debug output
+                            if GAME.debug then
+                                print("Character tab clicked: " .. character.name)
+                            end
+                            
                             inventory:selectCharacter(character)
                             return true
                         end
@@ -638,6 +646,12 @@ function inventory:createUI()
             function() inventory:equipItem() end
         ),
         
+        sellButton = screenManager.UI.Button(
+            GAME.width - 190, GAME.height - 110, 
+            80, 40, "Sell", 
+            function() inventory:sellItem() end
+        ),
+        
         dropButton = screenManager.UI.Button(
             GAME.width - 100, GAME.height - 60, 
             80, 40, "Drop", 
@@ -648,6 +662,7 @@ function inventory:createUI()
     -- Set visibility for action buttons
     self.elements.actionButtons.useButton.visible = true
     self.elements.actionButtons.equipButton.visible = true
+    self.elements.actionButtons.sellButton.visible = true
     self.elements.actionButtons.dropButton.visible = true
     
     -- Create back button
@@ -657,6 +672,329 @@ function inventory:createUI()
         function() self:close() end
     )
     self.elements.backButton.visible = true
+    
+    -- Create context menu
+    self.elements.contextMenu = {
+        x = 0,
+        y = 0,
+        width = 150,
+        height = 0,
+        options = {},
+        visible = false,
+        
+        setPosition = function(self, x, y)
+            -- Ensure menu stays on screen
+            self.x = math.min(x, GAME.width - self.width)
+            self.y = math.min(y, GAME.height - self.height)
+        end,
+        
+        setOptions = function(self, options)
+            self.options = options
+            self.height = #options * 30 + 10
+        end,
+        
+        draw = function(self)
+            if not self.visible then return end
+            
+            -- Draw background
+            love.graphics.setColor(0.2, 0.2, 0.3, 0.95)
+            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 5, 5)
+            love.graphics.setColor(0.8, 0.8, 0.8)
+            love.graphics.rectangle("line", self.x, self.y, self.width, self.height, 5, 5)
+            
+            -- Draw options
+            love.graphics.setFont(screenManager.fonts.small)
+            for i, option in ipairs(self.options) do
+                -- Hover effect
+                if option.hover then
+                    love.graphics.setColor(0.4, 0.4, 0.6)
+                    love.graphics.rectangle("fill", self.x + 5, self.y + (i-1) * 30 + 5, self.width - 10, 25, 3, 3)
+                end
+                
+                -- Option text
+                love.graphics.setColor(1, 1, 1)
+                love.graphics.print(option.text, self.x + 15, self.y + (i-1) * 30 + 10)
+            end
+        end,
+        
+        update = function(self, x, y)
+            if not self.visible then return end
+            
+            -- Update hover states
+            for i, option in ipairs(self.options) do
+                local optionY = self.y + (i-1) * 30 + 5
+                option.hover = x >= self.x + 5 and x <= self.x + self.width - 5 and
+                               y >= optionY and y <= optionY + 25
+            end
+        end,
+        
+        clicked = function(self, x, y, button)
+            if not self.visible then return false end
+            
+            for i, option in ipairs(self.options) do
+                local optionY = self.y + (i-1) * 30 + 5
+                if x >= self.x + 5 and x <= self.x + self.width - 5 and
+                   y >= optionY and y <= optionY + 25 then
+                    -- Execute callback
+                    if option.callback then
+                        option.callback()
+                    end
+                    
+                    -- Hide menu after clicking an option
+                    self.visible = false
+                    return true
+                end
+            end
+            
+            -- Check if click is outside menu (to close it)
+            if x < self.x or x > self.x + self.width or
+               y < self.y or y > self.y + self.height then
+                self.visible = false
+                return true
+            end
+            
+            return true
+        end
+    }
+    
+    -- Create confirmation dialog
+    self.elements.confirmDialog = {
+        x = GAME.width / 2 - 150,
+        y = GAME.height / 2 - 100,
+        width = 300,
+        height = 200,
+        message = "",
+        confirmCallback = nil,
+        cancelCallback = nil,
+        visible = false,
+        
+        draw = function(self)
+            if not self.visible then return end
+            
+            -- Dim background
+            love.graphics.setColor(0, 0, 0, 0.7)
+            love.graphics.rectangle("fill", 0, 0, GAME.width, GAME.height)
+            
+            -- Draw panel
+            love.graphics.setColor(0.2, 0.2, 0.3, 0.95)
+            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 8, 8)
+            love.graphics.setColor(0.8, 0.8, 0.8)
+            love.graphics.rectangle("line", self.x, self.y, self.width, self.height, 8, 8)
+            
+            -- Draw message
+            love.graphics.setFont(screenManager.fonts.medium)
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.printf(self.message, self.x + 20, self.y + 40, self.width - 40, "center")
+            
+            -- Draw buttons
+            -- Yes button
+            love.graphics.setColor(0.2, 0.5, 0.2)
+            love.graphics.rectangle("fill", self.x + self.width - 110, self.y + self.height - 60, 90, 40, 5, 5)
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.print("Yes", self.x + self.width - 85, self.y + self.height - 50)
+            
+            -- No button
+            love.graphics.setColor(0.5, 0.2, 0.2)
+            love.graphics.rectangle("fill", self.x + 20, self.y + self.height - 60, 90, 40, 5, 5)
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.print("No", self.x + 50, self.y + self.height - 50)
+        end,
+        
+        clicked = function(self, x, y, button)
+            if not self.visible then return false end
+            
+            -- Yes button
+            if x >= self.x + self.width - 110 and x <= self.x + self.width - 20 and
+               y >= self.y + self.height - 60 and y <= self.y + self.height - 20 then
+                if self.confirmCallback then
+                    self.confirmCallback()
+                end
+                self.visible = false
+                return true
+            end
+            
+            -- No button
+            if x >= self.x + 20 and x <= self.x + 110 and
+               y >= self.y + self.height - 60 and y <= self.y + self.height - 20 then
+                if self.cancelCallback then
+                    self.cancelCallback()
+                end
+                self.visible = false
+                return true
+            end
+            
+            return true
+        end
+    }
+    
+    -- Create quantity selector dialog
+    self.elements.quantitySelector = {
+        x = GAME.width / 2 - 150,
+        y = GAME.height / 2 - 120,
+        width = 300,
+        height = 240,
+        message = "",
+        quantity = 1,
+        maxQuantity = 1,
+        confirmCallback = nil,
+        cancelCallback = nil,
+        visible = false,
+        item = nil,
+        
+        draw = function(self)
+            if not self.visible then return end
+            
+            -- Dim background
+            love.graphics.setColor(0, 0, 0, 0.7)
+            love.graphics.rectangle("fill", 0, 0, GAME.width, GAME.height)
+            
+            -- Draw panel
+            love.graphics.setColor(0.2, 0.2, 0.3, 0.95)
+            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 8, 8)
+            love.graphics.setColor(0.8, 0.8, 0.8)
+            love.graphics.rectangle("line", self.x, self.y, self.width, self.height, 8, 8)
+            
+            -- Draw item name and message
+            love.graphics.setFont(screenManager.fonts.medium)
+            love.graphics.setColor(1, 1, 1)
+            
+            if self.item then
+                love.graphics.printf(self.item.name, self.x + 20, self.y + 20, self.width - 40, "center")
+            end
+            
+            love.graphics.setFont(screenManager.fonts.small)
+            love.graphics.printf(self.message, self.x + 20, self.y + 50, self.width - 40, "center")
+            
+            -- Draw quantity selector
+            love.graphics.setColor(0.3, 0.3, 0.4)
+            love.graphics.rectangle("fill", self.x + 60, self.y + 90, self.width - 120, 40, 5, 5)
+            
+            -- Draw quantity value
+            love.graphics.setFont(screenManager.fonts.large)
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.printf(tostring(self.quantity), self.x + 60, self.y + 95, self.width - 120, "center")
+            
+            -- Draw decrement button
+            love.graphics.setColor(0.7, 0.3, 0.3)
+            love.graphics.rectangle("fill", self.x + 20, self.y + 90, 30, 40, 5, 5)
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.setFont(screenManager.fonts.large)
+            love.graphics.print("-", self.x + 28, self.y + 95)
+            
+            -- Draw increment button
+            love.graphics.setColor(0.3, 0.7, 0.3)
+            love.graphics.rectangle("fill", self.x + self.width - 50, self.y + 90, 30, 40, 5, 5)
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.print("+", self.x + self.width - 42, self.y + 95)
+            
+            -- Draw slider
+            local sliderWidth = self.width - 40
+            local sliderX = self.x + 20
+            local sliderY = self.y + 140
+            
+            love.graphics.setColor(0.3, 0.3, 0.4)
+            love.graphics.rectangle("fill", sliderX, sliderY, sliderWidth, 10, 3, 3)
+            
+            local handlePos = sliderX + (self.quantity - 1) / (self.maxQuantity - 1) * sliderWidth
+            if self.maxQuantity == 1 then
+                handlePos = sliderX + sliderWidth / 2
+            end
+            
+            love.graphics.setColor(0.7, 0.7, 0.8)
+            love.graphics.rectangle("fill", handlePos - 5, sliderY - 5, 10, 20, 3, 3)
+            
+            -- Draw value if selling
+            if self.value then
+                love.graphics.setFont(screenManager.fonts.medium)
+                love.graphics.setColor(1, 0.8, 0.2)
+                love.graphics.printf(
+                    "Value: " .. (self.value * self.quantity) .. " gold",
+                    self.x + 20, self.y + 160, self.width - 40, "center"
+                )
+            end
+            
+            -- Draw buttons
+            -- Confirm button
+            love.graphics.setColor(0.2, 0.5, 0.2)
+            love.graphics.rectangle("fill", self.x + self.width - 110, self.y + self.height - 60, 90, 40, 5, 5)
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.setFont(screenManager.fonts.small)
+            love.graphics.print("Confirm", self.x + self.width - 100, self.y + self.height - 45)
+            
+            -- Cancel button
+            love.graphics.setColor(0.5, 0.2, 0.2)
+            love.graphics.rectangle("fill", self.x + 20, self.y + self.height - 60, 90, 40, 5, 5)
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.print("Cancel", self.x + 35, self.y + self.height - 45)
+        end,
+        
+        clicked = function(self, x, y, button)
+            if not self.visible then return false end
+            
+            -- Decrement button
+            if x >= self.x + 20 and x <= self.x + 50 and
+               y >= self.y + 90 and y <= self.y + 130 then
+                self.quantity = math.max(1, self.quantity - 1)
+                assetManager:playSound("click")
+                return true
+            end
+            
+            -- Increment button
+            if x >= self.x + self.width - 50 and x <= self.x + self.width - 20 and
+               y >= self.y + 90 and y <= self.y + 130 then
+                self.quantity = math.min(self.maxQuantity, self.quantity + 1)
+                assetManager:playSound("click")
+                return true
+            end
+            
+            -- Slider
+            local sliderWidth = self.width - 40
+            local sliderX = self.x + 20
+            local sliderY = self.y + 140
+            
+            if x >= sliderX and x <= sliderX + sliderWidth and
+               y >= sliderY - 10 and y <= sliderY + 20 then
+                local percentage = (x - sliderX) / sliderWidth
+                self.quantity = math.max(1, math.min(self.maxQuantity, math.floor(percentage * self.maxQuantity + 0.5)))
+                return true
+            end
+            
+            -- Confirm button
+            if x >= self.x + self.width - 110 and x <= self.x + self.width - 20 and
+               y >= self.y + self.height - 60 and y <= self.y + self.height - 20 then
+                if self.confirmCallback then
+                    self.confirmCallback(self.quantity)
+                end
+                self.visible = false
+                assetManager:playSound("click")
+                return true
+            end
+            
+            -- Cancel button
+            if x >= self.x + 20 and x <= self.x + 110 and
+               y >= self.y + self.height - 60 and y <= self.y + self.height - 20 then
+                if self.cancelCallback then
+                    self.cancelCallback()
+                end
+                self.visible = false
+                assetManager:playSound("click")
+                return true
+            end
+            
+            return true
+        end,
+        
+        show = function(self, item, message, maxQuantity, callback, cancelCallback, value)
+            self.item = item
+            self.message = message or "Select quantity:"
+            self.maxQuantity = maxQuantity or 1
+            self.quantity = 1
+            self.confirmCallback = callback
+            self.cancelCallback = cancelCallback
+            self.visible = true
+            self.value = value
+        end
+    }
 end
 
 function inventory:enter(params)
@@ -664,6 +1002,14 @@ function inventory:enter(params)
     self.state = "main"
     self.selectedItem = nil
     self.pageOffset = 0
+    
+    -- Track which state opened the inventory
+    local gameState = require("states/gameState")
+    self.openedFrom = params and params.from or gameState:getCurrentStateName()
+    
+    if GAME.debug then
+        print("Inventory opened from state: " .. (self.openedFrom or "unknown"))
+    end
     
     -- Select first character if available
     if GAME.party and #GAME.party > 0 then
@@ -700,6 +1046,39 @@ function inventory:draw()
     self.elements.characterPanel:draw()
     self.elements.itemDetailsPanel:draw()
     
+    -- Draw context menu if visible
+    if self.elements.contextMenu.visible then
+        self.elements.contextMenu:draw()
+    end
+    
+    -- Draw confirmation dialog if visible
+    if self.elements.confirmDialog.visible then
+        self.elements.confirmDialog:draw()
+    end
+    
+    -- Draw quantity selector if visible
+    if self.elements.quantitySelector.visible then
+        self.elements.quantitySelector:draw()
+    end
+    
+    -- Draw floating message if exists
+    if self.floatingMessage and self.floatingMessage.timeRemaining > 0 then
+        love.graphics.setFont(screenManager.fonts.medium)
+        love.graphics.setColor(self.floatingMessage.color)
+        
+        -- Add shadow for better visibility
+        love.graphics.setColor(0, 0, 0, 0.7)
+        love.graphics.printf(self.floatingMessage.text, 
+            self.floatingMessage.x - 198, self.floatingMessage.y + 2, 
+            400, "center")
+        
+        -- Draw actual text
+        love.graphics.setColor(self.floatingMessage.color)
+        love.graphics.printf(self.floatingMessage.text, 
+            self.floatingMessage.x - 200, self.floatingMessage.y, 
+            400, "center")
+    end
+    
     -- Draw action buttons
     -- Only show appropriate buttons based on selected item
     if self.selectedItem then
@@ -714,6 +1093,18 @@ function inventory:draw()
             self.elements.actionButtons.equipButton:draw()
         end
         
+        -- Show sell button only if opened from overworld and item is not equipped
+        if self.openedFrom == "overworld" then
+            local isEquipped = false
+            if self.selectedCharacter then
+                isEquipped = self:isItemEquipped(self.selectedItem, self.selectedCharacter)
+            end
+            
+            if not isEquipped then
+                self.elements.actionButtons.sellButton:draw()
+            end
+        end
+        
         self.elements.actionButtons.dropButton:draw()
     end
     
@@ -722,6 +1113,89 @@ function inventory:draw()
 end
 
 function inventory:mousepressed(x, y, button, istouch, presses)
+    -- Check if quantity selector is visible first
+    if self.elements.quantitySelector.visible then
+        self.elements.quantitySelector:clicked(x, y, button)
+        return true
+    end
+    
+    -- Check if confirmation dialog is visible first
+    if self.elements.confirmDialog.visible then
+        self.elements.confirmDialog:clicked(x, y, button)
+        return true
+    end
+    
+    -- Check if context menu is visible first
+    if self.elements.contextMenu.visible then
+        if self.elements.contextMenu:clicked(x, y, button) then
+            return true
+        end
+    end
+    
+    -- Right-click to open context menu for items
+    if button == 2 then
+        -- Pass to item list panel to show context menu
+        local itemClicked = false
+        local displayedItems = {}
+        
+        if GAME.inventory then
+            -- Filter items by category
+            for _, item in ipairs(GAME.inventory) do
+                if self.selectedCategory == "All" or
+                   (self.selectedCategory == "Weapons" and item.type == "weapon") or
+                   (self.selectedCategory == "Armor" and item.type == "armor") or
+                   (self.selectedCategory == "Accessories" and item.type == "accessory") or
+                   (self.selectedCategory == "Consumables" and item.type == "consumable") or
+                   (self.selectedCategory == "Materials" and (item.type == "material" or item.type == "monster_part")) then
+                    
+                    table.insert(displayedItems, item)
+                end
+            end
+            
+            -- Sort items
+            if self.sortBy == "type" then
+                table.sort(displayedItems, function(a, b)
+                    if a.type == b.type then
+                        return a.name < b.name
+                    else
+                        return self:getTypeOrder(a.type) < self:getTypeOrder(b.type)
+                    end
+                end)
+            elseif self.sortBy == "name" then
+                table.sort(displayedItems, function(a, b)
+                    return a.name < b.name
+                end)
+            elseif self.sortBy == "value" then
+                table.sort(displayedItems, function(a, b)
+                    local aValue = a.value or 0
+                    local bValue = b.value or 0
+                    return aValue > bValue
+                end)
+            end
+            
+            -- Apply pagination
+            local startIndex = self.pageOffset + 1
+            local endIndex = math.min(startIndex + self.itemsPerPage - 1, #displayedItems)
+            
+            for i = startIndex, endIndex do
+                local itemY = self.elements.itemListPanel.y + 50 + (i - startIndex) * 30
+                
+                if x >= self.elements.itemListPanel.x + 10 and x <= self.elements.itemListPanel.x + self.elements.itemListPanel.width - 10 and
+                   y >= itemY and y <= itemY + 25 then
+                    -- Select item and show context menu
+                    self:selectItem(displayedItems[i])
+                    self:showContextMenu(x, y)
+                    itemClicked = true
+                    break
+                end
+            end
+        end
+        
+        if itemClicked then
+            return true
+        end
+    end
+    
     -- Flag to track if click was handled
     local clickHandled = false
     
@@ -775,22 +1249,48 @@ function inventory:mousepressed(x, y, button, istouch, presses)
     
     -- Pass to action buttons if not yet handled
     if not clickHandled and self.selectedItem then
+        if GAME.debug then
+            print("Checking action buttons. Selected item: " .. self.selectedItem.name)
+            if self.selectedCharacter then
+                print("Selected character: " .. self.selectedCharacter.name)
+            else
+                print("No character selected")
+            end
+        end
+        
+        -- Check use button for consumables
         if self.selectedItem.type == "consumable" and
            self.elements.actionButtons.useButton:clicked(x, y, button) then
             -- Play click sound
             assetManager:playSound("click")
+            if GAME.debug then print("Use button clicked") end
+            self:useItem()
             clickHandled = true
+        -- Check equip button for appropriate item types
         elseif (self.selectedItem.type == "weapon" or 
-            self.selectedItem.type == "armor" or 
-            self.selectedItem.type == "accessory") and
-           self.selectedCharacter and
-           self.elements.actionButtons.equipButton:clicked(x, y, button) then
+               self.selectedItem.type == "armor" or 
+               self.selectedItem.type == "accessory") and
+               self.selectedCharacter and
+               self.elements.actionButtons.equipButton:clicked(x, y, button) then
             -- Play click sound
             assetManager:playSound("click")
+            if GAME.debug then print("Equip button clicked") end
+            self:equipItem()
             clickHandled = true
+        -- Check sell button - only available if opened from overworld
+        elseif self.openedFrom == "overworld" and
+               self.elements.actionButtons.sellButton:clicked(x, y, button) then
+            -- Play click sound
+            assetManager:playSound("click")
+            if GAME.debug then print("Sell button clicked") end
+            self:sellItem()
+            clickHandled = true
+        -- Check drop button
         elseif self.elements.actionButtons.dropButton:clicked(x, y, button) then
             -- Play click sound
             assetManager:playSound("click")
+            if GAME.debug then print("Drop button clicked") end
+            self:confirmDropItem()
             clickHandled = true
         end
     end
@@ -835,6 +1335,12 @@ function inventory:mousereleased(x, y, button, istouch, presses)
            self.selectedCharacter and
            self.elements.actionButtons.equipButton.released then
             self.elements.actionButtons.equipButton:released(x, y, button)
+        end
+        
+        -- Handle sell button release
+        if self.openedFrom == "overworld" and
+           self.elements.actionButtons.sellButton.released then
+            self.elements.actionButtons.sellButton:released(x, y, button)
         end
         
         if self.elements.actionButtons.dropButton.released then
@@ -882,13 +1388,25 @@ function inventory:setSortMethod(method)
 end
 
 function inventory:selectCharacter(character)
+    -- Debug output
+    if GAME.debug then
+        print("Selecting character: " .. character.name)
+    end
+    
     -- Select character
     self.selectedCharacter = character
+    
+    -- Play sound
+    assetManager:playSound("click")
+    
+    -- Show feedback
+    self:showFloatingMessage(character.name .. " selected", {0.3, 0.7, 1, 1})
 end
 
 function inventory:selectItem(item)
     -- Select item
     self.selectedItem = item
+    self.elements.contextMenu.visible = false
 end
 
 function inventory:isItemEquipped(item, character)
@@ -897,10 +1415,30 @@ function inventory:isItemEquipped(item, character)
         return false
     end
     
+    -- Debug output
+    if GAME.debug then
+        print("Checking if item " .. item.name .. " is equipped by " .. character.name)
+        
+        -- Print character's equipment
+        for slot, equippedItem in pairs(character.equipment) do
+            if equippedItem then
+                print("Slot " .. slot .. ": " .. (equippedItem.name or "unknown"))
+            end
+        end
+    end
+    
+    -- Check each equipment slot
     for slot, equippedItem in pairs(character.equipment) do
-        if equippedItem == item then
+        if equippedItem and equippedItem.name == item.name then
+            if GAME.debug then
+                print("Item is equipped in slot: " .. slot)
+            end
             return true
         end
+    end
+    
+    if GAME.debug then
+        print("Item is not equipped")
     end
     
     return false
@@ -917,11 +1455,17 @@ function inventory:useItem()
     end
     
     -- Use item
-    local success = itemSystem:useItem(self.selectedItem, self.selectedCharacter)
+    local success, message = itemSystem:useItem(self.selectedItem, self.selectedCharacter)
     
     if success then
         -- Play use sound
         assetManager:playSound("pickup")
+        
+        -- Show effect message
+        if message then
+            -- Create a temporary floating text for feedback
+            self:showFloatingMessage(message, {0, 1, 0, 1})
+        end
         
         -- Remove item from inventory
         for i, item in ipairs(GAME.inventory) do
@@ -938,11 +1482,31 @@ function inventory:useItem()
     else
         -- Play error sound
         assetManager:playSound("hit")
+        
+        -- Show error message
+        if message then
+            -- Create a temporary floating text for feedback
+            self:showFloatingMessage(message, {1, 0.5, 0.5, 1})
+        end
     end
+end
+
+-- Helper function to show floating message
+function inventory:showFloatingMessage(message, color)
+    -- Store the message for temporary display
+    self.floatingMessage = {
+        text = message,
+        color = color or {1, 1, 1, 1},
+        x = GAME.width / 2,
+        y = GAME.height / 2 - 100,
+        lifetime = 2.0, -- Show for 2 seconds
+        timeRemaining = 2.0
+    }
 end
 
 function inventory:equipItem()
     if not self.selectedItem or not self.selectedCharacter then
+        self:showFloatingMessage("Select a character and an item first!", {1, 0.5, 0.5, 1})
         return
     end
     
@@ -950,7 +1514,13 @@ function inventory:equipItem()
     if self.selectedItem.type ~= "weapon" and 
        self.selectedItem.type ~= "armor" and 
        self.selectedItem.type ~= "accessory" then
+        self:showFloatingMessage("This item cannot be equipped!", {1, 0.5, 0.5, 1})
         return
+    end
+    
+    -- Debug output
+    if GAME.debug then
+        print("Equipping " .. self.selectedItem.name .. " to " .. self.selectedCharacter.name)
     end
     
     -- Check if character can equip this item
@@ -966,6 +1536,7 @@ function inventory:equipItem()
         if not canEquip then
             -- Play error sound
             assetManager:playSound("hit")
+            self:showFloatingMessage(self.selectedCharacter.name .. " cannot equip this item!", {1, 0.5, 0.5, 1})
             return
         end
     end
@@ -977,9 +1548,15 @@ function inventory:equipItem()
                self.selectedCharacter.attributes[attr] < req then
                 -- Play error sound
                 assetManager:playSound("hit")
+                self:showFloatingMessage("Requirements not met: " .. attr .. " " .. req .. " required", {1, 0.5, 0.5, 1})
                 return
             end
         end
+    end
+    
+    -- Initialize equipment if not exists
+    if not self.selectedCharacter.equipment then
+        self.selectedCharacter.equipment = {}
     end
     
     -- Determine equipment slot
@@ -988,11 +1565,63 @@ function inventory:equipItem()
     -- Unequip previous item if exists
     local prevItem = self.selectedCharacter.equipment[slot]
     
+    -- Remove stat bonuses from previous item if it exists
+    if prevItem then
+        -- Remove attack/defense bonuses
+        if prevItem.attack then
+            self.selectedCharacter.attack = self.selectedCharacter.attack - prevItem.attack
+        end
+        if prevItem.magicAttack then
+            self.selectedCharacter.magicAttack = self.selectedCharacter.magicAttack - prevItem.magicAttack
+        end
+        if prevItem.defense then
+            self.selectedCharacter.defense = self.selectedCharacter.defense - prevItem.defense
+        end
+        if prevItem.magicDefense then
+            self.selectedCharacter.magicDefense = self.selectedCharacter.magicDefense - prevItem.magicDefense
+        end
+        
+        -- Remove attribute bonuses if any
+        if prevItem.attributes then
+            for attr, bonus in pairs(prevItem.attributes) do
+                if self.selectedCharacter.attributes[attr] then
+                    self.selectedCharacter.attributes[attr] = self.selectedCharacter.attributes[attr] - bonus
+                end
+            end
+        end
+    end
+    
     -- Equip new item
     self.selectedCharacter.equipment[slot] = self.selectedItem
     
+    -- Add stat bonuses from new item
+    if self.selectedItem.attack then
+        self.selectedCharacter.attack = (self.selectedCharacter.attack or 0) + self.selectedItem.attack
+    end
+    if self.selectedItem.magicAttack then
+        self.selectedCharacter.magicAttack = (self.selectedCharacter.magicAttack or 0) + self.selectedItem.magicAttack
+    end
+    if self.selectedItem.defense then
+        self.selectedCharacter.defense = (self.selectedCharacter.defense or 0) + self.selectedItem.defense
+    end
+    if self.selectedItem.magicDefense then
+        self.selectedCharacter.magicDefense = (self.selectedCharacter.magicDefense or 0) + self.selectedItem.magicDefense
+    end
+    
+    -- Add attribute bonuses if any
+    if self.selectedItem.attributes then
+        for attr, bonus in pairs(self.selectedItem.attributes) do
+            if self.selectedCharacter.attributes[attr] then
+                self.selectedCharacter.attributes[attr] = self.selectedCharacter.attributes[attr] + bonus
+            end
+        end
+    end
+    
     -- Play equip sound
     assetManager:playSound("pickup")
+    
+    -- Show floating message
+    self:showFloatingMessage(self.selectedItem.name .. " equipped!", {0.2, 1, 0.2, 1})
     
     -- Remove equipped item from inventory
     for i, item in ipairs(GAME.inventory) do
@@ -1006,6 +1635,9 @@ function inventory:equipItem()
     if prevItem then
         table.insert(GAME.inventory, prevItem)
     end
+    
+    -- Refresh selected item
+    self.selectedItem = nil
 end
 
 function inventory:dropItem()
@@ -1041,9 +1673,265 @@ function inventory:dropItem()
 end
 
 function inventory:close()
-    -- Return to previous state
+    -- Return to previous state with appropriate parameters
     local gameState = require("states/gameState")
-    gameState:returnToPreviousState()
+    
+    -- If we came from the dungeon, return with "from=inventory" parameter
+    if self.openedFrom == "dungeon" then
+        gameState:changeState("dungeon", { from = "inventory" })
+    else
+        -- Otherwise, just return to previous state
+        gameState:returnToPreviousState()
+    end
+end
+
+function inventory:showContextMenu(x, y)
+    if not self.selectedItem then return end
+    
+    local contextMenu = self.elements.contextMenu
+    local options = {}
+    
+    -- Add options based on item type
+    if self.selectedItem.type == "weapon" or 
+       self.selectedItem.type == "armor" or 
+       self.selectedItem.type == "accessory" then
+        -- Only show equip if character is selected
+        if self.selectedCharacter then
+            table.insert(options, {
+                text = "Equip",
+                callback = function() self:equipItem() end,
+                hover = false
+            })
+        end
+    end
+    
+    if self.selectedItem.type == "consumable" and self.selectedCharacter then
+        table.insert(options, {
+            text = "Use",
+            callback = function() self:useItem() end,
+            hover = false
+        })
+    end
+    
+    -- Examine option for all items
+    table.insert(options, {
+        text = "Examine",
+        callback = function() 
+            -- Just select the item to see details
+            -- Already done by right-clicking
+        end,
+        hover = false
+    })
+    
+    -- Sell option - only available if opened from town (overworld)
+    if self.openedFrom == "overworld" then
+        table.insert(options, {
+            text = "Sell",
+            callback = function() self:sellItem() end,
+            hover = false
+        })
+    end
+    
+    -- Drop option for all items
+    table.insert(options, {
+        text = "Drop",
+        callback = function()
+            self:confirmDropItem()
+        end,
+        hover = false
+    })
+    
+    -- Set options and position
+    contextMenu:setOptions(options)
+    contextMenu:setPosition(x, y)
+    contextMenu.visible = true
+end
+
+function inventory:confirmDropItem()
+    if not self.selectedItem then return end
+    
+    -- Check if item is equipped
+    local isEquipped = false
+    for _, character in ipairs(GAME.party) do
+        if self:isItemEquipped(self.selectedItem, character) then
+            isEquipped = true
+            break
+        end
+    end
+    
+    if isEquipped then
+        -- Cannot drop equipped items
+        assetManager:playSound("hit")
+        return
+    end
+    
+    local dialog = self.elements.confirmDialog
+    dialog.message = "Are you sure you want to drop " .. self.selectedItem.name .. "?\nThis item will be permanently destroyed."
+    dialog.confirmCallback = function() self:dropItem() end
+    dialog.cancelCallback = function() end
+    dialog.visible = true
+end
+
+function inventory:update(dt)
+    if self.elements.contextMenu.visible then
+        local mx, my = love.mouse.getPosition()
+        self.elements.contextMenu:update(mx, my)
+    end
+    
+    -- Update floating message
+    if self.floatingMessage then
+        self.floatingMessage.timeRemaining = self.floatingMessage.timeRemaining - dt
+        if self.floatingMessage.timeRemaining <= 0 then
+            self.floatingMessage = nil
+        end
+    end
+end
+
+function inventory:sellItem()
+    if not self.selectedItem then return end
+    
+    -- Check if inventory was opened from overworld
+    if self.openedFrom ~= "overworld" then
+        self:showFloatingMessage("You can only sell items in town!", {1, 0.3, 0.3, 1})
+        return
+    end
+    
+    -- Check if item is equipped by any character
+    for _, character in ipairs(GAME.party) do
+        if self:isItemEquipped(self.selectedItem, character) then
+            self:showFloatingMessage("You can't sell equipped items!", {1, 0.3, 0.3, 1})
+            return
+        end
+    end
+    
+    -- Determine if we should sell at guild or smith based on item type
+    local sellLocation = "smith"
+    if self.selectedItem.type == "monster_part" then
+        sellLocation = "guild"
+    end
+    
+    -- Calculate sell price (typically 50% of buy value)
+    local sellPrice = math.floor((self.selectedItem.value or 1) * 0.5)
+    
+    -- For stacked items, ask how many to sell
+    if self.selectedItem.count and self.selectedItem.count > 1 then
+        self.elements.quantitySelector:show(
+            self.selectedItem,
+            "How many would you like to sell to the " .. sellLocation .. "?",
+            self.selectedItem.count,
+            function(quantity)
+                self:completeSale(quantity, sellPrice, sellLocation)
+            end,
+            function()
+                -- Cancel callback
+            end,
+            sellPrice
+        )
+    else
+        -- Single item, confirm sale
+        self.elements.confirmDialog.message = "Sell " .. self.selectedItem.name .. " to the " .. sellLocation .. " for " .. sellPrice .. " gold?"
+        self.elements.confirmDialog.confirmCallback = function()
+            self:completeSale(1, sellPrice, sellLocation)
+        end
+        self.elements.confirmDialog.visible = true
+    end
+end
+
+function inventory:completeSale(quantity, price, location)
+    if not self.selectedItem then return end
+    
+    -- Calculate total gold from sale
+    local totalGold = price * quantity
+    
+    -- Add gold to player
+    GAME.gold = (GAME.gold or 0) + totalGold
+    
+    -- Show feedback message
+    self:showFloatingMessage("Sold " .. quantity .. " " .. self.selectedItem.name .. " for " .. totalGold .. " gold!", {1, 1, 0, 1})
+    
+    -- Remove sold items from inventory
+    for i, item in ipairs(GAME.inventory) do
+        if item == self.selectedItem then
+            if item.count and item.count > quantity then
+                item.count = item.count - quantity
+            else
+                table.remove(GAME.inventory, i)
+                self.selectedItem = nil
+            end
+            break
+        end
+    end
+    
+    -- Play coin sound
+    assetManager:playSound("pickup")
+end
+
+-- Add wheel scrolling function
+function inventory:wheelmoved(x, y)
+    -- Handle scrolling the item list using the mouse wheel
+    if y ~= 0 and not self.elements.quantitySelector.visible and not self.elements.confirmDialog.visible then
+        local displayedItems = {}
+        
+        if GAME.inventory then
+            -- Filter items by category
+            for _, item in ipairs(GAME.inventory) do
+                if self.selectedCategory == "All" or
+                   (self.selectedCategory == "Weapons" and item.type == "weapon") or
+                   (self.selectedCategory == "Armor" and item.type == "armor") or
+                   (self.selectedCategory == "Accessories" and item.type == "accessory") or
+                   (self.selectedCategory == "Consumables" and item.type == "consumable") or
+                   (self.selectedCategory == "Materials" and (item.type == "material" or item.type == "monster_part")) then
+                    
+                    table.insert(displayedItems, item)
+                end
+            end
+        end
+        
+        local totalPages = math.ceil(#displayedItems / self.itemsPerPage)
+        
+        if y > 0 then
+            -- Scroll up
+            self.pageOffset = math.max(0, self.pageOffset - math.floor(self.itemsPerPage / 2))
+            return true
+        elseif y < 0 then
+            -- Scroll down
+            local maxOffset = math.max(0, #displayedItems - self.itemsPerPage)
+            self.pageOffset = math.min(maxOffset, self.pageOffset + math.floor(self.itemsPerPage / 2))
+            return true
+        end
+    end
+    
+    return false
+end
+
+-- Handle keyboard input
+function inventory:keypressed(key, scancode, isrepeat)
+    -- Handle ESC key to close the inventory
+    if key == "escape" then
+        -- If a dialog is open, close it first
+        if self.elements.confirmDialog.visible then
+            self.elements.confirmDialog.visible = false
+            if self.elements.confirmDialog.cancelCallback then
+                self.elements.confirmDialog.cancelCallback()
+            end
+            return true
+        elseif self.elements.quantitySelector.visible then
+            self.elements.quantitySelector.visible = false
+            if self.elements.quantitySelector.cancelCallback then
+                self.elements.quantitySelector.cancelCallback()
+            end
+            return true
+        elseif self.elements.contextMenu.visible then
+            self.elements.contextMenu.visible = false
+            return true
+        else
+            -- Otherwise close the inventory
+            self:close()
+            return true
+        end
+    end
+    
+    return false
 end
 
 return inventory

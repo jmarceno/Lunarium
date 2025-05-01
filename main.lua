@@ -84,7 +84,7 @@ function love.keypressed(key, scancode, isrepeat)
         -- Handle escape key based on current state
         if gameState:getCurrentStateName() == "mainMenu" then
             love.event.quit()
-        else
+        elseif gameState:getCurrentStateName() == "characterCreator" then
             gameState:changeState("mainMenu")
         end
     elseif key == "f1" then

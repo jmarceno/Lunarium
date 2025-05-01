@@ -121,6 +121,13 @@ function overworld:createUI()
     )
     self.elements.saveButton.visible = true
     
+    -- Create inventory button (in top bar)
+    self.elements.inventoryButton = screenManager.UI.Button(
+        GAME.width - 170, 120, 150, 40, "Inventory (I)", 
+        function() self:openInventory() end
+    )
+    self.elements.inventoryButton.visible = true
+    
     -- Create menu panel
     self.elements.menuPanel = {
         visible = false,
@@ -189,6 +196,15 @@ function overworld:createUI()
                 
                 screenManager.UI.Button(
                     self.x + 50, self.y + 130, 
+                    200, 40, "Inventory", 
+                    function() 
+                        overworld:openInventory()
+                        self.visible = false
+                    end
+                ),
+                
+                screenManager.UI.Button(
+                    self.x + 50, self.y + 180, 
                     200, 40, "Save Game", 
                     function() 
                         overworld:saveGame()
@@ -197,7 +213,7 @@ function overworld:createUI()
                 ),
                 
                 screenManager.UI.Button(
-                    self.x + 50, self.y + 180, 
+                    self.x + 50, self.y + 230, 
                     200, 40, "Options", 
                     function() 
                         -- TODO: Implement options screen
@@ -206,7 +222,7 @@ function overworld:createUI()
                 ),
                 
                 screenManager.UI.Button(
-                    self.x + 50, self.y + 230, 
+                    self.x + 50, self.y + 280, 
                     200, 40, "Character Info", 
                     function() 
                         -- Open the character info screen
@@ -217,7 +233,7 @@ function overworld:createUI()
                 ),
                 
                 screenManager.UI.Button(
-                    self.x + 50, self.y + 280, 
+                    self.x + 50, self.y + 330, 
                     200, 40, "Quest Log", 
                     function() 
                         -- Open the quest log screen
@@ -228,7 +244,7 @@ function overworld:createUI()
                 ),
                 
                 screenManager.UI.Button(
-                    self.x + 50, self.y + 330, 
+                    self.x + 50, self.y + 380, 
                     200, 40, "Return to Title", 
                     function() 
                         local gameState = require("states/gameState")
@@ -453,6 +469,21 @@ function overworld:createUI()
                     self.x + self.width - 150, self.y - 30
                 )
             end
+            
+            -- Draw inventory shortcut button
+            if self.inventoryButton then
+                self.inventoryButton:draw()
+            end
+        end,
+        
+        init = function(self)
+            -- Create inventory shortcut button in the party panel
+            self.inventoryButton = screenManager.UI.Button(
+                self.x + self.width - 120, self.y + 10, 
+                100, 30, "Inventory", 
+                function() overworld:openInventory() end
+            )
+            self.inventoryButton.visible = true
         end
     }
 end
@@ -564,6 +595,7 @@ function overworld:draw()
     -- Draw UI elements
     self.elements.menuButton:draw()
     self.elements.saveButton:draw()
+    self.elements.inventoryButton:draw()
     self.elements.partyPanel:draw()
     self.elements.menuPanel:draw()
     self.elements.questPanel:draw()
@@ -710,6 +742,22 @@ function overworld:selectLocation(location)
     
     -- Pass the location state and any relevant parameters
     gameState:changeState(location.state, params)
+end
+
+function overworld:openInventory()
+    local gameState = require("states/gameState")
+    gameState:changeState("inventory", { from = "overworld" })
+end
+
+function overworld:keypressed(key, scancode, isrepeat)
+    -- Check for inventory shortcut key
+    if key == "i" then
+        self:openInventory()
+        return true
+    end
+    
+    -- Handle other key presses
+    return false
 end
 
 return overworld

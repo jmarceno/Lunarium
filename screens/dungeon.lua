@@ -114,7 +114,7 @@ function dungeon:init()
     -- Inventory Button (Top Left)
     self.elements.inventoryButton = screenManager.UI.Button(
         10, 10, 100, 30, "Inventory (I)",
-        function() self:toggleInventoryPanel() end
+        function() self:openInventory() end
     )
     
     -- Quest Log Button (Top Left, below Inventory)
@@ -217,161 +217,92 @@ function dungeon:init()
         end
     }
     
-    -- Initialize status bar
+    -- Status bar
     self.elements.statusBar = {
+        x = 10,
+        y = GAME.height - 70,
+        width = GAME.width - 20,
+        height = 60,
+        
         draw = function(self)
             -- Draw status bar background
             love.graphics.setColor(0, 0, 0, 0.7)
-            love.graphics.rectangle("fill", 0, GAME.height - 50, GAME.width, 50)
+            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 5, 5)
+            love.graphics.setColor(0.3, 0.3, 0.5)
+            love.graphics.rectangle("line", self.x, self.y, self.width, self.height, 5, 5)
             
-            -- Draw party health and mana
-            if GAME.party then
-                for i, character in ipairs(GAME.party) do
-                    -- Character portrait
-                    local portraitX = 10 + (i-1) * 200
-                    love.graphics.setColor(1, 1, 1)
-                    
-                    -- Draw character name
-                    love.graphics.setFont(screenManager.fonts.small)
-                    love.graphics.print(character.name, portraitX + 50, GAME.height - 45)
-                    
-                    -- Draw health bar
-                    local healthWidth = 140 * (character.currentHP / character.maxHP)
-                    love.graphics.setColor(0.2, 0.2, 0.2)
-                    love.graphics.rectangle("fill", portraitX + 50, GAME.height - 30, 140, 10)
-                    love.graphics.setColor(0.8, 0.2, 0.2)
-                    love.graphics.rectangle("fill", portraitX + 50, GAME.height - 30, healthWidth, 10)
-                    
-                    -- Draw mana bar
-                    local manaWidth = 140 * (character.currentMP / character.maxMP)
-                    love.graphics.setColor(0.2, 0.2, 0.2)
-                    love.graphics.rectangle("fill", portraitX + 50, GAME.height - 15, 140, 10)
-                    love.graphics.setColor(0.2, 0.2, 0.8)
-                    love.graphics.rectangle("fill", portraitX + 50, GAME.height - 15, manaWidth, 10)
+            -- Draw quest info
+            if dungeon.currentQuest then
+                love.graphics.setColor(1, 1, 1)
+                love.graphics.setFont(screenManager.fonts.small)
+                love.graphics.print("Current Quest: " .. dungeon.currentQuest.name, self.x + 10, self.y + 10)
+                
+                -- Draw objective status
+                local objectiveText = "Find the target location"
+                if dungeon.objective.reached then
+                    objectiveText = "Return to entrance"
                 end
+                
+                love.graphics.setColor(dungeon.objective.reached and {0, 1, 0} or {1, 0.8, 0})
+                love.graphics.print("Objective: " .. objectiveText, self.x + 10, self.y + 30)
             end
         end
     }
     
-    -- Inventory Panel (Hidden Initially)
-    self.elements.inventoryPanel = {
-        visible = false,
-        x = GAME.width / 2 - 300, -- Adjusted size/position
-        y = GAME.height / 2 - 250,
-        width = 600,
-        height = 500,
-        selectedItemIndex = nil,
-        scrollOffset = 0, -- For scrolling if list is long
-        itemHeight = 30, -- Height of each item row
-        itemsPerPage = 12, -- Max items visible without scrolling
-        useButton = nil, -- Button for using items
-        closeButton = nil, -- Button to close the panel
-        
-        init = function(self)
-            -- Create Use and Close buttons relative to the panel
-            self.useButton = screenManager.UI.Button(
-                self.x + self.width - 130, self.y + self.height - 60,
-                120, 40, "Use",
-                function() dungeon:useSelectedItem() end -- Call dungeon method
-            )
-            self.closeButton = screenManager.UI.Button(
-                self.x + 10, self.y + self.height - 60,
-                120, 40, "Close (ESC)",
-                function() dungeon:toggleInventoryPanel() end -- Call dungeon method
-            )
-        end,
+    -- Party Panel to display character info
+    self.elements.partyPanel = {
+        x = 10,
+        y = GAME.height - 70,
+        width = GAME.width - 20,
+        height = 60,
         
         draw = function(self)
-            if not self.visible then return end
-            
-            -- Initialize buttons if not done yet (needs to happen after panel created)
-            if not self.useButton then self:init() end
+            if not GAME.party then return end
             
             -- Draw background
-            love.graphics.setColor(0.1, 0.1, 0.15, 0.95)
-            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height)
-            love.graphics.setColor(0.8, 0.8, 0.8)
-            love.graphics.rectangle("line", self.x, self.y, self.width, self.height)
-            love.graphics.setFont(screenManager.fonts.large)
-            love.graphics.printf("Inventory", self.x, self.y + 10, self.width, "center")
+            love.graphics.setColor(0, 0, 0, 0.7)
+            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 5, 5)
+            love.graphics.setColor(0.3, 0.3, 0.5)
+            love.graphics.rectangle("line", self.x, self.y, self.width, self.height, 5, 5)
             
-            -- Draw Items
-            love.graphics.setFont(screenManager.fonts.small)
-            local currentY = self.y + 50
-            local displayIndex = 1
-            
-            -- Only iterate through GAME.inventory if it exists
-            if GAME.inventory then
-                for i, item in ipairs(GAME.inventory) do
-                    -- Apply scrolling
-                    if i > self.scrollOffset and displayIndex <= self.itemsPerPage then
-                        local itemText = item.name or "Unknown Item"
-                        local count = item.count or 1
-                        if count > 1 then itemText = itemText .. " (x" .. count .. ")" end
+            -- Draw party member info
+            local memberWidth = self.width / #GAME.party
+            for i, character in ipairs(GAME.party) do
+                local portraitX = self.x + (i-1) * memberWidth + 10
+                local portraitY = self.y + 10
+                
+                -- Draw character name
+                love.graphics.setFont(screenManager.fonts.small)
+                love.graphics.setColor(1, 1, 1)
+                love.graphics.print(character.name, portraitX, portraitY)
+                
+                -- Draw HP/MP bars
+                if character.currentHP and character.maxHP then
+                    -- HP bar
+                    local hpWidth = (memberWidth - 20) * (character.currentHP / character.maxHP)
+                    love.graphics.setColor(0.5, 0, 0)
+                    love.graphics.rectangle("fill", portraitX, portraitY + 20, memberWidth - 20, 10)
+                    love.graphics.setColor(1, 0, 0)
+                    love.graphics.rectangle("fill", portraitX, portraitY + 20, hpWidth, 10)
+                    
+                    -- HP text
+                    love.graphics.setColor(1, 1, 1)
+                    love.graphics.print(character.currentHP .. "/" .. character.maxHP, portraitX + 5, portraitY + 19)
+                    
+                    -- MP bar if character has MP
+                    if character.currentMP and character.maxMP then
+                        local manaWidth = (memberWidth - 20) * (character.currentMP / character.maxMP)
+                        love.graphics.setColor(0, 0, 0.5)
+                        love.graphics.rectangle("fill", portraitX, portraitY + 35, memberWidth - 20, 10)
+                        love.graphics.setColor(0, 0, 1)
+                        love.graphics.rectangle("fill", portraitX, portraitY + 35, manaWidth, 10)
                         
-                        -- Highlight selected item
-                        if i == self.selectedItemIndex then
-                            love.graphics.setColor(0.3, 0.3, 0.7, 0.8)
-                            love.graphics.rectangle("fill", self.x + 10, currentY - 2, self.width - 20, self.itemHeight - 4)
-                        end
-                        
-                        -- Check if item is usable (simple check for now)
-                        local isUsable = item.type == "consumable" and item.effect and item.effect.hp
-                        if isUsable then
-                            love.graphics.setColor(0.8, 1.0, 0.8) -- Greenish tint for usable
-                        else
-                            love.graphics.setColor(1, 1, 1) -- White for non-usable
-                        end
-                        
-                        love.graphics.print(itemText, self.x + 20, currentY)
-                        
-                        currentY = currentY + self.itemHeight
-                        displayIndex = displayIndex + 1
-                    end
-                end
-            else
-                love.graphics.setColor(0.7, 0.7, 0.7)
-                love.graphics.printf("Inventory is empty.", self.x, self.y + 100, self.width, "center")
-            end
-            
-            -- Draw Buttons
-            self.closeButton:draw()
-            -- Only draw Use button if a usable item is selected
-            if self.selectedItemIndex and GAME.inventory[self.selectedItemIndex] then
-                local selectedItem = GAME.inventory[self.selectedItemIndex]
-                if selectedItem.type == "consumable" and selectedItem.effect and selectedItem.effect.hp then
-                    self.useButton:draw()
-                end
-            end
-        end,
-        
-        clicked = function(self, x, y, button)
-            if not self.visible then return false end
-            
-            -- Check button clicks first
-            if self.closeButton:clicked(x, y, button) then return true end
-            if self.useButton.visible and self.useButton:clicked(x, y, button) then return true end 
-            
-            -- Check item list clicks
-            local currentY = self.y + 50
-            local displayIndex = 1
-            if GAME.inventory then
-                for i, item in ipairs(GAME.inventory) do
-                    if i > self.scrollOffset and displayIndex <= self.itemsPerPage then
-                        if x >= self.x + 10 and x <= self.x + self.width - 10 and
-                           y >= currentY - 2 and y <= currentY + self.itemHeight - 2 then
-                            -- Clicked on this item
-                            self.selectedItemIndex = i
-                            if GAME.debug then print("Selected item index: " .. i) end
-                            return true -- Handled click
-                        end
-                        currentY = currentY + self.itemHeight
-                        displayIndex = displayIndex + 1
+                        -- MP text
+                        love.graphics.setColor(1, 1, 1)
+                        love.graphics.print(character.currentMP .. "/" .. character.maxMP, portraitX + 5, portraitY + 34)
                     end
                 end
             end
-            
-            return false -- Click was inside panel but not on an item/button
         end
     }
     
@@ -467,6 +398,15 @@ function dungeon:init()
 end
 
 function dungeon:enter(params)
+    -- Check if we're returning from inventory
+    if params and params.from == "inventory" and self.map then
+        -- We're coming back from inventory, keep the existing dungeon state
+        -- Just update the camera
+        raycaster:setCamera(self.playerPos.x, self.playerPos.y, self.playerPos.angle)
+        return
+    end
+    
+    -- Otherwise initialize a new dungeon
     self.state = STATES.EXPLORING
     self.objective.completed = false
     self.objective.reached = false
@@ -772,8 +712,8 @@ end
 function dungeon:update(dt)
     -- Update based on current state
     if self.state == STATES.EXPLORING then
-        -- If panels are open, don't update exploration logic (movement, etc.)
-        if self.elements.inventoryPanel.visible or self.elements.questLogPanel.visible then
+        -- If quest log panel is open, don't update exploration logic (movement, etc.)
+        if self.elements.questLogPanel.visible then
             return -- Stop further updates for this frame
         end
         
@@ -1059,52 +999,21 @@ function dungeon:checkEntityInteraction()
 end
 
 function dungeon:draw()
-    -- Draw 3D view from raycaster
-    love.graphics.setColor(1, 1, 1)
-    raycaster:render(self.map, self.entities)
-    
-    -- Draw UI elements
+    -- Clear screen
+    love.graphics.clear(0.1, 0.1, 0.1)
+
+    -- Draw based on current state
     if self.state == STATES.EXPLORING then
-        -- Draw Inventory/Quest buttons
-        self.elements.inventoryButton:draw()
-        self.elements.questLogButton:draw()
-        
-        -- Draw minimap if visible
-        if self.elements.minimap.visible then
-            self.elements.minimap:draw()
+        -- Draw 3D view only if not in inventory or quest log
+        if not (self.elements.questLogPanel.visible) then
+            self:drawExploringState()
         end
+
+        -- Draw UI elements that should appear in exploring state
+        self.elements.minimap:draw()
         
-        -- Draw status bar
-        self.elements.statusBar:draw()
-        
-        -- Draw objective reached reminder if applicable
-        if self.objective.reached and not self.objective.completed and 
-           self.currentQuest and self.currentQuest.type == "EXPLORE" then
-            -- Display a message indicating the player should return to entrance
-            love.graphics.setColor(0, 1, 0, 0.7 + math.sin(love.timer.getTime() * 2) * 0.3) -- Pulsing green
-            love.graphics.setFont(screenManager.fonts.medium)
-            love.graphics.printf(
-                "Objective reached! Return to the entrance to complete your quest.",
-                0, 100, GAME.width, "center"
-            )
-        end
-        
-        -- Draw panels IF they are visible (potentially dim background)
-        if self.elements.inventoryPanel.visible or self.elements.questLogPanel.visible then
-            -- Dim background
-            love.graphics.setColor(0, 0, 0, 0.5)
-            love.graphics.rectangle("fill", 0, 0, GAME.width, GAME.height)
-            
-            -- Draw the visible panel
-            if self.elements.inventoryPanel.visible then
-                self.elements.inventoryPanel:draw()
-            elseif self.elements.questLogPanel.visible then
-                self.elements.questLogPanel:draw()
-            end
-        end
-        
-        -- Draw confirm dialog if visible
-        self.elements.confirmDialog:draw()
+        -- Display party members with basic stats (bottom of screen)
+        self.elements.partyPanel:draw()
     elseif self.state == STATES.COMBAT then
         -- Draw combat UI
         if self.combat then
@@ -1136,65 +1045,57 @@ function dungeon:draw()
         self.elements.completeButton:draw()
     end
     
-    -- Draw debug info
-    if GAME.debug then
-        love.graphics.setColor(1, 1, 0)
-        love.graphics.setFont(screenManager.fonts.small)
-        love.graphics.print("Player Pos: " .. string.format("%.2f, %.2f", self.playerPos.x, self.playerPos.y), 10, 10)
-        love.graphics.print("Player Angle: " .. string.format("%.2f", self.playerPos.angle), 10, 30)
-        
-        -- Draw entity info
-        for i, entity in ipairs(self.entities) do
-            love.graphics.print("Entity " .. i .. ": " .. string.format("%.2f, %.2f", entity.x, entity.y), 10, 50 + (i-1) * 20)
-        end
+    -- Draw UI buttons (except in combat)
+    if self.state ~= STATES.COMBAT then
+        self.elements.inventoryButton:draw()
+        self.elements.questLogButton:draw()
+    end
+    
+    -- Draw any panels that should appear on top
+    if self.elements.questLogPanel.visible then
+        self.elements.questLogPanel:draw()
+    end
+    
+    -- Draw confirmation dialog last (if visible)
+    if self.elements.confirmDialog.visible then
+        self.elements.confirmDialog:draw()
     end
 end
 
 function dungeon:keypressed(key, scancode, isrepeat)
-    -- First, check if panels are open and handle their input (e.g., ESC to close)
-    if self.elements.inventoryPanel.visible then
-        if key == 'escape' then self:toggleInventoryPanel(); return true end
-        -- Allow 'i' to toggle even if open
-        if key == 'i' then 
-            self:toggleInventoryPanel()
-            return true -- Handled
-        end
-        return true -- Consume input while panel is open
-    elseif self.elements.questLogPanel.visible then
-        if key == 'escape' or key == 'j' then -- 'j' toggles, ESC closes
-            self:toggleQuestLogPanel()
-            return true -- Handled
-        end
-        return true -- Consume input while panel is open
+    -- Exit to console shortcut (for debugging only)
+    if key == '`' and GAME.debug then
+        return false -- Let base game handle console
     end
-    
-    -- Handle confirm dialog input
-    if self.elements.confirmDialog.visible then
+
+    -- Check if panels are open and escape pressed
+    if self.elements.questLogPanel.visible then
         if key == 'escape' then
-            self.elements.confirmDialog.visible = false
-            if self.elements.confirmDialog.cancelCallback then self.elements.confirmDialog.cancelCallback() end
+            self:toggleQuestLogPanel()
             return true
         end
-        -- TODO: Add Enter/Y/N key handling?
-        return true -- Consume input
     end
     
-    -- Handle key presses for exploring state (like minimap toggle)
+    -- Process keys based on state
     if self.state == STATES.EXPLORING then
+        -- Inventory shortcut
+        if key == 'i' then
+            self:openInventory()
+            return true
+        end
+        
+        -- Quest log shortcut
+        if key == 'j' then
+            self:toggleQuestLogPanel()
+            return true
+        end
+        
+        -- Handle key presses for exploring state (like minimap toggle)
         if key == "m" then
             -- Toggle minimap
             self.elements.minimap.visible = not self.elements.minimap.visible
             return true -- Handled
         end
-        -- Toggle panels with keys
-        if key == 'i' then
-            self:toggleInventoryPanel()
-            return true -- Handled
-        elseif key == 'j' then
-            self:toggleQuestLogPanel()
-            return true -- Handled
-        end
-    -- Pass key press to combat system ONLY if in combat state
     elseif self.state == STATES.COMBAT and self.combat then
         if self.combat:keypressed(key) then
             -- If combat system signals completion via keypress, handle victory/defeat immediately
@@ -1223,7 +1124,6 @@ function dungeon:keypressed(key, scancode, isrepeat)
             end
             return true -- Indicate keypress was handled and led to state change
         end
-    -- Handle keypress for completed state (Return to Town button)
     elseif self.state == STATES.COMPLETED then
         if key == "return" or key == "space" then
              self:completeQuest()
@@ -1241,19 +1141,7 @@ function dungeon:mousepressed(x, y, button, istouch, presses)
         return self.elements.confirmDialog:clicked(x, y, button)
     end
     
-    if self.elements.inventoryPanel.visible then
-        if self.elements.inventoryPanel:clicked(x, y, button) then
-            return true -- Click handled by inventory panel
-        else
-            -- Check if click was *outside* the panel bounds; if so, close it
-            local panel = self.elements.inventoryPanel
-            if not (x >= panel.x and x <= panel.x + panel.width and y >= panel.y and y <= panel.y + panel.height) then
-                self:toggleInventoryPanel() 
-                return true -- Consumed click outside panel to close it
-            end
-            return true -- Consume click even if not handled inside panel, to prevent interaction behind it
-        end
-    elseif self.elements.questLogPanel.visible then
+    if self.elements.questLogPanel.visible then
         if self.elements.questLogPanel:clicked(x, y, button) then
             return true -- Click handled by quest panel
         else
@@ -1364,64 +1252,51 @@ function dungeon:onResize(width, height)
     -- You might need to update other position-dependent elements here
 end
 
--- Toggle Inventory Panel Visibility
-function dungeon:toggleInventoryPanel()
-    self.elements.inventoryPanel.visible = not self.elements.inventoryPanel.visible
-    -- Close quest log if inventory is opened
-    if self.elements.inventoryPanel.visible then
-        self.elements.questLogPanel.visible = false
-        self.elements.inventoryPanel.selectedItemIndex = nil -- Reset selection
-    end
-end
-
 -- Toggle Quest Log Panel Visibility
 function dungeon:toggleQuestLogPanel()
     self.elements.questLogPanel.visible = not self.elements.questLogPanel.visible
-    -- Close inventory if quest log is opened
-    if self.elements.questLogPanel.visible then
-        self.elements.inventoryPanel.visible = false
-    end
 end
 
--- Add method to use selected item
-function dungeon:useSelectedItem()
-    local panel = self.elements.inventoryPanel
-    if not panel.selectedItemIndex or not GAME.inventory[panel.selectedItemIndex] then
-        if GAME.debug then print("No item selected or index invalid") end
-        return 
+-- Open Inventory Screen
+function dungeon:openInventory()
+    local gameState = require("states/gameState")
+    gameState:changeState("inventory", { from = "dungeon" })
+end
+
+-- Function to handle drawing the exploring state
+function dungeon:drawExploringState()
+    -- Draw 3D view from raycaster
+    love.graphics.setColor(1, 1, 1)
+    raycaster:render(self.map, self.entities)
+    
+    -- Draw status bar if it exists
+    if self.elements.statusBar then
+        self.elements.statusBar:draw()
     end
     
-    local itemIndex = panel.selectedItemIndex
-    local item = GAME.inventory[itemIndex]
+    -- Draw objective reached reminder if applicable
+    if self.objective.reached and not self.objective.completed and 
+       self.currentQuest and self.currentQuest.type == "EXPLORE" then
+        -- Display a message indicating the player should return to entrance
+        love.graphics.setColor(0, 1, 0, 0.7 + math.sin(love.timer.getTime() * 2) * 0.3) -- Pulsing green
+        love.graphics.setFont(screenManager.fonts.medium)
+        love.graphics.printf(
+            "Objective reached! Return to the entrance to complete your quest.",
+            0, 100, GAME.width, "center"
+        )
+    end
     
-    -- Check if item is usable (e.g., potion)
-    if item.type == "consumable" and item.effect and item.effect.hp then
-        -- TODO: Improve this - target selection? For now, assume first party member
-        local target = GAME.party and GAME.party[1]
-        if not target then
-            if GAME.debug then print("No party member found to use item on") end
-            return
+    -- Draw debug info
+    if GAME.debug then
+        love.graphics.setColor(1, 1, 0)
+        love.graphics.setFont(screenManager.fonts.small)
+        love.graphics.print("Player Pos: " .. string.format("%.2f, %.2f", self.playerPos.x, self.playerPos.y), 10, 10)
+        love.graphics.print("Player Angle: " .. string.format("%.2f", self.playerPos.angle), 10, 30)
+        
+        -- Draw entity info
+        for i, entity in ipairs(self.entities) do
+            love.graphics.print("Entity " .. i .. ": " .. string.format("%.2f, %.2f", entity.x, entity.y), 10, 50 + (i-1) * 20)
         end
-        
-        local hpHealed = item.effect.hp
-        target.currentHP = math.min(target.maxHP, target.currentHP + hpHealed)
-        
-        print(target.name .. " used " .. item.name .. " and recovered " .. hpHealed .. " HP.") -- TODO: Show message in UI
-        assetManager:playSound("heal") -- Assuming a heal sound exists
-        
-        -- Consume item
-        if item.count and item.count > 1 then
-            item.count = item.count - 1
-        else
-            table.remove(GAME.inventory, itemIndex)
-        end
-        
-        -- Deselect item after use
-        panel.selectedItemIndex = nil 
-        
-    else
-        if GAME.debug then print(item.name .. " cannot be used right now.") end
-        -- TODO: Show message in UI
     end
 end
 

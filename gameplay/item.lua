@@ -820,31 +820,129 @@ function itemSystem:useItem(item, target)
     end
     
     local effect = item.effect
+    local success = false
+    local effectMessage = ""
     
-    if effect.type == "heal" then
-        if target.currentHP then
-            target.currentHP = math.min(target.maxHP, target.currentHP + effect.amount)
-            return true
+    if effect.hp then
+        -- HP healing item
+        if target.currentHP and target.currentHP < target.maxHP then
+            local healAmount = effect.hp
+            local oldHP = target.currentHP
+            target.currentHP = math.min(target.maxHP, target.currentHP + healAmount)
+            
+            -- Calculate actual heal amount considering max HP cap
+            local actualHeal = target.currentHP - oldHP
+            
+            effectMessage = target.name .. " restored " .. actualHeal .. " HP!"
+            success = true
+        else
+            effectMessage = target.name .. " is already at full HP!"
+        end
+    elseif effect.mp then
+        -- MP restoration item
+        if target.currentMP and target.currentMP < target.maxMP then
+            local restoreAmount = effect.mp
+            local oldMP = target.currentMP
+            target.currentMP = math.min(target.maxMP, target.currentMP + restoreAmount)
+            
+            -- Calculate actual MP restore amount considering max MP cap
+            local actualRestore = target.currentMP - oldMP
+            
+            effectMessage = target.name .. " restored " .. actualRestore .. " MP!"
+            success = true
+        else
+            effectMessage = target.name .. " is already at full MP!"
+        end
+    elseif effect.type == "heal" then
+        -- Legacy healing item
+        if target.currentHP and target.currentHP < target.maxHP then
+            local healAmount = effect.amount or 20
+            local oldHP = target.currentHP
+            target.currentHP = math.min(target.maxHP, target.currentHP + healAmount)
+            
+            effectMessage = target.name .. " restored " .. (target.currentHP - oldHP) .. " HP!"
+            success = true
+        else
+            effectMessage = target.name .. " is already at full HP!"
         end
     elseif effect.type == "restore_mp" then
-        if target.currentMP then
-            target.currentMP = math.min(target.maxMP, target.currentMP + effect.amount)
-            return true
+        -- Legacy MP restoration
+        if target.currentMP and target.currentMP < target.maxMP then
+            local restoreAmount = effect.amount or 20
+            local oldMP = target.currentMP
+            target.currentMP = math.min(target.maxMP, target.currentMP + restoreAmount)
+            
+            effectMessage = target.name .. " restored " .. (target.currentMP - oldMP) .. " MP!"
+            success = true
+        else
+            effectMessage = target.name .. " is already at full MP!"
         end
     elseif effect.type == "cure_status" then
+        -- Status healing
         if target.status and target.status[effect.status] then
             target.status[effect.status] = nil
-            return true
+            effectMessage = target.name .. " was cured of " .. effect.status .. "!"
+            success = true
+        else
+            effectMessage = target.name .. " doesn't have that status ailment!"
         end
     elseif effect.type == "full_restore" then
-        if target.currentHP and target.currentMP then
+        -- Full restoration
+        local needsHealing = false
+        
+        if target.currentHP and target.currentHP < target.maxHP then
             target.currentHP = target.maxHP
+            needsHealing = true
+        end
+        
+        if target.currentMP and target.currentMP < target.maxMP then
             target.currentMP = target.maxMP
-            return true
+            needsHealing = true
+        end
+        
+        if needsHealing then
+            effectMessage = target.name .. " was fully restored!"
+            success = true
+        else
+            effectMessage = target.name .. " is already at full health!"
+        end
+    elseif effect.boost then
+        -- Stat boost item
+        if effect.boost.stat and effect.boost.amount and target.attributes then
+            local statName = effect.boost.stat
+            local boostAmount = effect.boost.amount
+            local duration = effect.boost.duration or 3  -- Default to 3 turns if not specified
+            
+            -- Create or update boosted stats
+            if not target.boostedStats then target.boostedStats = {} end
+            
+            if not target.boostedStats[statName] then
+                target.boostedStats[statName] = {
+                    amount = boostAmount,
+                    duration = duration
+                }
+                
+                -- Apply the boost
+                target.attributes[statName] = (target.attributes[statName] or 0) + boostAmount
+                
+                effectMessage = target.name .. "'s " .. statName .. " increased by " .. boostAmount .. "!"
+                success = true
+            else
+                -- If already boosted, refresh the duration instead
+                target.boostedStats[statName].duration = duration
+                effectMessage = target.name .. "'s " .. statName .. " boost extended!"
+                success = true
+            end
         end
     end
     
-    return false
+    -- Display effect message if needed
+    if GAME.debug and effectMessage ~= "" then
+        print(effectMessage)
+    end
+    
+    -- Return item use success status and message for UI feedback
+    return success, effectMessage
 end
 
 -- Craft an item from monster parts
