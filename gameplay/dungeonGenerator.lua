@@ -13,14 +13,17 @@ function Map:new(width, height)
         data = {},
         rooms = {},
         start = {x = 0, y = 0},
-        end_ = {x = 0, y = 0}
+        end_ = {x = 0, y = 0},
+        fogOfWar = {} -- Track which cells have been seen
     }
     
     -- Initialize map with all walls
     for y = 0, height - 1 do
         map.data[y] = {}
+        map.fogOfWar[y] = {} -- Initialize fog of war
         for x = 0, width - 1 do
             map.data[y][x] = 1  -- 1 means wall
+            map.fogOfWar[y][x] = false -- Initially all cells are hidden
         end
     end
     
@@ -48,6 +51,40 @@ end
 
 function Map:isCellWalkable(x, y)
     return self:getCell(x, y) == 0  -- 0 means floor
+end
+
+function Map:isCellVisible(x, y)
+    -- Check bounds
+    if x < 0 or y < 0 or x >= self.width or y >= self.height then
+        return false
+    end
+    
+    return self.fogOfWar[y][x]
+end
+
+function Map:revealCell(x, y)
+    -- Check bounds
+    if x < 0 or y < 0 or x >= self.width or y >= self.height then
+        return false
+    end
+    
+    self.fogOfWar[y][x] = true
+    return true
+end
+
+function Map:revealArea(centerX, centerY, radius)
+    -- Reveal a circular area around the given point
+    local radiusSquared = radius * radius
+    
+    for y = math.max(0, math.floor(centerY - radius)), math.min(self.height - 1, math.ceil(centerY + radius)) do
+        for x = math.max(0, math.floor(centerX - radius)), math.min(self.width - 1, math.ceil(centerX + radius)) do
+            -- Calculate distance squared for efficiency
+            local distSquared = (x - centerX)^2 + (y - centerY)^2
+            if distSquared <= radiusSquared then
+                self:revealCell(x, y)
+            end
+        end
+    end
 end
 
 -- Dungeon generator functions

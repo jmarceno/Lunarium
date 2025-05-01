@@ -149,45 +149,54 @@ function dungeon:init()
             -- Draw map cells
             for y = 0, dungeon.map.height - 1 do
                 for x = 0, dungeon.map.width - 1 do
-                    local cellType = dungeon.map:getCell(x, y)
-                    
-                    if cellType > 0 then
-                        -- Wall
-                        love.graphics.setColor(0.7, 0.7, 0.7)
-                        love.graphics.rectangle("fill", 
-                            self.x + x * cellSize, 
-                            self.y + y * cellSize, 
-                            cellSize, cellSize)
-                    else
-                        -- Floor
-                        love.graphics.setColor(0.3, 0.3, 0.3)
-                        love.graphics.rectangle("fill", 
-                            self.x + x * cellSize, 
-                            self.y + y * cellSize, 
-                            cellSize, cellSize)
+                    -- Only draw cells that have been revealed (fog of war)
+                    if dungeon.map:isCellVisible(x, y) then
+                        local cellType = dungeon.map:getCell(x, y)
+                        
+                        if cellType > 0 then
+                            -- Wall
+                            love.graphics.setColor(0.7, 0.7, 0.7)
+                            love.graphics.rectangle("fill", 
+                                self.x + x * cellSize, 
+                                self.y + y * cellSize, 
+                                cellSize, cellSize)
+                        else
+                            -- Floor
+                            love.graphics.setColor(0.3, 0.3, 0.3)
+                            love.graphics.rectangle("fill", 
+                                self.x + x * cellSize, 
+                                self.y + y * cellSize, 
+                                cellSize, cellSize)
+                        end
+                        
+                        -- Draw entities only in revealed areas
+                        for _, entity in ipairs(dungeon.entities) do
+                            local entityX = math.floor(entity.x)
+                            local entityY = math.floor(entity.y)
+                            if x == entityX and y == entityY and entity.type ~= "objective" then
+                                love.graphics.setColor(entity.color or {1, 0, 0})
+                                love.graphics.circle("fill", 
+                                    self.x + entity.x * cellSize, 
+                                    self.y + entity.y * cellSize, 
+                                    cellSize/2)
+                            end
+                        end
                     end
                 end
             end
             
-            -- Draw objective
-            love.graphics.setColor(0, 1, 0)
-            love.graphics.circle("fill", 
-                self.x + dungeon.objective.x * cellSize + cellSize/2, 
-                self.y + dungeon.objective.y * cellSize + cellSize/2, 
-                cellSize/2)
-            
-            -- Draw entities
-            for _, entity in ipairs(dungeon.entities) do
-                if entity.type ~= "objective" then -- Skip the objective entity since we already drew it
-                    love.graphics.setColor(entity.color or {1, 0, 0})
-                    love.graphics.circle("fill", 
-                        self.x + entity.x * cellSize, 
-                        self.y + entity.y * cellSize, 
-                        cellSize/2)
-                end
+            -- Draw objective if revealed
+            local objX = math.floor(dungeon.objective.x)
+            local objY = math.floor(dungeon.objective.y)
+            if not dungeon.objective.reached and dungeon.map:isCellVisible(objX, objY) then
+                love.graphics.setColor(0, 1, 0)
+                love.graphics.circle("fill", 
+                    self.x + dungeon.objective.x * cellSize + cellSize/2, 
+                    self.y + dungeon.objective.y * cellSize + cellSize/2, 
+                    cellSize/2)
             end
             
-            -- Draw player position
+            -- Player is always visible
             love.graphics.setColor(0, 0, 1)
             love.graphics.circle("fill", 
                 self.x + dungeon.playerPos.x * cellSize, 
@@ -461,6 +470,7 @@ function dungeon:enter(params)
     self.state = STATES.EXPLORING
     self.objective.completed = false
     self.objective.reached = false
+    self.fogOfWarRadius = 5 -- Visibility radius for fog of war
     
     -- Start playing dungeon music
     assetManager:playMusic("dungeon")
@@ -481,11 +491,35 @@ function dungeon:enter(params)
             angle = 0
         }
         
+        -- Adjust the player's position to be away from the entrance
+        -- Calculate direction toward dungeon center
+        local centerX = self.map.width / 2
+        local centerY = self.map.height / 2
+        
+        -- Calculate direction vector from start to center
+        local dirX = centerX - self.map.start.x
+        local dirY = centerY - self.map.start.y
+        
+        -- Normalize the direction vector
+        local length = math.sqrt(dirX*dirX + dirY*dirY)
+        if length > 0 then
+            dirX = dirX / length
+            dirY = dirY / length
+            
+            -- Move player 1.5 units in this direction (enough to not touch entrance)
+            self.playerPos.x = self.map.start.x + 0.5 + (dirX * 1.5)
+            self.playerPos.y = self.map.start.y + 0.5 + (dirY * 1.5)
+            
+            -- Set player's angle to face away from entrance (toward dungeon center)
+            self.playerPos.angle = math.atan2(dirY, dirX)
+        end
+        
         -- Set objective position
         self.objective = {
             x = self.map.end_.x,
             y = self.map.end_.y,
-            completed = false
+            completed = false,
+            reached = false
         }
         
         -- Populate dungeon with monsters and items
@@ -501,11 +535,35 @@ function dungeon:enter(params)
             angle = 0
         }
         
+        -- Adjust the player's position to be away from the entrance
+        -- Calculate direction toward dungeon center
+        local centerX = self.map.width / 2
+        local centerY = self.map.height / 2
+        
+        -- Calculate direction vector from start to center
+        local dirX = centerX - self.map.start.x
+        local dirY = centerY - self.map.start.y
+        
+        -- Normalize the direction vector
+        local length = math.sqrt(dirX*dirX + dirY*dirY)
+        if length > 0 then
+            dirX = dirX / length
+            dirY = dirY / length
+            
+            -- Move player 1.5 units in this direction (enough to not touch entrance)
+            self.playerPos.x = self.map.start.x + 0.5 + (dirX * 1.5)
+            self.playerPos.y = self.map.start.y + 0.5 + (dirY * 1.5)
+            
+            -- Set player's angle to face away from entrance (toward dungeon center)
+            self.playerPos.angle = math.atan2(dirY, dirX)
+        end
+        
         -- Set objective position
         self.objective = {
             x = self.map.end_.x,
             y = self.map.end_.y,
-            completed = false
+            completed = false,
+            reached = false
         }
         
         -- Populate dungeon with default monsters and items
@@ -534,8 +592,11 @@ function dungeon:enter(params)
         })
     end
     
-    -- Update raycaster camera
+    -- Update raycaster camera with the final player position
     raycaster:setCamera(self.playerPos.x, self.playerPos.y, self.playerPos.angle)
+    
+    -- Reveal the area around the starting position
+    self.map:revealArea(self.playerPos.x, self.playerPos.y, self.fogOfWarRadius)
 end
 
 function dungeon:populateDungeon(difficulty)
@@ -713,17 +774,10 @@ function dungeon:update(dt)
     if self.state == STATES.EXPLORING then
         -- If panels are open, don't update exploration logic (movement, etc.)
         if self.elements.inventoryPanel.visible or self.elements.questLogPanel.visible then
-            -- Potentially update panel elements if needed (e.g., animations)
-            -- if self.elements.inventoryPanel.visible and self.elements.inventoryPanel.update then
-            --     self.elements.inventoryPanel:update(dt)
-            -- end
-            -- if self.elements.questLogPanel.visible and self.elements.questLogPanel.update then
-            --     self.elements.questLogPanel:update(dt)
-            -- end
             return -- Stop further updates for this frame
         end
         
-        -- Handle player movement
+        -- Track if player moved this frame
         local playerMoved = false
         local baseSpeed = 2 -- base speed units per second
         local baseTurnSpeed = 2 -- base turning speed radians per second
@@ -731,6 +785,9 @@ function dungeon:update(dt)
         -- Calculate speed based on deltaTime
         local moveSpeed = baseSpeed * dt
         local turnSpeed = baseTurnSpeed * dt
+        
+        -- Store old position
+        local oldX, oldY = self.playerPos.x, self.playerPos.y
         
         if love.keyboard.isDown("w") then
             raycaster:moveCamera(moveSpeed, self.map)
@@ -766,6 +823,11 @@ function dungeon:update(dt)
         self.playerPos.x = raycaster.camera.x
         self.playerPos.y = raycaster.camera.y
         self.playerPos.angle = raycaster.camera.angle
+        
+        -- Update fog of war if player moved
+        if playerMoved and (self.playerPos.x ~= oldX or self.playerPos.y ~= oldY) then
+            self.map:revealArea(self.playerPos.x, self.playerPos.y, self.fogOfWarRadius)
+        end
         
         -- Check for entity interaction
         self:checkEntityInteraction()
@@ -944,6 +1006,15 @@ function dungeon:checkEntityInteraction()
                             -- Don't immediately complete quest or return to town
                         end
                     )
+                    
+                    -- Remove the objective marker from the dungeon
+                    for i = #self.entities, 1, -1 do
+                        if self.entities[i] == entity then
+                            table.remove(self.entities, i)
+                            print("Objective marker removed from dungeon")
+                            break
+                        end
+                    end
                 end
                 break
             elseif entity.type == "entrance" then
