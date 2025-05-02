@@ -201,31 +201,52 @@ function character:levelUp(char)
     -- Increase level
     char.level = char.level + 1
     
-    -- Calculate new stats
-    char.maxHP = self:calculateHP(char.attributes.CON, char.level)
-    char.maxMP = self:calculateMP(char.attributes.INT, char.attributes.WIL, char.attributes.WIS, char.level)
-    
-    -- Heal to full on level up
-    char.currentHP = char.maxHP
-    char.currentMP = char.maxMP
-    
     -- Grant skill points
     char.skillPoints = char.skillPoints + 1
     
-    -- Calculate next level experience
-    char.experienceToNext = self:calculateExperienceForLevel(char.level)
+    -- Adjust experience (Ensure experience doesn't become negative)
+    if char.experience >= char.experienceToNext then
+        char.experience = char.experience - char.experienceToNext
+    else
+        -- This case shouldn't normally happen if check is done before calling,
+        -- but as a safeguard:
+        char.experience = 0 
+    end
     
+    -- Calculate next level experience threshold
+    if char.level < self.LEVEL_CAP then
+        char.experienceToNext = self:calculateExperienceForLevel(char.level)
+    else
+        -- Already at cap after level up
+        char.experience = 0
+        char.experienceToNext = 0
+    end
+    
+    -- Note: Stat recalculation and healing are handled separately after attribute increases.
     return true
 end
 
 -- Add experience to a character
 function character:addExperience(char, amount)
+    -- Print debug info
+    print("Adding " .. amount .. " experience to " .. char.name)
+    print("  Current XP: " .. char.experience .. "/" .. char.experienceToNext .. " (Level " .. char.level .. ")")
+
     char.experience = char.experience + amount
     
-    -- Check for level up
-    while char.experience >= char.experienceToNext and char.level < self.LEVEL_CAP do
-        char.experience = char.experience - char.experienceToNext
-        self:levelUp(char)
+    -- Check if character has enough XP to level up
+    if char.experience >= char.experienceToNext and char.level < self.LEVEL_CAP then
+        print("  " .. char.name .. " has gained enough XP to level up! (" .. char.experience .. " >= " .. char.experienceToNext .. ")")
+        
+        -- Only set the level-up flag if it's not already set
+        -- This prevents multiple level-up screens for the same level
+        if not char.needsLevelUpScreen then
+            print("  Setting needsLevelUpScreen flag for " .. char.name)
+            char.needsLevelUpScreen = true
+        else
+            print("  Level-up flag already set for " .. char.name)
+        end
+        -- Don't subtract XP or increase level here - that will be done in the level-up screen
     end
     
     -- Cap experience if at max level
@@ -233,6 +254,8 @@ function character:addExperience(char, amount)
         char.experience = 0
         char.experienceToNext = 0
     end
+    
+    print("  Final XP: " .. char.experience .. "/" .. char.experienceToNext)
 end
 
 -- Change a character's job
@@ -254,13 +277,6 @@ function character:changeJob(char, newJobName)
     -- Change current job
     char.job = newJob.name
     
-    -- Apply job attribute modifiers
-    if newJob.attributeModifiers then
-        for attr, mod in pairs(newJob.attributeModifiers) do
-            char.attributes[attr] = math.min(self.BASE_ATTRIBUTE_CAP, char.attributes[attr] + mod)
-        end
-    end
-    
     -- Add new job skills
     for _, skillName in ipairs(newJob.startingSkills) do
         if not char.skills[skillName] then
@@ -273,10 +289,6 @@ function character:changeJob(char, newJobName)
             end
         end
     end
-    
-    -- Recalculate stats
-    char.maxHP = self:calculateHP(char.attributes.CON, char.level)
-    char.maxMP = self:calculateMP(char.attributes.INT, char.attributes.WIL, char.attributes.WIS, char.level)
     
     return true
 end
@@ -457,6 +469,35 @@ function character:calculateMagicDefense(char)
     end
     
     return baseMDefense
+end
+
+-- Apply attribute gains, recalculate stats, and heal after level up or job change
+function character:applyLevelUpChanges(char, chosenJobName)
+    local job = jobSystem:getJob(chosenJobName)
+    if not job then
+        print("Error applying level up changes: Job '" .. chosenJobName .. "' not found.")
+        return
+    end
+
+    -- Apply attribute modifiers from the chosen job for this level
+    if job.attributeModifiers then
+        --print("Applying attribute modifiers for " .. chosenJobName .. " to " .. char.name)
+        for attr, mod in pairs(job.attributeModifiers) do
+            local currentVal = char.attributes[attr] or 0
+            char.attributes[attr] = math.min(self.BASE_ATTRIBUTE_CAP, currentVal + mod)
+             print("  " .. attr .. ": " .. currentVal .. " + " .. mod .. " -> " .. char.attributes[attr])
+        end
+    end
+
+    -- Recalculate stats based on new level and potentially new attributes
+    char.maxHP = self:calculateHP(char.attributes.CON, char.level)
+    char.maxMP = self:calculateMP(char.attributes.INT, char.attributes.WIL, char.attributes.WIS, char.level)
+
+    -- Heal character to full after level up
+    char.currentHP = char.maxHP
+    char.currentMP = char.maxMP
+
+    print(char.name .. " level up applied. New HP: " .. char.maxHP .. ", New MP: " .. char.maxMP)
 end
 
 -- Create a character party

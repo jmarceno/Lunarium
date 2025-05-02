@@ -18,7 +18,8 @@ function gameState:init()
         smith = require("screens/smith"),
         questLog = require("screens/questLog"),
         characterInfo = require("screens/characterInfo"),
-        inventory = require("screens/inventory")
+        inventory = require("screens/inventory"),
+        levelUp = require("screens/levelUpScreen")
     }
     
     -- Initialize all states

@@ -8,6 +8,8 @@ local questSystem = require("gameplay/questSystem")
 local itemSystem = require("gameplay/item")
 local monsterDataModule = require("gameplay/monsterData")
 local layoutHelper = screenManager.layoutHelper
+local characterSystem = require("gameplay/character")
+local gameState = require("states/gameState")
 
 local dungeon = screenManager:createScreen("Dungeon")
 
@@ -438,15 +440,43 @@ function dungeon:init()
 end
 
 function dungeon:enter(params)
-    -- Check if we're returning from inventory
-    if params and params.from == "inventory" and self.map then
-        -- We're coming back from inventory, keep the existing dungeon state
+    -- Debug output to track flow
+    print("Entering dungeon screen with params:", params and table.concat({"from_levelup="..(params.from_levelup and "true" or "false"), "from="..(params.from or "nil")}, ", ") or "nil")
+    
+    -- Check if we're returning from inventory or level up screen
+    if (params and params.from == "inventory" and self.map) or 
+       (params and params.from_levelup and self.map) then
+        print("Preserving existing dungeon state")
+        -- We're coming back from inventory or level up, keep the existing dungeon state
         -- Just update the camera
+        if not self.playerPos then
+            print("WARNING: playerPos is nil! Recreating default position.")
+            self.playerPos = {x = 1.5, y = 1.5, angle = 0}
+        end
+        
+        -- Make sure raycaster is initialized
+        if not raycaster.initialized then
+            print("Reinitializing raycaster")
+            raycaster:init(GAME.width, GAME.height)
+        end
+        
+        print("Setting camera to:", self.playerPos.x, self.playerPos.y, self.playerPos.angle)
         raycaster:setCamera(self.playerPos.x, self.playerPos.y, self.playerPos.angle)
+        
+        -- Reset combat-related state
+        self.state = STATES.EXPLORING
+        self.combat = nil
+        
+        -- Reset kill quest notification when returning from levelup
+        if params.from_levelup then
+            self.killQuestNotificationShown = false
+        end
+        
         return
     end
     
     -- Otherwise initialize a new dungeon
+    print("Initializing new dungeon")
     self.state = STATES.EXPLORING
     self.objective.completed = false
     self.objective.reached = false
@@ -1100,22 +1130,51 @@ function dungeon:draw()
     -- Clear screen
     love.graphics.clear(0.1, 0.1, 0.1)
 
+    -- Safety checks for critical data
+    if self.state == STATES.EXPLORING and not self.map then
+        love.graphics.setColor(1, 0, 0)
+        love.graphics.setFont(screenManager.fonts.medium)
+        love.graphics.printf("Error: Map data is missing. Please restart the game.", 0, GAME.height/2 - 50, GAME.width, "center")
+        
+        -- Try to print a restart message
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.printf("Press ESC to return to main menu", 0, GAME.height/2 + 20, GAME.width, "center")
+        return
+    end
+
     -- Draw based on current state
     if self.state == STATES.EXPLORING then
         -- Draw 3D view only if not in inventory or quest log
         if not (self.elements.questLogPanel.visible) then
             self:drawExploringState()
+        else
+            -- Even if quest log is visible, draw some background
+            love.graphics.setColor(0.2, 0.2, 0.3)
+            love.graphics.rectangle("fill", 0, 0, GAME.width, GAME.height)
         end
 
         -- Draw UI elements that should appear in exploring state
-        self.elements.minimap:draw()
+        if self.elements.minimap then
+            self.elements.minimap:draw()
+        end
         
         -- Display party members with basic stats (bottom of screen)
-        self.elements.partyPanel:draw()
+        if self.elements.partyPanel then
+            self.elements.partyPanel:draw()
+        end
     elseif self.state == STATES.COMBAT then
         -- Draw combat UI
         if self.combat then
             self.combat:draw()
+        else
+            -- Handle case where combat system is missing
+            love.graphics.setColor(1, 0, 0)
+            love.graphics.setFont(screenManager.fonts.medium)
+            love.graphics.printf("Error: Combat system not initialized.", 0, GAME.height/2 - 50, GAME.width, "center")
+            
+            -- Reset to EXPLORING if combat is nil
+            print("ERROR: Combat state active but combat system is nil. Reverting to EXPLORING.")
+            self.state = STATES.EXPLORING
         end
     elseif self.state == STATES.COMPLETED then
         -- Draw completion message and button
@@ -1140,24 +1199,33 @@ function dungeon:draw()
         end
         
         -- Draw return button
-        self.elements.completeButton:draw()
+        if self.elements.completeButton then
+            self.elements.completeButton:draw()
+        end
     end
     
     -- Draw UI buttons (except in combat)
     if self.state ~= STATES.COMBAT then
-        self.elements.inventoryButton:draw()
-        self.elements.questLogButton:draw()
-        self.elements.statusButton:draw()
+        if self.elements.inventoryButton then self.elements.inventoryButton:draw() end
+        if self.elements.questLogButton then self.elements.questLogButton:draw() end
+        if self.elements.statusButton then self.elements.statusButton:draw() end
     end
     
     -- Draw any panels that should appear on top
-    if self.elements.questLogPanel.visible then
+    if self.elements.questLogPanel and self.elements.questLogPanel.visible then
         self.elements.questLogPanel:draw()
     end
     
     -- Draw confirmation dialog last (if visible)
-    if self.elements.confirmDialog.visible then
+    if self.elements.confirmDialog and self.elements.confirmDialog.visible then
         self.elements.confirmDialog:draw()
+    end
+    
+    -- Draw debugging information if enabled
+    if GAME.debug then
+        love.graphics.setColor(1, 1, 0)
+        love.graphics.setFont(screenManager.fonts.small)
+        love.graphics.print("State: " .. self.state, 10, GAME.height - 20)
     end
 end
 
@@ -1205,25 +1273,48 @@ function dungeon:keypressed(key, scancode, isrepeat)
         if self.combat:keypressed(key) then
             -- If combat system signals completion via keypress, handle victory/defeat immediately
             if self.combat:isVictory() then
-                -- Handle victory rewards
+                -- Get loot and enemy info before potential state change
                 local loot = self.combat:getLoot()
+                local enemyToRemove = self.combat.enemy
+
+                -- Handle victory rewards (loot, remove enemy)
                 if GAME.inventory and loot then
                     for _, item in ipairs(loot) do table.insert(GAME.inventory, item) end
                 end
-                -- Find and remove the defeated monster from entities
-                local enemyToRemove = self.combat.enemy 
                 for i = #self.entities, 1, -1 do
                     if self.entities[i] == enemyToRemove then
                         table.remove(self.entities, i)
                         break
                     end
                 end
-                -- Return to exploring state
-                self.state = STATES.EXPLORING
-                self.combat = nil 
-                -- Reset kill quest notification flag so we can check if quest is completed
-                self.killQuestNotificationShown = false
-                if GAME.debug then print("Combat over (Victory - Key), returning to dungeon") end
+
+                -- Check for level ups
+                local charactersToLevelUp = {}
+                if GAME.party then
+                    for _, char in ipairs(GAME.party) do
+                        -- Check if the character has the flag set from levelUp() function
+                        if char.needsLevelUpScreen then
+                            table.insert(charactersToLevelUp, char)
+                        end
+                    end
+                end
+
+                -- Transition to Level Up Screen or back to Exploring
+                if #charactersToLevelUp > 0 then
+                    print("Combat Victory: Triggering level up for", #charactersToLevelUp, "character(s).")
+                    self.combat = nil -- Clear combat state
+                    gameState:changeState("levelUp", { charactersToLevelUp = charactersToLevelUp })
+                    -- Note: Don't reset killQuestNotificationShown here, LevelUp screen will return
+                else
+                    -- No level ups, return to exploring
+                    print("Combat Victory: No level ups, returning to exploring.")
+                    self.state = STATES.EXPLORING
+                    self.combat = nil
+                    -- Reset kill quest notification flag AFTER victory if no level up occurs
+                    self.killQuestNotificationShown = false
+                    if GAME.debug then print("Combat over (Victory - Key), no level up, returning to dungeon") end
+                end
+
             else
                 -- Handle defeat
                 if GAME.debug then print("Combat over (Defeat - Key), returning to town") end
@@ -1272,30 +1363,53 @@ function dungeon:mousepressed(x, y, button, istouch, presses)
     -- Pass mouse press to combat system ONLY if in combat state
     if self.state == STATES.COMBAT and self.combat then
         if self.combat:mousepressed(x, y, button) then
-             -- If combat system signals completion via mouse click (on Continue button)
+            -- If combat system signals completion via mouse click (on Continue button)
             if self.combat:isVictory() then
-                 -- Handle victory rewards
+                -- Get loot and enemy info before potential state change
                 local loot = self.combat:getLoot()
+                local enemyToRemove = self.combat.enemy
+
+                -- Handle victory rewards (loot, remove enemy)
                 if GAME.inventory and loot then
                     for _, item in ipairs(loot) do table.insert(GAME.inventory, item) end
                 end
-                -- Find and remove the defeated monster from entities
-                local enemyToRemove = self.combat.enemy 
                 for i = #self.entities, 1, -1 do
                     if self.entities[i] == enemyToRemove then
                         table.remove(self.entities, i)
                         break
                     end
                 end
-                -- Return to exploring state
-                self.state = STATES.EXPLORING
-                self.combat = nil 
-                -- Reset kill quest notification flag so we can check if quest is completed
-                self.killQuestNotificationShown = false
-                if GAME.debug then print("Combat over (Victory - Mouse), returning to dungeon") end
+
+                -- Check for level ups
+                local charactersToLevelUp = {}
+                if GAME.party then
+                    for _, char in ipairs(GAME.party) do
+                        -- Check if the character has the flag set from levelUp() function
+                        if char.needsLevelUpScreen then
+                            table.insert(charactersToLevelUp, char)
+                        end
+                    end
+                end
+
+                -- Transition to Level Up Screen or back to Exploring
+                if #charactersToLevelUp > 0 then
+                    print("Combat Victory: Triggering level up for", #charactersToLevelUp, "character(s).")
+                    self.combat = nil -- Clear combat state
+                    gameState:changeState("levelUp", { charactersToLevelUp = charactersToLevelUp })
+                     -- Note: Don't reset killQuestNotificationShown here, LevelUp screen will return
+                else
+                     -- No level ups, return to exploring
+                    print("Combat Victory: No level ups, returning to exploring.")
+                    self.state = STATES.EXPLORING
+                    self.combat = nil
+                    -- Reset kill quest notification flag AFTER victory if no level up occurs
+                    self.killQuestNotificationShown = false
+                    if GAME.debug then print("Combat over (Victory - Mouse), no level up, returning to dungeon") end
+                end
+
             else
                 -- Handle defeat
-                if GAME.debug then print("Combat over (Defeat - Mouse), returning to town") end
+                 if GAME.debug then print("Combat over (Defeat - Mouse), returning to town") end
                 self:failQuest()
             end
             return true -- Indicate click was handled and led to state change
@@ -1375,6 +1489,26 @@ end
 
 -- Function to handle drawing the exploring state
 function dungeon:drawExploringState()
+    -- Safety check for map - if no map, render an error message instead of crashing
+    if not self.map then
+        love.graphics.setColor(1, 0, 0)
+        love.graphics.setFont(screenManager.fonts.medium)
+        love.graphics.printf("Error: Map data is missing. Please restart the game.", 
+            0, GAME.height/2 - 50, GAME.width, "center")
+        print("ERROR: Attempted to draw dungeon with nil map!")
+        return
+    end
+    
+    -- Safety check for raycaster
+    if not raycaster or not raycaster.render then
+        love.graphics.setColor(1, 0, 0)
+        love.graphics.setFont(screenManager.fonts.medium)
+        love.graphics.printf("Error: Raycaster is not properly initialized.", 
+            0, GAME.height/2 - 50, GAME.width, "center")
+        print("ERROR: Raycaster not properly initialized!")
+        return
+    end
+    
     -- Draw 3D view from raycaster
     love.graphics.setColor(1, 1, 1)
     raycaster:render(self.map, self.entities)
@@ -1385,7 +1519,7 @@ function dungeon:drawExploringState()
     end
     
     -- Draw objective reached reminder if applicable
-    if self.objective.reached and not self.objective.completed and 
+    if self.objective and self.objective.reached and not self.objective.completed and 
        self.currentQuest and self.currentQuest.type == "EXPLORE" then
         -- Display a message indicating the player should return to entrance
         love.graphics.setColor(0, 1, 0, 0.7 + math.sin(love.timer.getTime() * 2) * 0.3) -- Pulsing green
@@ -1402,10 +1536,11 @@ function dungeon:drawExploringState()
         love.graphics.setFont(screenManager.fonts.small)
         love.graphics.print("Player Pos: " .. string.format("%.2f, %.2f", self.playerPos.x, self.playerPos.y), 10, 10)
         love.graphics.print("Player Angle: " .. string.format("%.2f", self.playerPos.angle), 10, 30)
+        love.graphics.print("Map size: " .. self.map.width .. "x" .. self.map.height, 10, 50)
         
         -- Draw entity info
         for i, entity in ipairs(self.entities) do
-            love.graphics.print("Entity " .. i .. ": " .. string.format("%.2f, %.2f", entity.x, entity.y), 10, 50 + (i-1) * 20)
+            love.graphics.print("Entity " .. i .. ": " .. string.format("%.2f, %.2f", entity.x, entity.y), 10, 70 + (i-1) * 20)
         end
     end
 end
