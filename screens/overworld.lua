@@ -128,13 +128,33 @@ function overworld:createUI()
     )
     self.elements.inventoryButton.visible = true
     
+    -- Create character info button (in top bar)
+    self.elements.characterInfoButton = screenManager.UI.Button(
+        GAME.width - 170, 170, 150, 40, "Character Info", 
+        function() 
+            local gameState = require("states/gameState")
+            gameState:changeState("characterInfo")
+        end
+    )
+    self.elements.characterInfoButton.visible = true
+    
+    -- Create quest log button (in top bar)
+    self.elements.questLogButton = screenManager.UI.Button(
+        GAME.width - 170, 220, 150, 40, "Quest Log", 
+        function() 
+            local gameState = require("states/gameState")
+            gameState:changeState("questLog")
+        end
+    )
+    self.elements.questLogButton.visible = true
+    
     -- Create menu panel
     self.elements.menuPanel = {
         visible = false,
         x = GAME.width / 2 - 150,
         y = GAME.height / 2 - 200,
         width = 300,
-        height = 400,
+        height = 300,
         
         draw = function(self)
             if not self.visible then return end
@@ -223,28 +243,6 @@ function overworld:createUI()
                 
                 screenManager.UI.Button(
                     self.x + 50, self.y + 280, 
-                    200, 40, "Character Info", 
-                    function() 
-                        -- Open the character info screen
-                        local gameState = require("states/gameState")
-                        gameState:changeState("characterInfo")
-                        self.visible = false
-                    end
-                ),
-                
-                screenManager.UI.Button(
-                    self.x + 50, self.y + 330, 
-                    200, 40, "Quest Log", 
-                    function() 
-                        -- Open the quest log screen
-                        local gameState = require("states/gameState")
-                        gameState:changeState("questLog")
-                        self.visible = false
-                    end
-                ),
-                
-                screenManager.UI.Button(
-                    self.x + 50, self.y + 380, 
                     200, 40, "Return to Title", 
                     function() 
                         local gameState = require("states/gameState")
@@ -602,6 +600,8 @@ function overworld:draw()
     self.elements.menuButton:draw()
     self.elements.saveButton:draw()
     self.elements.inventoryButton:draw()
+    self.elements.characterInfoButton:draw()
+    self.elements.questLogButton:draw()
     self.elements.partyPanel:draw()
     self.elements.menuPanel:draw()
     self.elements.questPanel:draw()
