@@ -543,24 +543,47 @@ function characterCreator:createUI()
         height = 300,
         
         draw = function(self)
-            if not characterCreator.tempChar then return end
+            if not characterCreator.tempChar then 
+                -- Draw a message if tempChar is missing
+                love.graphics.setFont(screenManager.fonts.medium)
+                love.graphics.setColor(1, 0.3, 0.3)
+                love.graphics.printf("Character preview not available", 
+                    self.x, self.y + self.height/2 - 20, 
+                    self.width, "center")
+                return 
+            end
             
             local char = characterCreator.tempChar
             
             -- Draw character profile
             love.graphics.setColor(1, 1, 1)
+            local portraitDrawn = false
+            
             if char.portraitId and assetManager.images.portraits[char.portraitId] then
                 love.graphics.draw(
                     assetManager.images.portraits[char.portraitId],
                     self.x, self.y,
                     0, 0.5, 0.5
                 )
-            elseif assetManager.images.profiles[char.profileIndex] then
+                portraitDrawn = true
+            elseif char.profileIndex and assetManager.images.profiles[char.profileIndex] then
                 love.graphics.draw(
                     assetManager.images.profiles[char.profileIndex],
                     self.x, self.y,
                     0, 0.5, 0.5
                 )
+                portraitDrawn = true
+            end
+            
+            -- Draw placeholder if no portrait is available
+            if not portraitDrawn then
+                love.graphics.setColor(0.7, 0.7, 0.7)
+                love.graphics.rectangle("fill", self.x, self.y, 86, 86)
+                love.graphics.setColor(0.3, 0.3, 0.3)
+                love.graphics.rectangle("line", self.x, self.y, 86, 86)
+                love.graphics.setFont(screenManager.fonts.small)
+                love.graphics.setColor(0.3, 0.3, 0.3)
+                love.graphics.printf("No\nPortrait", self.x, self.y + 25, 86, "center")
             end
             
             -- Draw character details
@@ -750,6 +773,11 @@ function characterCreator:updateElementVisibility()
     else
         self.elements.nextButton.visible = false
         self.elements.finishButton.visible = true
+        
+        -- Ensure tempChar exists when on preview step
+        if not self.tempChar then
+            self:createTempChar()
+        end
     end
     
     if GAME.debug then
@@ -1029,6 +1057,18 @@ function characterCreator:createTempChar()
     -- Get character name
     self.charName = self.elements.nameInput:getValue()
     
+    -- Ensure we have the required data before creating character
+    if not self.selectedJob then
+        print("Error: No job selected when creating temp character")
+        return
+    end
+    
+    if not self.charName or self.charName == "" then
+        -- Use a default name if none provided
+        self.charName = "Character " .. self.currentCharacter
+        self.elements.nameInput:setValue(self.charName)
+    end
+    
     -- Create temporary character
     self.tempChar = characterSystem:new(
         self.charName,
@@ -1037,6 +1077,15 @@ function characterCreator:createTempChar()
         nil, -- Will be replaced with portraitId
         self.portraitId
     )
+    
+    -- Debug info
+    if GAME.debug then
+        if self.tempChar then
+            print("Temporary character created successfully: " .. self.charName)
+        else
+            print("ERROR: Failed to create temporary character")
+        end
+    end
 end
 
 function characterCreator:finishCharacter()
