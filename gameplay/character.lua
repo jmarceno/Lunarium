@@ -19,7 +19,20 @@ character.attributes = {
 
 -- Base attribute cap
 character.BASE_ATTRIBUTE_CAP = 50
-character.LEVEL_CAP = 100
+-- Level caps
+character.JOB_LEVEL_CAP = 50 -- Maximum level for a single job
+character.TOTAL_LEVEL_CAP = 100 -- Maximum sum of all job levels
+
+-- Helper function to calculate total level
+function character:_calculateTotalLevel(char)
+    local total = 0
+    if char.jobLevels then
+        for _, jobLevel in pairs(char.jobLevels) do
+            total = total + jobLevel
+        end
+    end
+    return total
+end
 
 -- Create a new character
 function character:new(name, jobName, attributes, profileIndex, portraitId)
@@ -56,9 +69,14 @@ function character:new(name, jobName, attributes, profileIndex, portraitId)
         end
     end
     
-    -- Calculate derived stats
-    local maxHP = self:calculateHP(attrs.CON, 1)
-    local maxMP = self:calculateMP(attrs.INT, attrs.WIL, attrs.WIS, 1)
+    -- Initialize job levels
+    local jobLevels = {}
+    jobLevels[job.name] = 1 -- Start the chosen job at level 1
+    
+    -- Calculate initial derived stats using calculated total level
+    local totalLevel = 1 -- Initial total level (should equal 1 since only one job at level 1)
+    local maxHP = self:calculateHP(attrs.CON, totalLevel)
+    local maxMP = self:calculateMP(attrs.INT, attrs.WIL, attrs.WIS, totalLevel)
     
     -- Handle portrait selection
     local finalPortraitId = portraitId
@@ -75,20 +93,22 @@ function character:new(name, jobName, attributes, profileIndex, portraitId)
         finalPortraitId = self:selectRandomPortrait(job.name)
     end
     
-    -- Create character table
+    -- Calculate initial experience needed (based on job level 1)
+    local experienceToNext = self:calculateExperienceForLevel(1) 
+
+    -- Create character table with new structure - NOTE: don't directly store level
     local char = {
         name = name,
-        job = job.name,
-        jobHistory = {job.name},
-        level = 1,
+        job = job.name, -- Current active job
+        jobLevels = jobLevels, -- Table storing levels for each job
         experience = 0,
-        experienceToNext = 100,
+        experienceToNext = experienceToNext,
         attributes = attrs,
         maxHP = maxHP,
         currentHP = maxHP,
         maxMP = maxMP,
         currentMP = maxMP,
-        skillPoints = 0,
+        skillPoints = 0, -- Still grant based on total level for now
         skills = {},
         equipment = {
             weapon = nil,
@@ -168,13 +188,13 @@ function character:selectRandomPortrait(jobName)
 end
 
 -- Calculate maximum HP based on constitution and level
-function character:calculateHP(constitution, level)
-    return math.floor(constitution * 5 + level * 2)
+function character:calculateHP(constitution, totalLevel)
+    return math.floor(constitution * 5 + totalLevel * 2)
 end
 
 -- Calculate maximum MP based on intelligence, will, wisdom and level
-function character:calculateMP(intelligence, will, wisdom, level)
-    return math.floor(((intelligence + will + wisdom) / 3) * 2 + level)
+function character:calculateMP(intelligence, will, wisdom, totalLevel)
+    return math.floor(((intelligence + will + wisdom) / 3) * 2 + totalLevel)
 end
 
 -- Calculate hit chance with melee attacks
@@ -187,72 +207,88 @@ function character:calculateRangedHitChance(dexterity, strength)
     return 70 + (dexterity * 0.5) + (strength * 0.2)
 end
 
--- Calculate experience required for next level
-function character:calculateExperienceForLevel(level)
-    return math.floor(100 * level * (1 + level * 0.1))
+-- Calculate experience required for the next level of a specific JOB
+function character:calculateExperienceForLevel(jobLevel)
+    -- Base experience on the job level, not total level
+    return math.floor(100 * jobLevel * (1 + jobLevel * 0.1))
 end
 
--- Level up a character
+-- Level up a character (job level up)
 function character:levelUp(char)
-    if char.level >= self.LEVEL_CAP then
+    local currentJobName = char.job
+    local currentJobLevel = char.jobLevels[currentJobName] or 0
+    local totalLevel = self:_calculateTotalLevel(char)
+    
+    -- Check caps: current job level and total level
+    if currentJobLevel >= self.JOB_LEVEL_CAP or totalLevel >= self.TOTAL_LEVEL_CAP then
+        print(char.name .. " cannot level up further (Job Level: " .. currentJobLevel .. "/" .. self.JOB_LEVEL_CAP .. ", Total Level: " .. totalLevel .. "/" .. self.TOTAL_LEVEL_CAP .. ")")
+        -- Reset XP needed if capped
+        char.experienceToNext = 0 
+        char.experience = 0
         return false
     end
     
-    -- Increase level
-    char.level = char.level + 1
+    -- Increase current job level
+    char.jobLevels[currentJobName] = currentJobLevel + 1
     
-    -- Grant skill points
+    -- Grant skill points (based on total level increase - might reconsider later)
     char.skillPoints = char.skillPoints + 1
     
-    -- Adjust experience (Ensure experience doesn't become negative)
+    -- Adjust experience (as before)
     if char.experience >= char.experienceToNext then
         char.experience = char.experience - char.experienceToNext
     else
-        -- This case shouldn't normally happen if check is done before calling,
-        -- but as a safeguard:
         char.experience = 0 
     end
     
-    -- Calculate next level experience threshold
-    if char.level < self.LEVEL_CAP then
-        char.experienceToNext = self:calculateExperienceForLevel(char.level)
+    -- Calculate next level experience threshold (based on NEW job level)
+    local nextJobLevel = char.jobLevels[currentJobName]
+    local newTotalLevel = self:_calculateTotalLevel(char)
+    
+    if nextJobLevel < self.JOB_LEVEL_CAP and newTotalLevel < self.TOTAL_LEVEL_CAP then
+        char.experienceToNext = self:calculateExperienceForLevel(nextJobLevel)
     else
-        -- Already at cap after level up
+        -- Reached cap after this level up
         char.experience = 0
         char.experienceToNext = 0
     end
+
+    print(char.name .. " leveled up job " .. currentJobName .. " to level " .. nextJobLevel .. "! Total Level: " .. newTotalLevel)
     
-    -- Note: Stat recalculation and healing are handled separately after attribute increases.
+    -- Stat recalculation/healing are handled separately by applyLevelUpChanges
     return true
 end
 
 -- Add experience to a character
 function character:addExperience(char, amount)
-    -- Print debug info
+    local currentJobName = char.job
+    local currentJobLevel = char.jobLevels[currentJobName] or 0
+    local totalLevel = self:_calculateTotalLevel(char)
+
+    -- Don't add experience if job or total level is capped
+    if currentJobLevel >= self.JOB_LEVEL_CAP or totalLevel >= self.TOTAL_LEVEL_CAP then
+        print(char.name .. " cannot gain experience (level capped).")
+        return
+    end
+
     print("Adding " .. amount .. " experience to " .. char.name)
-    print("  Current XP: " .. char.experience .. "/" .. char.experienceToNext .. " (Level " .. char.level .. ")")
+    print("  Current XP: " .. char.experience .. "/" .. char.experienceToNext .. " (Job: " .. currentJobName .. " Lv." .. currentJobLevel .. ", Total Lv." .. totalLevel .. ")")
 
     char.experience = char.experience + amount
     
-    -- Check if character has enough XP to level up
-    if char.experience >= char.experienceToNext and char.level < self.LEVEL_CAP then
-        print("  " .. char.name .. " has gained enough XP to level up! (" .. char.experience .. " >= " .. char.experienceToNext .. ")")
+    -- Check if character has enough XP to level up (based on current job's next threshold)
+    -- Ensure experienceToNext is not zero before checking
+    if char.experienceToNext > 0 and char.experience >= char.experienceToNext then
+        print("  " .. char.name .. " has gained enough XP to level up job " .. currentJobName .. "! (" .. char.experience .. " >= " .. char.experienceToNext .. ")")
         
-        -- Only set the level-up flag if it's not already set
-        -- This prevents multiple level-up screens for the same level
+        -- Set level-up flag (as before)
         if not char.needsLevelUpScreen then
             print("  Setting needsLevelUpScreen flag for " .. char.name)
             char.needsLevelUpScreen = true
         else
             print("  Level-up flag already set for " .. char.name)
         end
-        -- Don't subtract XP or increase level here - that will be done in the level-up screen
-    end
-    
-    -- Cap experience if at max level
-    if char.level >= self.LEVEL_CAP then
-        char.experience = 0
-        char.experienceToNext = 0
+        -- Leveling up happens via the level-up screen process
     end
     
     print("  Final XP: " .. char.experience .. "/" .. char.experienceToNext)
@@ -261,57 +297,55 @@ end
 -- Change a character's job
 function character:changeJob(char, newJobName)
     local newJob = jobSystem:getJob(newJobName)
-    if not newJob then
-        return false
-    end
+    if not newJob then return false end
     
-    -- Check if job change is allowed
     local currentJob = jobSystem:getJob(char.job)
-    if not currentJob or not self:canChangeJob(char, currentJob, newJob) then
-        return false
-    end
+    if not currentJob or not self:canChangeJob(char, currentJob, newJob) then return false end
     
-    -- Add job to history
-    table.insert(char.jobHistory, newJob.name)
-    
-    -- Change current job
+    -- Set new job as current
     char.job = newJob.name
-    
-    -- Add new job skills
-    for _, skillName in ipairs(newJob.startingSkills) do
-        if not char.skills[skillName] then
-            local skill = skillSystem:getSkill(skillName)
-            if skill then
-                char.skills[skillName] = {
-                    level = 1,
-                    uses = 0
-                }
+    print(char.name .. " changed job to " .. newJob.name)
+
+    -- Add to jobLevels if it's a new job for this character
+    if not char.jobLevels[newJob.name] then
+        print("  Learned new job: " .. newJob.name)
+        char.jobLevels[newJob.name] = 1
+        
+        -- Add new job starting skills ONLY if it's a brand new job
+        for _, skillName in ipairs(newJob.startingSkills) do
+            if not char.skills[skillName] then
+                local skill = skillSystem:getSkill(skillName)
+                if skill then
+                    char.skills[skillName] = { level = 1, uses = 0 }
+                    print("    Learned starting skill: " .. skillName)
+                end
             end
         end
+    else
+        print("  Switched back to job: " .. newJob.name .. " (Level " .. char.jobLevels[newJob.name] .. ")")
     end
+
+    -- Recalculate XP needed for the *new current* job's level
+    local newCurrentJobLevel = char.jobLevels[char.job]
+    local totalLevel = self:_calculateTotalLevel(char)
+    
+    if newCurrentJobLevel < self.JOB_LEVEL_CAP and totalLevel < self.TOTAL_LEVEL_CAP then
+        char.experienceToNext = self:calculateExperienceForLevel(newCurrentJobLevel)
+    else
+        char.experienceToNext = 0 -- Capped
+    end
+    char.experience = 0 -- Reset progress towards next level on job change
     
     return true
 end
 
--- Check if a character can change to a new job
+-- Check if a character can change to a new job based on job level requirements
 function character:canChangeJob(char, currentJob, newJob)
-    -- Check if current job level meets requirements
     if newJob.requirements then
         for reqJob, reqLevel in pairs(newJob.requirements) do
-            local hasJob = false
-            local jobLevel = 0
-            
-            -- Check job history
-            for _, job in ipairs(char.jobHistory) do
-                if job == reqJob then
-                    hasJob = true
-                    -- TODO: Track job levels separately
-                    jobLevel = char.level
-                    break
-                end
-            end
-            
-            if not hasJob or jobLevel < reqLevel then
+            -- Check if the required job exists in jobLevels and meets the level
+            if not char.jobLevels[reqJob] or char.jobLevels[reqJob] < reqLevel then
+                print("Job change failed: Requires " .. reqJob .. " Lv." .. reqLevel .. ", " .. char.name .. " has Lv." .. (char.jobLevels[reqJob] or 0))
                 return false
             end
         end
@@ -473,15 +507,15 @@ end
 
 -- Apply attribute gains, recalculate stats, and heal after level up or job change
 function character:applyLevelUpChanges(char, chosenJobName)
-    local job = jobSystem:getJob(chosenJobName)
+    local job = jobSystem:getJob(chosenJobName) -- chosenJobName is the job that JUST leveled up
     if not job then
         print("Error applying level up changes: Job '" .. chosenJobName .. "' not found.")
         return
     end
 
-    -- Apply attribute modifiers from the chosen job for this level
+    -- Apply attribute modifiers ONLY from the job that leveled up
     if job.attributeModifiers then
-        --print("Applying attribute modifiers for " .. chosenJobName .. " to " .. char.name)
+        print("Applying attribute modifiers for leveling up " .. chosenJobName .. " on " .. char.name)
         for attr, mod in pairs(job.attributeModifiers) do
             local currentVal = char.attributes[attr] or 0
             char.attributes[attr] = math.min(self.BASE_ATTRIBUTE_CAP, currentVal + mod)
@@ -489,15 +523,18 @@ function character:applyLevelUpChanges(char, chosenJobName)
         end
     end
 
-    -- Recalculate stats based on new level and potentially new attributes
-    char.maxHP = self:calculateHP(char.attributes.CON, char.level)
-    char.maxMP = self:calculateMP(char.attributes.INT, char.attributes.WIL, char.attributes.WIS, char.level)
+    -- Calculate the total level
+    local totalLevel = self:_calculateTotalLevel(char)
+    
+    -- Recalculate stats based on new total level and potentially new attributes
+    char.maxHP = self:calculateHP(char.attributes.CON, totalLevel)
+    char.maxMP = self:calculateMP(char.attributes.INT, char.attributes.WIL, char.attributes.WIS, totalLevel)
 
     -- Heal character to full after level up
     char.currentHP = char.maxHP
     char.currentMP = char.maxMP
 
-    print(char.name .. " level up applied. New HP: " .. char.maxHP .. ", New MP: " .. char.maxMP)
+    print(char.name .. " level up changes applied. New Max HP: " .. char.maxHP .. ", New Max MP: " .. char.maxMP)
 end
 
 -- Create a character party

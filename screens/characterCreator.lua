@@ -593,7 +593,7 @@ function characterCreator:createUI()
             
             love.graphics.setFont(screenManager.fonts.small)
             love.graphics.setColor(0.8, 0.8, 1)
-            love.graphics.print("Level " .. char.level .. " " .. char.job, self.x + 100, self.y + 25)
+            love.graphics.print("Level " .. characterSystem:_calculateTotalLevel(char) .. " " .. char.job, self.x + 100, self.y + 25)
             
             -- Draw attributes
             love.graphics.setFont(screenManager.fonts.small)
@@ -1150,6 +1150,11 @@ function characterCreator:finishParty()
             profile.party = self.characters
             profile.inventory = GAME.inventory
             profile.gold = GAME.gold
+            profile.quests = {}
+            profile.completedQuests = {}
+            profile.dungeonSeeds = {}
+            profile.gameTime = 0
+            profile.flags = {}
             
             -- Save profile
             if not saveLoad:saveGame(profile) then

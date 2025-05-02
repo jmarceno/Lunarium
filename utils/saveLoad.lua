@@ -222,6 +222,9 @@ function saveLoad:saveGame(gameData)
         return false
     end
     
+    -- We'll need access to character system to calculate levels
+    local characterSystem = require("gameplay/character")
+    
     -- Update info
     local infoFile = self.saveDir .. self.currentProfile .. ".info"
     local info = {
@@ -235,8 +238,9 @@ function saveLoad:saveGame(gameData)
     if gameData.party and #gameData.party > 0 then
         local maxLevel = 0
         for _, char in ipairs(gameData.party) do
-            if char.level > maxLevel then
-                maxLevel = char.level
+            local charLevel = characterSystem:_calculateTotalLevel(char)
+            if charLevel > maxLevel then
+                maxLevel = charLevel
             end
         end
         info.level = maxLevel

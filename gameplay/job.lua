@@ -457,22 +457,12 @@ function jobSystem:getAvailableJobs(character)
         -- Check requirements
         if job.requirements then
             for reqJob, reqLevel in pairs(job.requirements) do
-                local hasJob = false
-                local jobLevel = 0
+                -- Check jobLevels table instead of jobHistory
+                local jobLevel = character.jobLevels and character.jobLevels[reqJob] or 0
                 
-                -- Check job history
-                for _, historicJob in ipairs(character.jobHistory) do
-                    if historicJob == reqJob then
-                        hasJob = true
-                        -- For now assuming character level is job level
-                        jobLevel = character.level
-                        break
-                    end
-                end
-                
-                if not hasJob or jobLevel < reqLevel then
+                if jobLevel < reqLevel then
                     canAccess = false
-                    break
+                    break -- Stop checking requirements for this job
                 end
             end
         end

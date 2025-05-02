@@ -130,13 +130,17 @@ function love.mousereleased(x, y, button, istouch, presses)
     end
 end
 
-function love.wheelmoved(x, y)
+function love.wheelmoved(dx, dy)
     -- Pass mouse wheel movement to current state
     if GAME.currentState and GAME.currentState.wheelmoved then
-        GAME.currentState:wheelmoved(x, y)
+        local handled = GAME.currentState:wheelmoved(dx, dy)
         
         if GAME.debug then
-            print("Mouse wheel moved: " .. x .. "," .. y)
+            if handled then
+                print("Wheel moved: dx=" .. dx .. ", dy=" .. dy .. ", Handled by: " .. gameState:getCurrentStateName())
+            else
+                print("Wheel moved: dx=" .. dx .. ", dy=" .. dy .. ", Not Handled")
+            end
         end
     end
 end

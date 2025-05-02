@@ -1753,7 +1753,7 @@ function combatSystem:createCombat(party, enemy)
             
             -- Calculate rewards
             self.rewards = {
-                exp = self.enemy.stats.level * 10,
+                exp = self.enemy.stats.level * 100,
                 loot = itemSystem:generateRandomLoot(self.enemy.stats.level)
             }
             

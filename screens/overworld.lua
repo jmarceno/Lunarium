@@ -422,8 +422,9 @@ function overworld:createUI()
                     
                     -- Draw character job and level
                     love.graphics.setColor(0.8, 0.8, 1)
+                    local currentJobLevel = character.jobLevels[character.job] or 1 -- Default to 1 if somehow missing
                     love.graphics.print(
-                        character.job .. " Lv." .. character.level,
+                        character.job .. " Lv." .. currentJobLevel,
                         x + 50, self.y + 30
                     )
                     
