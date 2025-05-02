@@ -130,6 +130,17 @@ function love.mousereleased(x, y, button, istouch, presses)
     end
 end
 
+function love.wheelmoved(x, y)
+    -- Pass mouse wheel movement to current state
+    if GAME.currentState and GAME.currentState.wheelmoved then
+        GAME.currentState:wheelmoved(x, y)
+        
+        if GAME.debug then
+            print("Mouse wheel moved: " .. x .. "," .. y)
+        end
+    end
+end
+
 function love.keyreleased(key)
     if key == "f1" then
         -- Toggle debug mode

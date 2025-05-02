@@ -22,7 +22,7 @@ character.BASE_ATTRIBUTE_CAP = 50
 character.LEVEL_CAP = 100
 
 -- Create a new character
-function character:new(name, jobName, attributes, profileIndex)
+function character:new(name, jobName, attributes, profileIndex, portraitId)
     -- Validate name
     if not name or name == "" then
         name = "Character_" .. os.time()
@@ -60,6 +60,21 @@ function character:new(name, jobName, attributes, profileIndex)
     local maxHP = self:calculateHP(attrs.CON, 1)
     local maxMP = self:calculateMP(attrs.INT, attrs.WIL, attrs.WIS, 1)
     
+    -- Handle portrait selection
+    local finalPortraitId = portraitId
+    
+    -- If no portrait ID provided, use profile index for backwards compatibility
+    if not finalPortraitId and profileIndex then
+        -- Use numeric profile index (legacy)
+        finalPortraitId = "profile" .. profileIndex
+    end
+    
+    -- If still no portrait, select a random one based on job
+    if not finalPortraitId then
+        -- Select a random portrait based on job type
+        finalPortraitId = self:selectRandomPortrait(job.name)
+    end
+    
     -- Create character table
     local char = {
         name = name,
@@ -84,6 +99,8 @@ function character:new(name, jobName, attributes, profileIndex)
             accessory2 = nil
         },
         inventory = {},
+        portraitId = finalPortraitId,
+        -- Keep profileIndex for backwards compatibility
         profileIndex = profileIndex or math.random(1, 8)
     }
     
@@ -107,6 +124,47 @@ function character:new(name, jobName, attributes, profileIndex)
     end
     
     return char
+end
+
+-- Select a random portrait based on job type
+function character:selectRandomPortrait(jobName)
+    -- Define portrait categories based on race/class
+    local portraits = {
+        -- Default to these if job not found
+        default = {"elf10", "dwarf10", "halfling10"}
+    }
+    
+    -- Map races to portrait categories
+    local raceMap = {
+        ["Fighter"] = {"dwarf", "halfling"},
+        ["Ranger"] = {"elf"},
+        ["Mage"] = {"elf"},
+        ["Cleric"] = {"dwarf", "halfling"},
+        ["Rogue"] = {"halfling"},
+        ["Paladin"] = {"dwarf"},
+        ["Healer"] = {"elf", "halfling"},
+        ["Warrior"] = {"dwarf", "halfling"},
+        ["Necromancer"] = {"construct"},
+        ["Berserker"] = {"dwarf"}
+    }
+    
+    -- Select a race based on job
+    local races = raceMap[jobName] or {"elf", "dwarf", "halfling"}
+    local race = races[math.random(1, #races)]
+    
+    -- Select a number range based on race
+    local numRange = {
+        elf = {1, 30},
+        dwarf = {1, 31},
+        halfling = {1, 31},
+        construct = {1, 7}
+    }
+    
+    local range = numRange[race] or {1, 10}
+    local num = math.random(range[1], range[2])
+    
+    -- Return the portrait ID
+    return race .. num
 end
 
 -- Calculate maximum HP based on constitution and level

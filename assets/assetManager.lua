@@ -7,6 +7,9 @@ local assetManager = {
 }
 
 function assetManager:init()
+    -- Load character portraits
+    self:loadPortraits()
+    
     -- Create placeholder images for future textures
     self:createPlaceholders()
     
@@ -17,12 +20,58 @@ function assetManager:init()
     self:loadMusic()
 end
 
-function assetManager:createPlaceholders()
-    -- Character profile placeholders
+-- Load character portraits from Sprites/Portraits directory
+function assetManager:loadPortraits()
+    self.images.portraits = {}
     self.images.profiles = {}
-    for i = 1, 8 do
-        local placeholder = self:createProfilePlaceholder(i)
-        self.images.profiles[i] = placeholder
+    
+    -- Check if portraits directory exists
+    local info = love.filesystem.getInfo("assets/Sprites/Portraits")
+    if not info or info.type ~= "directory" then
+        print("Warning: Portraits directory not found")
+        return
+    end
+    
+    -- Get list of portraits
+    local files = love.filesystem.getDirectoryItems("assets/Sprites/Portraits")
+    for _, file in ipairs(files) do
+        -- Skip non-PNG files
+        if file:match("%.png$") then
+            local id = file:gsub("_DD%.png$", "")
+            local path = "assets/Sprites/Portraits/" .. file
+            
+            -- Load image
+            local success, portrait = pcall(function()
+                return love.graphics.newImage(path)
+            end)
+            
+            if success and portrait then
+                -- Store portrait indexed by filename (without extension)
+                self.images.portraits[id] = portrait
+            end
+        end
+    end
+    
+    -- For backwards compatibility, map first 8 portraits to profiles array
+    local count = 0
+    for id, portrait in pairs(self.images.portraits) do
+        count = count + 1
+        if count <= 8 then
+            self.images.profiles[count] = portrait
+        end
+    end
+    
+    print("Loaded " .. count .. " portraits")
+end
+
+function assetManager:createPlaceholders()
+    -- Character profile placeholders if no portraits were loaded
+    if not self.images.profiles[1] then
+        self.images.profiles = {}
+        for i = 1, 8 do
+            local placeholder = self:createProfilePlaceholder(i)
+            self.images.profiles[i] = placeholder
+        end
     end
     
     -- Wall textures placeholders

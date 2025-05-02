@@ -180,12 +180,19 @@ function characterDetails:createUI()
             if characterDetails.selectedCharacter then
                 local char = characterDetails.selectedCharacter
                 
-                -- Draw character profile
+                -- Draw character portrait
                 love.graphics.setColor(1, 1, 1)
-                if assetManager.images.profiles[char.profileIndex] then
+                if char.portraitId and assetManager.images.portraits[char.portraitId] then
+                    love.graphics.draw(
+                        assetManager.images.portraits[char.portraitId],
+                        self.x + 20, self.y + 20,
+                        0, 0.5, 0.5
+                    )
+                elseif assetManager.images.profiles[char.profileIndex] then
                     love.graphics.draw(
                         assetManager.images.profiles[char.profileIndex],
-                        self.x + 30, self.y + 50
+                        self.x + 20, self.y + 20,
+                        0, 0.5, 0.5
                     )
                 end
                 

@@ -20,7 +20,10 @@ function characterCreator:init()
     self.baseAttributes = {}
     self.tempAttributes = {}
     self.charName = ""
-    self.profileIndex = 1
+    self.portraitId = nil
+    self.portraitScrollY = 0
+    self.maxPortraitScrollY = 0
+    self.attributeWarning = "" -- Message for attribute allocation
     
     -- Initialize base attributes
     for _, attr in ipairs(characterSystem.attributes) do
@@ -223,6 +226,82 @@ function characterCreator:createUI()
         end
     }
     
+    -- Job progression graph to show advanced jobs requiring the selected job
+    self.elements.jobProgression = {
+        x = self.elements.jobGrid.x,
+        y = self.elements.jobGrid.y + self.elements.jobGrid.height + 20,
+        width = self.elements.jobGrid.width,
+        height = 200,
+        jobs = {},
+        visible = false,
+        update = function(self)
+            if characterCreator.selectedJob then
+                self.jobs = jobSystem:getJobProgressions(characterCreator.selectedJob)
+            else
+                self.jobs = {}
+            end
+        end,
+        draw = function(self)
+            if not self.visible then return end
+            self:update()
+            -- Draw title
+            love.graphics.setFont(screenManager.fonts.medium)
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.print("Progressions for " .. characterCreator.selectedJob, self.x, self.y - 30)
+            -- Draw progression jobs grid
+            local jobWidth = 150
+            local jobHeight = 100
+            local cols = math.floor(self.width / jobWidth)
+            for i, job in ipairs(self.jobs) do
+                local col = (i - 1) % cols
+                local row = math.floor((i - 1) / cols)
+                local x = self.x + col * jobWidth
+                local y = self.y + row * jobHeight
+                -- Draw background
+                love.graphics.setColor(0.2, 0.2, 0.3)
+                love.graphics.rectangle("fill", x + 5, y + 5, jobWidth - 10, jobHeight - 10, 5, 5)
+                -- Draw job name
+                love.graphics.setFont(screenManager.fonts.small)
+                love.graphics.setColor(1, 1, 1)
+                love.graphics.print(job.name, x + 10, y + 10)
+                -- Draw requirements
+                local reqText = ""
+                if job.requirements then
+                    local parts = {}
+                    for reqJob, reqLevel in pairs(job.requirements) do
+                        table.insert(parts, reqJob .. " Lv" .. reqLevel)
+                    end
+                    reqText = table.concat(parts, ", ")
+                else
+                    reqText = "None"
+                end
+                love.graphics.setFont(screenManager.fonts.small)
+                love.graphics.printf("Requires: " .. reqText, x + 10, y + 30, jobWidth - 20, "left")
+            end
+        end,
+        clicked = function(self, x, y, button)
+            if not self.visible or button ~= 1 then return false end
+            if x >= self.x and x <= self.x + self.width and
+               y >= self.y and y <= self.y + self.height then
+                local jobWidth = 150
+                local jobHeight = 100
+                local cols = math.floor(self.width / jobWidth)
+                for i, job in ipairs(self.jobs) do
+                    local col = (i - 1) % cols
+                    local row = math.floor((i - 1) / cols)
+                    local jobX = self.x + col * jobWidth
+                    local jobY = self.y + row * jobHeight
+                    if x >= jobX + 5 and x <= jobX + jobWidth - 5 and
+                       y >= jobY + 5 and y <= jobY + jobHeight - 5 then
+                        characterCreator:selectJob(job.name)
+                        return true
+                    end
+                end
+            end
+            return false
+        end
+    }
+    
     -- Attribute allocation
     self.elements.attributes = {
         x = 50,
@@ -240,7 +319,7 @@ function characterCreator:createUI()
             love.graphics.setColor(1, 1, 1)
             love.graphics.print(
                 "Points Remaining: " .. characterCreator.attributePoints,
-                self.x, self.y - 30
+                self.x, self.y + 300
             )
             
             -- Draw attributes
@@ -319,8 +398,12 @@ function characterCreator:createUI()
     self.elements.profileSelection = {
         x = 50,
         y = 280,
-        width = 300,
-        height = 150,
+        width = 950,
+        height = 300,
+        portraitSize = 86,
+        spacing = 10,
+        cols = 10,
+        scrollSpeed = 40,
         
         draw = function(self)
             -- Draw label
@@ -328,31 +411,78 @@ function characterCreator:createUI()
             love.graphics.setColor(1, 1, 1)
             love.graphics.print("Select Character Portrait", self.x, self.y - 30)
             
-            -- Draw profile selection grid
-            local profileSize = 64
-            local spacing = 10
-            local cols = 4
+            -- Get portraits
+            local portraits = {}
+            local portraitIds = {}
             
-            for i = 1, 8 do
+            for id, portrait in pairs(assetManager.images.portraits) do
+                table.insert(portraits, portrait)
+                table.insert(portraitIds, id)
+            end
+            
+            -- Set up scrollable area
+            love.graphics.setScissor(self.x, self.y, self.width, self.height)
+            
+            -- Draw profile selection grid
+            local portraitSize = self.portraitSize
+            local spacing = self.spacing
+            local cols = self.cols
+            local totalPortraits = #portraits
+            local rows = math.ceil(totalPortraits / cols)
+            
+            -- Calculate max scroll
+            characterCreator.maxPortraitScrollY = math.max(0, 
+                (rows * (portraitSize + spacing)) - self.height)
+            
+            for i = 1, totalPortraits do
                 local col = (i - 1) % cols
                 local row = math.floor((i - 1) / cols)
                 
-                local x = self.x + col * (profileSize + spacing)
-                local y = self.y + row * (profileSize + spacing)
+                local x = self.x + col * (portraitSize + spacing)
+                local y = self.y + row * (portraitSize + spacing) - characterCreator.portraitScrollY
                 
-                -- Draw selection highlight
-                if i == characterCreator.profileIndex then
-                    love.graphics.setColor(0.3, 0.5, 0.8)
-                    love.graphics.rectangle(
-                        "fill", 
-                        x - 3, y - 3, 
-                        profileSize + 6, profileSize + 6
+                -- Only draw if within visible area
+                if y + portraitSize >= self.y and y <= self.y + self.height then
+                    -- Draw selection highlight
+                    if portraitIds[i] == characterCreator.portraitId then
+                        love.graphics.setColor(0.3, 0.5, 0.8)
+                        love.graphics.rectangle(
+                            "fill", 
+                            x - 3, y - 3, 
+                            portraitSize + 6, portraitSize + 6
+                        )
+                    end
+                    
+                    -- Draw profile image - force to half size (173/2 = 86)
+                    love.graphics.setColor(1, 1, 1)
+                    love.graphics.draw(portraits[i], x, y, 0, 0.5, 0.5)
+                end
+            end
+            
+            -- Reset scissor
+            love.graphics.setScissor()
+            
+            -- Draw scroll indicators if needed
+            if characterCreator.maxPortraitScrollY > 0 then
+                -- Draw up indicator if not at top
+                if characterCreator.portraitScrollY > 0 then
+                    love.graphics.setColor(1, 1, 1, 0.7)
+                    love.graphics.polygon('fill', 
+                        self.x + self.width - 20, self.y + 10,
+                        self.x + self.width - 10, self.y + 20,
+                        self.x + self.width - 30, self.y + 20
                     )
                 end
                 
-                -- Draw profile image
-                love.graphics.setColor(1, 1, 1)
-                love.graphics.draw(assetManager.images.profiles[i], x, y)
+                -- Draw down indicator if not at bottom
+                if characterCreator.portraitScrollY < characterCreator.maxPortraitScrollY then
+                    love.graphics.setColor(1, 1, 1, 0.7)
+                    love.graphics.polygon('fill', 
+                        self.x + self.width - 20, self.y + self.height - 10,
+                        self.x + self.width - 10, self.y + self.height - 20,
+                        self.x + self.width - 30, self.y + self.height - 20
+                    )
+                end
             end
         end,
         
@@ -364,26 +494,44 @@ function characterCreator:createUI()
                y >= self.y and y <= self.y + self.height then
                 
                 -- Determine which profile was clicked
-                local profileSize = 64
-                local spacing = 10
-                local cols = 4
+                local portraits = {}
+                local portraitIds = {}
                 
-                for i = 1, 8 do
+                for id, portrait in pairs(assetManager.images.portraits) do
+                    table.insert(portraits, portrait)
+                    table.insert(portraitIds, id)
+                end
+                
+                local portraitSize = self.portraitSize
+                local spacing = self.spacing
+                local cols = self.cols
+                
+                for i = 1, #portraits do
                     local col = (i - 1) % cols
                     local row = math.floor((i - 1) / cols)
                     
-                    local profileX = self.x + col * (profileSize + spacing)
-                    local profileY = self.y + row * (profileSize + spacing)
+                    local portraitX = self.x + col * (portraitSize + spacing)
+                    local portraitY = self.y + row * (portraitSize + spacing) - characterCreator.portraitScrollY
                     
-                    if x >= profileX and x <= profileX + profileSize and
-                       y >= profileY and y <= profileY + profileSize then
-                        characterCreator.profileIndex = i
+                    if x >= portraitX and x <= portraitX + portraitSize and
+                       y >= portraitY and y <= portraitY + portraitSize then
+                        characterCreator.portraitId = portraitIds[i]
                         return true
                     end
                 end
+                
+                return true -- Click was within area but no portrait clicked
             end
             
             return false
+        end,
+        
+        wheelmoved = function(self, x, y)
+            -- Apply scroll to portrait view
+            characterCreator.portraitScrollY = math.max(0, 
+                math.min(characterCreator.maxPortraitScrollY, 
+                    characterCreator.portraitScrollY - y * self.scrollSpeed))
+            return true
         end
     }
     
@@ -401,19 +549,28 @@ function characterCreator:createUI()
             
             -- Draw character profile
             love.graphics.setColor(1, 1, 1)
-            love.graphics.draw(
-                assetManager.images.profiles[char.profileIndex],
-                self.x, self.y
-            )
+            if char.portraitId and assetManager.images.portraits[char.portraitId] then
+                love.graphics.draw(
+                    assetManager.images.portraits[char.portraitId],
+                    self.x, self.y,
+                    0, 0.5, 0.5
+                )
+            elseif assetManager.images.profiles[char.profileIndex] then
+                love.graphics.draw(
+                    assetManager.images.profiles[char.profileIndex],
+                    self.x, self.y,
+                    0, 0.5, 0.5
+                )
+            end
             
             -- Draw character details
             love.graphics.setFont(screenManager.fonts.medium)
             love.graphics.setColor(1, 1, 1)
-            love.graphics.print(char.name, self.x + 80, self.y)
+            love.graphics.print(char.name, self.x + 100, self.y)
             
             love.graphics.setFont(screenManager.fonts.small)
             love.graphics.setColor(0.8, 0.8, 1)
-            love.graphics.print("Level " .. char.level .. " " .. char.job, self.x + 80, self.y + 25)
+            love.graphics.print("Level " .. char.level .. " " .. char.job, self.x + 100, self.y + 25)
             
             -- Draw attributes
             love.graphics.setFont(screenManager.fonts.small)
@@ -421,7 +578,7 @@ function characterCreator:createUI()
             
             local attrY = self.y + 70
             for _, attr in ipairs(characterSystem.attributes) do
-                love.graphics.print(attr .. ": " .. char.attributes[attr], self.x + 80, attrY)
+                love.graphics.print(attr .. ": " .. char.attributes[attr], self.x + 100, attrY)
                 attrY = attrY + 20
             end
             
@@ -529,6 +686,8 @@ function characterCreator:draw()
     if self.currentStep == 1 then
         -- Job selection
         self.elements.jobGrid:draw()
+        -- Draw progression graph if a job is selected
+        if self.elements.jobProgression then self.elements.jobProgression:draw() end
     elseif self.currentStep == 2 then
         -- Attribute allocation
         self.elements.attributes:draw()
@@ -567,6 +726,14 @@ function characterCreator:draw()
             love.graphics.print("Create Button: " .. (self.elements.finishButton.visible and "visible" or "hidden"), GAME.width - 200, GAME.height - 110)
         end
     end
+    
+    -- Display attribute allocation warning message
+    if self.currentStep == 2 and self.attributeWarning ~= "" then
+        love.graphics.setFont(screenManager.fonts.small)
+        love.graphics.setColor(1, 0.2, 0.2) -- Red color for warning
+        local textWidth = screenManager.fonts.small:getWidth(self.attributeWarning)
+        love.graphics.print(self.attributeWarning, GAME.width - 200 - textWidth - 10, GAME.height - 60)
+    end
 end
 
 function characterCreator:updateElementVisibility()
@@ -595,6 +762,11 @@ function characterCreator:updateElementVisibility()
     -- Job grid visibility
     if self.elements.jobGrid then
         self.elements.jobGrid.visible = (self.currentStep == 1)
+    end
+    
+    -- Job progression graph visibility
+    if self.elements.jobProgression then
+        self.elements.jobProgression.visible = (self.currentStep == 1 and self.selectedJob ~= nil)
     end
     
     -- Attributes visibility
@@ -688,7 +860,7 @@ function characterCreator:printDebugInfo(message)
     print("Selected Job: " .. (self.selectedJob or "None"))
     print("Points Remaining: " .. self.attributePoints)
     print("Character Name: " .. (self.charName or ""))
-    print("Profile Index: " .. self.profileIndex)
+    print("Portrait ID: " .. (self.portraitId or "None"))
     print("Button Visibility:")
     print("  Previous: " .. (self.elements.prevButton.visible and "visible" or "hidden"))
     print("  Next: " .. (self.elements.nextButton.visible and "visible" or "hidden"))
@@ -701,6 +873,12 @@ end
 function characterCreator:selectJob(jobName)
     -- Select job
     self.selectedJob = jobName
+    
+    -- Show and populate progression graph
+    if self.elements.jobProgression then
+        self.elements.jobProgression.visible = true
+        self.elements.jobProgression:update()
+    end
     
     if GAME.debug then
         print("Selected job: " .. jobName)
@@ -756,24 +934,29 @@ function characterCreator:resetTempChar()
     -- Reset selected job
     self.selectedJob = nil
     
-    -- Reset attributes
-    for attr, _ in pairs(self.baseAttributes) do
-        self.baseAttributes[attr] = 5 -- Default
-        self.tempAttributes[attr] = 5
+    -- Hide progression graph and clear its jobs
+    if self.elements.jobProgression then
+        self.elements.jobProgression.visible = false
+        self.elements.jobProgression.jobs = {}
     end
     
     -- Reset attribute points
     self.attributePoints = 20
     
-    -- Reset name
-    self.charName = ""
+    -- Reset attributes to base values
+    for _, attr in ipairs(characterSystem.attributes) do
+        self.tempAttributes[attr] = self.baseAttributes[attr]
+    end
+    
+    -- Reset character name
     self.elements.nameInput:setValue("")
     
-    -- Reset profile index
-    self.profileIndex = 1
+    -- Reset portrait selection
+    self.portraitId = nil
+    self.portraitScrollY = 0
     
-    -- Reset temp character
-    self.tempChar = nil
+    -- Reset attribute warning
+    self.attributeWarning = ""
 end
 
 function characterCreator:prevStep()
@@ -790,25 +973,40 @@ function characterCreator:prevStep()
 end
 
 function characterCreator:nextStep()
+    -- Reset attribute warning message
+    self.attributeWarning = ""
+
     -- Check if current step is complete
     if not self:isStepComplete() then
+        -- Show warning only if on attribute step and points remain
+        if self.currentStep == 2 and self.attributePoints > 0 then
+            self.attributeWarning = "Allocate all attribute points!"
+        end
         return
     end
     
-    -- Go to next step
+    -- Check if we can advance to the next step
     if self.currentStep < 4 then
-        self.currentStep = self.currentStep + 1
-        
-        -- If going to preview step, create temporary character
-        if self.currentStep == 4 then
+        local nextStep = self.currentStep + 1
+
+        -- If moving to the preview step (Step 4), create the temporary character first
+        if nextStep == 4 then
             self:createTempChar()
+            -- Check if temp character creation was successful
+            if not self.tempChar then 
+                print("Error: Failed to create temporary character for preview.")
+                return -- Don't advance if temp char failed
+            end
         end
+
+        -- Advance to the next step
+        self.currentStep = nextStep
         
-        -- Update element visibility
+        -- Update element visibility after changing step
         self:updateElementVisibility()
         
         -- Print debug info
-        self:printDebugInfo("Moved to next step")
+        self:printDebugInfo("Moved to step " .. self.currentStep)
     end
 end
 
@@ -817,11 +1015,11 @@ function characterCreator:isStepComplete()
         -- Job selection
         return self.selectedJob ~= nil
     elseif self.currentStep == 2 then
-        -- Attribute allocation
-        return true -- Always complete, as points can remain unallocated
+        -- Attribute allocation - must use all points
+        return self.attributePoints == 0
     elseif self.currentStep == 3 then
-        -- Character naming
-        return self.elements.nameInput:getValue() ~= ""
+        -- Character naming and portrait selection
+        return self.elements.nameInput:getValue() ~= "" and self.portraitId ~= nil
     end
     
     return true
@@ -836,7 +1034,8 @@ function characterCreator:createTempChar()
         self.charName,
         self.selectedJob,
         self.tempAttributes,
-        self.profileIndex
+        nil, -- Will be replaced with portraitId
+        self.portraitId
     )
 end
 
@@ -914,6 +1113,19 @@ function characterCreator:finishParty()
     -- Move to overworld
     local gameState = require("states/gameState")
     gameState:changeState("overworld")
+end
+
+function characterCreator:wheelmoved(x, y)
+    -- Pass to UI elements
+    for _, element in pairs(self.elements) do
+        if element.visible ~= false and element.wheelmoved then
+            if element:wheelmoved(x, y) then
+                return true
+            end
+        end
+    end
+    
+    return false
 end
 
 return characterCreator

@@ -390,11 +390,17 @@ function overworld:createUI()
                     
                     -- Draw character portrait
                     love.graphics.setColor(1, 1, 1)
-                    if assetManager.images.profiles[character.profileIndex] then
+                    if character.portraitId and assetManager.images.portraits[character.portraitId] then
+                        love.graphics.draw(
+                            assetManager.images.portraits[character.portraitId],
+                            x, self.y + 10,
+                            0, 0.5, 0.5
+                        )
+                    elseif assetManager.images.profiles[character.profileIndex] then
                         love.graphics.draw(
                             assetManager.images.profiles[character.profileIndex],
                             x, self.y + 10,
-                            0, 0.75, 0.75  -- Scale down a bit
+                            0, 0.5, 0.5
                         )
                     end
                     
