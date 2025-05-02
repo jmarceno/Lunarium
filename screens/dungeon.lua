@@ -27,12 +27,13 @@ function dungeon:init()
     -- Initialize dungeon state
     self.state = STATES.EXPLORING
     self.map = nil
-    self.playerPos = {x = 0, y = 0, angle = 0}
+    self.playerPos = {x = 1.5, y = 1.5, angle = 0}
     self.entities = {}
     self.combat = nil
     self.currentQuest = nil
     self.seed = 0
-    self.moveSpeed = 0.05
+    self.baseMoveSpeed = 0.05
+    self.moveSpeed = self.baseMoveSpeed
     self.turnSpeed = 0.03
     self.objective = {x = 0, y = 0, completed = false, reached = false}
     self.inventoryPanelVisible = false
@@ -40,6 +41,9 @@ function dungeon:init()
     self.selectedInventoryItemIndex = nil
     self.statusBarVisible = true -- Initially visible
     self.statusBarTimer = 10 -- 10 seconds timer
+    self.transitionStarted = false
+    self.loot = {}
+    self.currentMonster = nil
     
     -- UI elements (Initialize the table first!)
     self.elements = {}
@@ -446,7 +450,16 @@ function dungeon:enter(params)
     self.state = STATES.EXPLORING
     self.objective.completed = false
     self.objective.reached = false
-    self.fogOfWarRadius = 5 -- Visibility radius for fog of war
+    
+    -- Calculate fog of war radius based on dungeon size and difficulty
+    local baseFogRadius = 5 -- Base visibility radius
+    if params and params.quest and params.quest.difficulty then
+        -- Scale fog radius with difficulty, but not as aggressively as dungeon size
+        self.fogOfWarRadius = baseFogRadius + math.floor(params.quest.difficulty * 1.5)
+    else
+        self.fogOfWarRadius = baseFogRadius -- Default for non-quest dungeons
+    end
+    
     self.killQuestNotificationShown = false -- Reset notification flag for kill quests
     
     -- Start playing dungeon music
@@ -459,7 +472,21 @@ function dungeon:enter(params)
         -- Generate dungeon from quest seed or create a new one
         local seed = params.quest.seed or os.time()
         self.seed = seed
-        self.map = dungeonGenerator:generate(20, 20, seed)
+        
+        -- Calculate dungeon size based on difficulty
+        local difficulty = params.quest.difficulty or 1
+        local baseSize = 20 -- Minimum size 
+        local dungeonSize = baseSize * (2 ^ (difficulty - 1)) -- Scale by 2^(difficulty-1)
+        
+        -- Cap size to prevent performance issues (optional)
+        dungeonSize = math.min(dungeonSize, 160) -- Cap at 160x160
+        
+        self.map = dungeonGenerator:generate(dungeonSize, dungeonSize, seed)
+        
+        -- Scale movement speed based on dungeon size
+        -- Increase movement speed for larger dungeons to reduce travel time
+        local speedMultiplier = 1.0 + (math.min(difficulty, 5) * 0.2) -- Cap at 2x speed at difficulty 5
+        self.moveSpeed = self.baseMoveSpeed * speedMultiplier
         
         -- Set player starting position
         self.playerPos = {
@@ -503,7 +530,11 @@ function dungeon:enter(params)
         self:populateDungeon(params.quest.difficulty or 1)
     else
         -- Create a default dungeon if no quest is provided
-        self.map = dungeonGenerator:generate(20, 20, os.time())
+        -- Use the minimum size (40x40) for default dungeons
+        self.map = dungeonGenerator:generate(40, 40, os.time())
+        
+        -- Use base movement speed for default dungeons
+        self.moveSpeed = self.baseMoveSpeed
         
         -- Set player starting position
         self.playerPos = {

@@ -7,7 +7,7 @@ local raycaster = {
     viewHeight = 720,
     fov = 60,
     wallHeight = 1.0,
-    maxDistance = 20,
+    maxDistance = 40,
     texturesEnabled = false,
     
     -- Camera properties

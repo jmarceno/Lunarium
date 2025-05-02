@@ -111,16 +111,21 @@ function dungeonGenerator:generate(width, height, seed)
 end
 
 function dungeonGenerator:generateRooms(map)
+    -- Scale room count with map size
     local roomCount = math.floor(map.width * map.height / 100) + math.random(6, 10)
     local attempts = 0
-    local maxAttempts = 100
+    local maxAttempts = 200 -- Increased max attempts for larger maps
+    
+    -- Scale room size based on map size
+    local minRoomSize = 3
+    local maxRoomSize = math.min(12, math.max(8, math.floor(map.width / 15)))
     
     while #map.rooms < roomCount and attempts < maxAttempts do
         attempts = attempts + 1
         
-        -- Random room dimensions
-        local roomWidth = math.random(3, 8)
-        local roomHeight = math.random(3, 8)
+        -- Random room dimensions scaled to map size
+        local roomWidth = math.random(minRoomSize, maxRoomSize)
+        local roomHeight = math.random(minRoomSize, maxRoomSize)
         
         -- Random room position
         local roomX = math.random(1, map.width - roomWidth - 1)
@@ -192,7 +197,10 @@ function dungeonGenerator:connectRooms(map)
     end
     
     -- Add some random additional connections for loops
-    local additionalConnections = math.random(1, 3)
+    -- Scale the number of connections with map size
+    local mapSize = map.width * map.height
+    local additionalConnections = math.min(10, math.max(1, math.floor(mapSize / 800)))
+    
     for i = 1, additionalConnections do
         local roomA = map.rooms[math.random(1, #map.rooms)]
         local roomB = map.rooms[math.random(1, #map.rooms)]

@@ -1681,7 +1681,7 @@ function inventory:close()
         gameState:changeState("dungeon", { from = "inventory" })
     else
         -- Otherwise, just return to previous state
-        gameState:returnToPreviousState()
+    gameState:returnToPreviousState()
     end
 end
 
