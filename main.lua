@@ -53,7 +53,7 @@ function love.load()
     screens:init()
     gameState:init()
     
-    assets:setButtonSoundVolume(0.07) 
+    assets:setButtonSoundVolume(0.1) 
     -- Set the initial game state to main menu
     gameState:changeState("mainMenu")
 end

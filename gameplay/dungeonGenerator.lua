@@ -14,16 +14,27 @@ function Map:new(width, height)
         rooms = {},
         start = {x = 0, y = 0},
         end_ = {x = 0, y = 0},
-        fogOfWar = {} -- Track which cells have been seen
+        fogOfWar = {}, -- Track which cells have been seen
+        textures = {
+            wall = {},   -- Wall texture for each cell
+            floor = {},  -- Floor texture for each cell
+            roomId = {}  -- Store which room/area each cell belongs to (for consistent texturing)
+        }
     }
     
     -- Initialize map with all walls
     for y = 0, height - 1 do
         map.data[y] = {}
         map.fogOfWar[y] = {} -- Initialize fog of war
+        map.textures.wall[y] = {}
+        map.textures.floor[y] = {}
+        map.textures.roomId[y] = {}
         for x = 0, width - 1 do
             map.data[y][x] = 1  -- 1 means wall
             map.fogOfWar[y][x] = false -- Initially all cells are hidden
+            map.textures.wall[y][x] = nil -- No texture initially
+            map.textures.floor[y][x] = nil -- No texture initially
+            map.textures.roomId[y][x] = 0 -- Not part of any room initially
         end
     end
     
@@ -46,6 +57,69 @@ function Map:setCell(x, y, value)
     end
     
     self.data[y][x] = value
+    return true
+end
+
+-- Get wall texture for a specific cell
+function Map:getWallTexture(x, y)
+    -- Check bounds
+    if x < 0 or y < 0 or x >= self.width or y >= self.height then
+        return nil
+    end
+    
+    return self.textures.wall[y][x]
+end
+
+-- Set wall texture for a specific cell
+function Map:setWallTexture(x, y, texture)
+    -- Check bounds
+    if x < 0 or y < 0 or x >= self.width or y >= self.height then
+        return false
+    end
+    
+    self.textures.wall[y][x] = texture
+    return true
+end
+
+-- Get floor texture for a specific cell
+function Map:getFloorTexture(x, y)
+    -- Check bounds
+    if x < 0 or y < 0 or x >= self.width or y >= self.height then
+        return nil
+    end
+    
+    return self.textures.floor[y][x]
+end
+
+-- Set floor texture for a specific cell
+function Map:setFloorTexture(x, y, texture)
+    -- Check bounds
+    if x < 0 or y < 0 or x >= self.width or y >= self.height then
+        return false
+    end
+    
+    self.textures.floor[y][x] = texture
+    return true
+end
+
+-- Get room ID for a specific cell (used for texture consistency)
+function Map:getRoomId(x, y)
+    -- Check bounds
+    if x < 0 or y < 0 or x >= self.width or y >= self.height then
+        return 0
+    end
+    
+    return self.textures.roomId[y][x]
+end
+
+-- Set room ID for a specific cell
+function Map:setRoomId(x, y, roomId)
+    -- Check bounds
+    if x < 0 or y < 0 or x >= self.width or y >= self.height then
+        return false
+    end
+    
+    self.textures.roomId[y][x] = roomId
     return true
 end
 
@@ -107,6 +181,9 @@ function dungeonGenerator:generate(width, height, seed)
     -- Add some decoration (different wall types)
     self:decorateMap(map)
     
+    -- Add textures to the map
+    self:assignTextures(map)
+    
     return map
 end
 
@@ -146,13 +223,15 @@ function dungeonGenerator:generateRooms(map)
                 x = roomX,
                 y = roomY,
                 width = roomWidth,
-                height = roomHeight
+                height = roomHeight,
+                id = #map.rooms + 1 -- Assign a unique room ID for texturing
             }
             
             -- Carve room into map
             for y = roomY, roomY + roomHeight - 1 do
                 for x = roomX, roomX + roomWidth - 1 do
                     map:setCell(x, y, 0)  -- 0 means floor
+                    map:setRoomId(x, y, room.id) -- Assign room ID to each cell
                 end
             end
             
@@ -173,6 +252,9 @@ function dungeonGenerator:roomsOverlap(room1, room2)
 end
 
 function dungeonGenerator:connectRooms(map)
+    -- Assign unique corridor IDs starting after the last room ID
+    local nextCorridorId = #map.rooms + 1
+    
     -- Connect all rooms with corridors
     for i = 1, #map.rooms - 1 do
         local roomA = map.rooms[i]
@@ -184,15 +266,18 @@ function dungeonGenerator:connectRooms(map)
         local centerBX = math.floor(roomB.x + roomB.width / 2)
         local centerBY = math.floor(roomB.y + roomB.height / 2)
         
+        local corridorId = nextCorridorId
+        nextCorridorId = nextCorridorId + 1
+        
         -- Randomly decide if we go horizontal or vertical first
         if math.random() < 0.5 then
             -- Horizontal then vertical
-            self:createHorizontalCorridor(map, centerAX, centerBX, centerAY)
-            self:createVerticalCorridor(map, centerAY, centerBY, centerBX)
+            self:createHorizontalCorridor(map, centerAX, centerBX, centerAY, corridorId)
+            self:createVerticalCorridor(map, centerAY, centerBY, centerBX, corridorId)
         else
             -- Vertical then horizontal
-            self:createVerticalCorridor(map, centerAY, centerBY, centerAX)
-            self:createHorizontalCorridor(map, centerAX, centerBX, centerBY)
+            self:createVerticalCorridor(map, centerAY, centerBY, centerAX, corridorId)
+            self:createHorizontalCorridor(map, centerAX, centerBX, centerBY, corridorId)
         end
     end
     
@@ -214,36 +299,41 @@ function dungeonGenerator:connectRooms(map)
         local centerBX = math.floor(roomB.x + roomB.width / 2)
         local centerBY = math.floor(roomB.y + roomB.height / 2)
         
+        local corridorId = nextCorridorId
+        nextCorridorId = nextCorridorId + 1
+        
         -- Randomly decide if we go horizontal or vertical first
         if math.random() < 0.5 then
             -- Horizontal then vertical
-            self:createHorizontalCorridor(map, centerAX, centerBX, centerAY)
-            self:createVerticalCorridor(map, centerAY, centerBY, centerBX)
+            self:createHorizontalCorridor(map, centerAX, centerBX, centerAY, corridorId)
+            self:createVerticalCorridor(map, centerAY, centerBY, centerBX, corridorId)
         else
             -- Vertical then horizontal
-            self:createVerticalCorridor(map, centerAY, centerBY, centerAX)
-            self:createHorizontalCorridor(map, centerAX, centerBX, centerBY)
+            self:createVerticalCorridor(map, centerAY, centerBY, centerAX, corridorId)
+            self:createHorizontalCorridor(map, centerAX, centerBX, centerBY, corridorId)
         end
         
         ::continue::
     end
 end
 
-function dungeonGenerator:createHorizontalCorridor(map, x1, x2, y)
+function dungeonGenerator:createHorizontalCorridor(map, x1, x2, y, corridorId)
     local start = math.min(x1, x2)
     local ending = math.max(x1, x2)
     
     for x = start, ending do
         map:setCell(x, y, 0)  -- 0 means floor
+        map:setRoomId(x, y, corridorId) -- Assign corridor ID
     end
 end
 
-function dungeonGenerator:createVerticalCorridor(map, y1, y2, x)
+function dungeonGenerator:createVerticalCorridor(map, y1, y2, x, corridorId)
     local start = math.min(y1, y2)
     local ending = math.max(y1, y2)
     
     for y = start, ending do
         map:setCell(x, y, 0)  -- 0 means floor
+        map:setRoomId(x, y, corridorId) -- Assign corridor ID
     end
 end
 
@@ -281,6 +371,131 @@ function dungeonGenerator:decorateMap(map)
     end
     
     -- Add some floor decoration (not implemented yet)
+end
+
+-- Assign texture sets to rooms and corridors
+function dungeonGenerator:assignTextures(map)
+    -- First, get a list of all room and corridor IDs
+    local areaIds = {}
+    local maxAreaId = 0
+    
+    for y = 0, map.height - 1 do
+        for x = 0, map.width - 1 do
+            local areaId = map:getRoomId(x, y)
+            if areaId > 0 and not areaIds[areaId] then
+                areaIds[areaId] = true
+                maxAreaId = math.max(maxAreaId, areaId)
+            end
+        end
+    end
+    
+    -- Load available textures (from assetManager, but we'll simulate it here)
+    local assetManager = require("assets/assetManager")
+    local wallTextures = {}
+    local floorTextures = {}
+    
+    -- Get all wall texture keys
+    for name, _ in pairs(assetManager.images.walls) do
+        table.insert(wallTextures, name)
+    end
+    
+    -- Get all floor texture keys
+    for name, _ in pairs(assetManager.images.floors) do
+        table.insert(floorTextures, name)
+    end
+    
+    -- If no textures are available, use placeholders
+    if #wallTextures == 0 then
+        for i = 1, 10 do
+            table.insert(wallTextures, tostring(i))
+        end
+    end
+    
+    if #floorTextures == 0 then
+        for i = 1, 5 do
+            table.insert(floorTextures, tostring(i))
+        end
+    end
+    
+    -- Create texture sets (wall+floor combinations)
+    local textureSets = {}
+    local setCount = math.min(4, math.min(#wallTextures, #floorTextures))
+    
+    for i = 1, setCount do
+        -- Randomly select a wall and floor texture for this set
+        local wallIndex = math.random(1, #wallTextures)
+        local floorIndex = math.random(1, #floorTextures)
+        
+        table.insert(textureSets, {
+            wall = wallTextures[wallIndex],
+            floor = floorTextures[floorIndex]
+        })
+        
+        -- Remove the selected textures from the available pools to ensure variety
+        table.remove(wallTextures, wallIndex)
+        table.remove(floorTextures, floorIndex)
+    end
+    
+    -- Group rooms and corridors into regions (1-4 regions depending on dungeon size)
+    local regionCount = math.min(4, math.ceil(maxAreaId / 5))
+    local areaToRegion = {}
+    
+    for id = 1, maxAreaId do
+        local regionId = math.floor((id - 1) / math.ceil(maxAreaId / regionCount)) + 1
+        areaToRegion[id] = regionId
+    end
+    
+    -- Assign texture sets to regions
+    local regionToTextureSet = {}
+    for i = 1, regionCount do
+        regionToTextureSet[i] = textureSets[((i - 1) % #textureSets) + 1]
+    end
+    
+    -- Apply textures based on room/corridor ID
+    for y = 0, map.height - 1 do
+        for x = 0, map.width - 1 do
+            local cell = map:getCell(x, y)
+            local areaId = map:getRoomId(x, y)
+            
+            if areaId > 0 then
+                local regionId = areaToRegion[areaId]
+                local textureSet = regionToTextureSet[regionId]
+                
+                if cell == 0 then -- Floor
+                    map:setFloorTexture(x, y, textureSet.floor)
+                end
+            end
+            
+            -- For walls, look at adjacent floor cells to determine which texture to use
+            if cell > 0 then -- Wall
+                -- Check if this wall is adjacent to a floor
+                local adjacentAreaId = 0
+                
+                -- Check the 4 adjacent cells
+                local directions = {{0, 1}, {1, 0}, {0, -1}, {-1, 0}}
+                
+                for _, dir in ipairs(directions) do
+                    local nx, ny = x + dir[1], y + dir[2]
+                    if nx >= 0 and ny >= 0 and nx < map.width and ny < map.height then
+                        local neighborAreaId = map:getRoomId(nx, ny)
+                        if neighborAreaId > 0 then
+                            adjacentAreaId = neighborAreaId
+                            break
+                        end
+                    end
+                end
+                
+                if adjacentAreaId > 0 then
+                    local regionId = areaToRegion[adjacentAreaId]
+                    local textureSet = regionToTextureSet[regionId]
+                    map:setWallTexture(x, y, textureSet.wall)
+                else
+                    -- If no adjacent floor, use the first texture set as default
+                    map:setWallTexture(x, y, textureSets[1].wall)
+                end
+            end
+        end
+    end
 end
 
 return dungeonGenerator

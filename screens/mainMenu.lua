@@ -603,13 +603,13 @@ function mainMenu:mousepressed(x, y, button, istouch, presses)
 
             if handled then
                 -- Play click sound (consider different sound for slider interaction?)
-                assetManager:playSound("click") 
+                    assetManager:playSound("click")
                     
-                if GAME.debug then
+                    if GAME.debug then
                     print("UI Element interacted: " .. name)
-                end
+                    end
                     
-                clickHandled = true
+                    clickHandled = true
                 -- Important: If an element handles the press (like a slider starting a drag), 
                 -- we might want to break the loop so other elements below it don't also react.
                 -- However, the original code didn't break to allow hover effects. Let's keep that for now,

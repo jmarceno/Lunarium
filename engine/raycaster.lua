@@ -8,7 +8,8 @@ local raycaster = {
     fov = 60,
     wallHeight = 1.0,
     maxDistance = 40,
-    texturesEnabled = false,
+    texturesEnabled = true, -- Changed to true by default
+    floorTexturesEnabled = true, -- New flag for floor textures
     
     -- Camera properties
     camera = {
@@ -39,7 +40,7 @@ function raycaster:init(width, height)
     self.camera.planeX = -self.camera.dirY * self.camera.plane
     self.camera.planeY = self.camera.dirX * self.camera.plane
     
-    -- Define wall colors
+    -- Define wall colors (used as fallback if textures are disabled)
     self.wallColors = {
         { 0.8, 0.2, 0.2 },  -- Red
         { 0.2, 0.8, 0.2 },  -- Green
@@ -58,6 +59,9 @@ function raycaster:init(width, height)
     for i = 1, self.viewWidth do
         self.zBuffer[i] = self.maxDistance
     end
+    
+    -- Mark as initialized
+    self.initialized = true
 end
 
 -- Set camera position
@@ -157,6 +161,7 @@ function raycaster:castRay(rayAngle, map)
     local hit = 0  -- Was a wall hit?
     local side     -- Was a NS or EW wall hit?
     local wallType -- Type of wall that was hit
+    local wallTexture -- Texture name for the wall that was hit
     
     while hit == 0 and mapX >= 0 and mapY >= 0 and mapX < map.width and mapY < map.height do
         -- Jump to next map square, either in x or y direction
@@ -172,6 +177,12 @@ function raycaster:castRay(rayAngle, map)
         
         -- Check if ray has hit a wall
         wallType = map:getCell(mapX, mapY)
+        
+        -- Get the wall texture for this cell if textures are enabled
+        if self.texturesEnabled then
+            wallTexture = map:getWallTexture(mapX, mapY)
+        end
+        
         if wallType > 0 then
             hit = 1
         end
@@ -186,13 +197,18 @@ function raycaster:castRay(rayAngle, map)
     end
     
     -- Calculate wall height and draw coordinates
-    local lineHeight = math.min(self.viewHeight, math.floor(self.viewHeight / perpWallDist * self.wallHeight))
+    -- Use integer lineHeight for consistent pixel coverage
+    local lineHeight = math.max(1, math.floor(self.viewHeight / perpWallDist * self.wallHeight))
     
     local drawStart = math.floor(-lineHeight / 2 + self.viewHeight / 2)
     if drawStart < 0 then drawStart = 0 end
     
-    local drawEnd = math.floor(lineHeight / 2 + self.viewHeight / 2)
+    -- Calculate drawEnd precisely based on drawStart and integer lineHeight
+    local drawEnd = drawStart + lineHeight - 1 
     if drawEnd >= self.viewHeight then drawEnd = self.viewHeight - 1 end
+    
+    -- Ensure drawEnd is at least drawStart (for very short walls)
+    drawEnd = math.max(drawStart, drawEnd)
     
     -- Calculate texture coordinates
     local wallX
@@ -213,7 +229,10 @@ function raycaster:castRay(rayAngle, map)
         wallType = wallType,
         wallX = wallX,
         mapX = mapX,
-        mapY = mapY
+        mapY = mapY,
+        wallTexture = wallTexture,
+        rayDirX = rayDirX,
+        rayDirY = rayDirY
     }
 end
 
@@ -223,15 +242,20 @@ function raycaster:render(map, entities)
     
     -- Clear the canvas
     love.graphics.setCanvas(self.canvas)
-    love.graphics.clear(0, 0, 0)
+    love.graphics.clear(0, 0, 0) -- Black background
     
-    -- Draw ceiling
-    love.graphics.setColor(0.3, 0.3, 0.5)
+    -- Draw ceiling (black)
+    love.graphics.setColor(0, 0, 0) -- Black ceiling
     love.graphics.rectangle("fill", 0, 0, self.viewWidth, self.halfHeight)
     
-    -- Draw floor
-    love.graphics.setColor(0.4, 0.4, 0.2)
-    love.graphics.rectangle("fill", 0, self.halfHeight, self.viewWidth, self.halfHeight)
+    -- Draw floor using texture or solid color
+    if self.floorTexturesEnabled then
+        self:renderFloorWithTextures(map) -- Restore call to row-based rendering
+    else
+        -- Fallback to solid color if textures are disabled
+        love.graphics.setColor(0.4, 0.4, 0.2)
+        love.graphics.rectangle("fill", 0, self.halfHeight, self.viewWidth, self.halfHeight)
+    end
     
     -- Reset Z-buffer
     for i = 1, self.viewWidth do
@@ -246,41 +270,18 @@ function raycaster:render(map, entities)
         local rayDirY = self.camera.dirY + self.camera.planeY * cameraX
         local rayAngle = math.atan2(rayDirY, rayDirX)
         
-        -- Cast the ray
+        -- Cast the ray for wall hit
         local hit = self:castRay(rayAngle, map)
         
         -- Store the perpendicular wall distance in the Z-buffer
         self.zBuffer[x + 1] = hit.distance
         
-        -- Choose wall color based on wall type and side
-        local wallColor = self.wallColors[((hit.wallType - 1) % #self.wallColors) + 1]
-        
-        -- Make y-sides darker
-        if hit.side == 1 then
-            wallColor = {wallColor[1] * 0.7, wallColor[2] * 0.7, wallColor[3] * 0.7}
-        end
-        
-        -- Set color and draw the vertical line
-        love.graphics.setColor(wallColor)
-        
-        if self.texturesEnabled and assetManager.images and assetManager.images.walls and assetManager.images.walls[hit.wallType] then
-            -- Calculate texture x coordinate
-            local texX = math.floor(hit.wallX * 64)
-            if (hit.side == 0 and rayDirX > 0) or (hit.side == 1 and rayDirY < 0) then
-                texX = 64 - texX - 1
-            end
-            
-            -- Draw textured wall
-            love.graphics.draw(
-                assetManager.images.walls[hit.wallType],
-                x, hit.drawStart,
-                0, 1, (hit.drawEnd - hit.drawStart) / 64,
-                texX, 0,
-                1, 64
-            )
+        -- Draw wall with texture or solid color
+        if self.texturesEnabled and hit.wallTexture and assetManager.images.walls[hit.wallTexture] then
+            self:drawWallWithTexture(x, hit)
         else
-            -- Draw solid color wall
-            love.graphics.line(x, hit.drawStart, x, hit.drawEnd)
+            -- Fallback to solid color if textures are disabled or missing
+            self:drawWallWithColor(x, hit)
         end
     end
     
@@ -307,6 +308,125 @@ function raycaster:render(map, entities)
     love.graphics.draw(self.canvas, 0, 0)
     
     return self.canvas
+end
+
+-- Draw a wall with texture
+function raycaster:drawWallWithTexture(x, hit)
+    local texture = assetManager.images.walls[hit.wallTexture]
+    if not texture then return end
+    
+    local texWidth = texture:getWidth()
+    local texHeight = texture:getHeight()
+    
+    -- Calculate texture x coordinate
+    local texX = math.floor(hit.wallX * texWidth)
+    
+    -- Flip texture x coordinate if needed to avoid mirror effect
+    if (hit.side == 0 and hit.rayDirX > 0) or (hit.side == 1 and hit.rayDirY < 0) then
+        texX = texWidth - texX - 1
+    end
+    
+    -- Make y-sides darker for depth impression
+    if hit.side == 1 then
+        love.graphics.setColor(0.7, 0.7, 0.7)
+    else
+        love.graphics.setColor(1, 1, 1)
+    end
+    
+    -- Calculate the precise height to draw on screen
+    local drawHeight = hit.drawEnd - hit.drawStart + 1 -- Use adjusted drawEnd
+    
+    -- Draw a vertical stripe of the texture, ensuring scaling covers the full height
+    love.graphics.draw(
+        texture,
+        love.graphics.newQuad(texX, 0, 1, texHeight, texWidth, texHeight),
+        x, hit.drawStart,
+        0, 1, drawHeight / texHeight -- Scale based on calculated drawHeight
+    )
+end
+
+-- Draw a wall with solid color (fallback)
+function raycaster:drawWallWithColor(x, hit)
+    -- Choose wall color based on wall type and side
+    local wallColor = self.wallColors[((hit.wallType - 1) % #self.wallColors) + 1]
+    
+    -- Make y-sides darker
+    if hit.side == 1 then
+        wallColor = {wallColor[1] * 0.7, wallColor[2] * 0.7, wallColor[3] * 0.7}
+    end
+    
+    -- Set color and draw the vertical line, ensuring it covers the full height
+    love.graphics.setColor(wallColor)
+    love.graphics.line(x, hit.drawStart, x, hit.drawEnd) -- Draw line includes the end pixel
+end
+
+-- Render floor with textures (Restored)
+function raycaster:renderFloorWithTextures(map)
+    -- Calculate floor and ceiling row ranges
+    local floorStart = math.floor(self.halfHeight) + 1 -- Ensure integer start
+    local floorEnd = self.viewHeight
+    
+    -- Use rowDensity = 1 for accuracy
+    local rowDensity = 1 
+    
+    -- For each pixel row
+    for y = floorStart, floorEnd -1, rowDensity do -- Loop up to height - 1
+        -- Calculate row distance from horizon
+        -- Use y - self.halfHeight, ensure y is pixel center?
+        local rowDistance = (0.5 * self.viewHeight * self.wallHeight) / (y - self.halfHeight) 
+        
+        -- Calculate the real world step vector for this row
+        local floorStepX = rowDistance * (self.camera.planeX * 2.0 / self.viewWidth)
+        local floorStepY = rowDistance * (self.camera.planeY * 2.0 / self.viewWidth)
+        
+        -- Calculate the real world position for the leftmost pixel of this row
+        local floorX = self.camera.x + rowDistance * (self.camera.dirX - self.camera.planeX)
+        local floorY = self.camera.y + rowDistance * (self.camera.dirY - self.camera.planeY)
+        
+        -- For each pixel in the row
+        for x = 0, self.viewWidth - 1 do
+            -- Get the map cell coordinates
+            local cellX = math.floor(floorX)
+            local cellY = math.floor(floorY)
+            
+            -- Make sure we're within map bounds
+            if cellX >= 0 and cellY >= 0 and cellX < map.width and cellY < map.height then
+                -- Get floor texture for this cell
+                local floorTextureName = map:getFloorTexture(cellX, cellY)
+                
+                if floorTextureName and assetManager.images.floors[floorTextureName] then
+                    local texture = assetManager.images.floors[floorTextureName]
+                    local texWidth = texture:getWidth()
+                    local texHeight = texture:getHeight()
+                    
+                    -- Calculate texture coordinates (wrap around)
+                    local tx = math.floor(texWidth * (floorX - cellX)) % texWidth
+                    local ty = math.floor(texHeight * (floorY - cellY)) % texHeight
+                    
+                    -- Draw the floor pixel using the texture color
+                    love.graphics.setColor(1, 1, 1) -- Use full color from texture
+                    love.graphics.draw(
+                        texture,
+                        love.graphics.newQuad(tx, ty, 1, 1, texWidth, texHeight),
+                        x, y,
+                        0, 1, rowDensity -- Scale vertically if rowDensity > 1
+                    )
+                else
+                    -- Fallback to solid color if texture is missing
+                    love.graphics.setColor(0.4, 0.4, 0.2)
+                    love.graphics.points(x, y)
+                end
+            else
+                 -- Out of bounds, draw default floor color
+                 love.graphics.setColor(0.4, 0.4, 0.2)
+                 love.graphics.points(x, y)
+            end
+            
+            -- Advance floor position for the next pixel in the row
+            floorX = floorX + floorStepX
+            floorY = floorY + floorStepY
+        end
+    end
 end
 
 -- Draw an entity (monster, item, etc.)

@@ -10,6 +10,9 @@ function assetManager:init()
     -- Load character portraits
     self:loadPortraits()
     
+    -- Load wall and floor textures
+    self:loadWallAndFloorTextures()
+    
     -- Create placeholder images for future textures
     self:createPlaceholders()
     
@@ -64,6 +67,81 @@ function assetManager:loadPortraits()
     print("Loaded " .. count .. " portraits")
 end
 
+-- Load wall and floor textures from the assets/Walls and assets/Floor directories
+function assetManager:loadWallAndFloorTextures()
+    self.images.walls = {}
+    self.images.floors = {}
+    
+    -- Load wall textures
+    local wallInfo = love.filesystem.getInfo("assets/Walls")
+    if wallInfo and wallInfo.type == "directory" then
+        local files = love.filesystem.getDirectoryItems("assets/Walls")
+        print("Loading wall textures from assets/Walls directory")
+        
+        for _, file in ipairs(files) do
+            if file:match("%.png$") then
+                local path = "assets/Walls/" .. file
+                local success, texture = pcall(function()
+                    local img = love.graphics.newImage(path)
+                    img:setFilter("nearest", "nearest") -- Use nearest filtering for pixelated look
+                    return img
+                end)
+                
+                if success and texture then
+                    local textureName = file:gsub("%.png$", "")
+                    self.images.walls[textureName] = texture
+                    print("  - Loaded wall texture: " .. textureName)
+                else
+                    print("  - Failed to load wall texture: " .. file)
+                end
+            end
+        end
+        
+        print("Loaded " .. self:countTableElements(self.images.walls) .. " wall textures")
+    else
+        print("Warning: assets/Walls directory not found")
+    end
+    
+    -- Load floor textures
+    local floorInfo = love.filesystem.getInfo("assets/Floor")
+    if floorInfo and floorInfo.type == "directory" then
+        local files = love.filesystem.getDirectoryItems("assets/Floor")
+        print("Loading floor textures from assets/Floor directory")
+        
+        for _, file in ipairs(files) do
+            if file:match("%.png$") then
+                local path = "assets/Floor/" .. file
+                local success, texture = pcall(function()
+                    local img = love.graphics.newImage(path)
+                    img:setFilter("nearest", "nearest") -- Use nearest filtering for pixelated look
+                    return img
+                end)
+                
+                if success and texture then
+                    local textureName = file:gsub("%.png$", "")
+                    self.images.floors[textureName] = texture
+                    print("  - Loaded floor texture: " .. textureName)
+                else
+                    print("  - Failed to load floor texture: " .. file)
+                end
+            end
+        end
+        
+        print("Loaded " .. self:countTableElements(self.images.floors) .. " floor textures")
+    else
+        print("Warning: assets/Floor directory not found")
+    end
+end
+
+-- Helper function to count elements in a table (including non-numeric indices)
+function assetManager:countTableElements(t)
+    local count = 0
+    for _ in pairs(t) do
+        count = count + 1
+    end
+    return count
+end
+
 function assetManager:createPlaceholders()
     -- Character profile placeholders if no portraits were loaded
     if not self.images.profiles[1] then
@@ -74,11 +152,21 @@ function assetManager:createPlaceholders()
         end
     end
     
-    -- Wall textures placeholders
-    self.images.walls = {}
-    for i = 1, 10 do
-        local placeholder = self:createWallPlaceholder(i)
-        self.images.walls[i] = placeholder
+    -- Wall textures placeholders - only create if none were loaded
+    if self:countTableElements(self.images.walls) == 0 then
+        for i = 1, 10 do
+            local placeholder = self:createWallPlaceholder(i)
+            self.images.walls[tostring(i)] = placeholder
+        end
+    end
+    
+    -- Floor textures placeholders - only create if none were loaded
+    if self:countTableElements(self.images.floors) == 0 then
+        self.images.floors = {}
+        for i = 1, 5 do
+            local placeholder = self:createFloorPlaceholder(i)
+            self.images.floors[tostring(i)] = placeholder
+        end
     end
     
     -- Item placeholders
@@ -376,6 +464,58 @@ function assetManager:createMonsterPlaceholder(index)
     -- Draw border
     love.graphics.setColor(1, 1, 1, 0.5)
     love.graphics.rectangle("line", 0, 0, size, size)
+    
+    love.graphics.setCanvas()
+    
+    return canvas
+end
+
+-- Create a placeholder floor texture with a solid color and pattern
+function assetManager:createFloorPlaceholder(index)
+    local width, height = 64, 64
+    local canvas = love.graphics.newCanvas(width, height)
+    
+    -- Generate a color based on index
+    local r = 0.15 + (index % 3) * 0.1
+    local g = 0.15 + (math.floor(index / 3) % 3) * 0.1
+    local b = 0.15 + (math.floor(index / 9) % 3) * 0.1
+    
+    love.graphics.setCanvas(canvas)
+    love.graphics.clear()
+    
+    -- Draw background
+    love.graphics.setColor(r, g, b)
+    love.graphics.rectangle("fill", 0, 0, width, height)
+    
+    -- Draw pattern based on index
+    love.graphics.setColor(r * 1.3, g * 1.3, b * 1.3)
+    
+    if index % 4 == 0 then
+        -- Grid pattern
+        for i = 0, width, 16 do
+            love.graphics.line(i, 0, i, height)
+            love.graphics.line(0, i, width, i)
+        end
+    elseif index % 4 == 1 then
+        -- Diagonal lines
+        for i = -height, width, 16 do
+            love.graphics.line(i, 0, i + height, height)
+        end
+    elseif index % 4 == 2 then
+        -- Dots
+        for x = 0, width, 8 do
+            for y = 0, height, 8 do
+                love.graphics.points(x, y)
+            end
+        end
+    else
+        -- Small squares
+        for x = 0, width, 16 do
+            for y = 0, height, 16 do
+                love.graphics.rectangle("fill", x + 4, y + 4, 4, 4)
+            end
+        end
+    end
     
     love.graphics.setCanvas()
     

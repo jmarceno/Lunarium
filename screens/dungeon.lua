@@ -47,6 +47,12 @@ function dungeon:init()
     self.loot = {}
     self.currentMonster = nil
     
+    -- Texture settings
+    self.textureSettings = {
+        wallTexturesEnabled = true,
+        floorTexturesEnabled = true
+    }
+    
     -- UI elements (Initialize the table first!)
     self.elements = {}
     
@@ -460,6 +466,10 @@ function dungeon:enter(params)
             raycaster:init(GAME.width, GAME.height)
         end
         
+        -- Restore texture settings
+        raycaster.texturesEnabled = self.textureSettings.wallTexturesEnabled
+        raycaster.floorTexturesEnabled = self.textureSettings.floorTexturesEnabled
+        
         print("Setting camera to:", self.playerPos.x, self.playerPos.y, self.playerPos.angle)
         raycaster:setCamera(self.playerPos.x, self.playerPos.y, self.playerPos.angle)
         
@@ -480,6 +490,10 @@ function dungeon:enter(params)
     self.state = STATES.EXPLORING
     self.objective.completed = false
     self.objective.reached = false
+    
+    -- Set up texture settings for raycaster
+    raycaster.texturesEnabled = self.textureSettings.wallTexturesEnabled
+    raycaster.floorTexturesEnabled = self.textureSettings.floorTexturesEnabled
     
     -- Calculate fog of war radius based on dungeon size and difficulty
     local baseFogRadius = 5 -- Base visibility radius
@@ -1235,6 +1249,15 @@ function dungeon:keypressed(key, scancode, isrepeat)
         return false -- Let base game handle console
     end
 
+    -- Toggle texture rendering for debugging
+    if key == 't' and GAME.debug then
+        self:toggleWallTextures()
+        return true
+    elseif key == 'f' and GAME.debug then
+        self:toggleFloorTextures()
+        return true
+    end
+
     -- Check if panels are open and escape pressed
     if self.elements.questLogPanel.visible then
         if key == 'escape' then
@@ -1483,6 +1506,10 @@ end
 
 -- Open Inventory Screen
 function dungeon:openInventory()
+    -- Store texture settings before switching screens
+    self.textureSettings.wallTexturesEnabled = raycaster.texturesEnabled
+    self.textureSettings.floorTexturesEnabled = raycaster.floorTexturesEnabled
+    
     local gameState = require("states/gameState")
     gameState:changeState("inventory", { from = "dungeon" })
 end
@@ -1553,6 +1580,19 @@ function dungeon:toggleStatusBar()
         -- Reset timer when manually shown
         self.statusBarTimer = 10
     end
+end
+
+-- Add a function to toggle texture rendering (for performance or debug purposes)
+function dungeon:toggleWallTextures()
+    raycaster.texturesEnabled = not raycaster.texturesEnabled
+    self.textureSettings.wallTexturesEnabled = raycaster.texturesEnabled
+    print("Wall textures " .. (raycaster.texturesEnabled and "enabled" or "disabled"))
+end
+
+function dungeon:toggleFloorTextures()
+    raycaster.floorTexturesEnabled = not raycaster.floorTexturesEnabled
+    self.textureSettings.floorTexturesEnabled = raycaster.floorTexturesEnabled
+    print("Floor textures " .. (raycaster.floorTexturesEnabled and "enabled" or "disabled"))
 end
 
 return dungeon
