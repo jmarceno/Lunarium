@@ -139,6 +139,44 @@ Replace placeholder solid colors with actual textures by adding image files to a
 ### Adding Sound Effects and Music
 Add sound files to an `assets/sounds/` and `assets/music/` folders and update the `assetManager.lua` file.
 
+## UI Sound Effects
+
+The game includes a sound effect system for UI buttons. By default, all buttons play hover and click sounds.
+
+### Customizing Button Sounds
+
+You can customize the sounds globally:
+
+```lua
+local assets = require("assets/assetManager")
+
+-- Set volume for all button sounds
+assets:setButtonSoundVolume(0.5) -- Set to a value between 0 and 1
+
+-- Replace button sounds with new ones
+assets:setButtonSounds("path/to/new_hover.wav", "path/to/new_click.wav")
+```
+
+For individual buttons, you can customize or disable sounds:
+
+```lua
+-- Create a button with custom sounds
+local myButton = screenManager.UI.Button(x, y, width, height, "Text", callback)
+    :setSounds("custom_hover", "custom_click") -- Use sound names from assetManager.sounds
+    
+-- Or disable sounds for a specific button
+local silentButton = screenManager.UI.Button(x, y, width, height, "Silent", callback)
+    :enableSounds(false)
+```
+
+### Sound Files
+
+The default button sounds are located in:
+- `assets/Sounds/button_hover.wav` - Played when hovering over a button
+- `assets/Sounds/button_click.wav` - Played when clicking a button
+
+Replace these files to change the default sounds for all buttons.
+
 ## License
 
 This game is provided as-is for educational purposes.

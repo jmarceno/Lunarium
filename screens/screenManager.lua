@@ -59,13 +59,28 @@ function screenManager:initUI()
             text = text,
             callback = callback,
             hover = false,
+            prevHover = false, -- Track previous hover state to prevent multiple sound triggers
             isPressed = false,
             visible = true, -- Set visible by default
+            sounds = {
+                hover = "button_hover",  -- Default sound names, can be changed
+                click = "button_click"
+            },
+            soundsEnabled = true, -- Allow enabling/disabling sounds per button
             
             update = function(self, dt)
                 local mx, my = love.mouse.getPosition()
+                local wasHovering = self.hover
                 self.hover = mx >= self.x and mx <= self.x + self.width and
                               my >= self.y and my <= self.y + self.height
+                              
+                -- Play hover sound only when first hovering
+                if not wasHovering and self.hover and self.soundsEnabled and self.visible then
+                    local assets = require("assets/assetManager")
+                    assets:playSound(self.sounds.hover)
+                end
+                
+                self.prevHover = self.hover
             end,
             
             draw = function(self)
@@ -100,6 +115,12 @@ function screenManager:initUI()
                 
                 if button == 1 and x >= self.x and x <= self.x + self.width and
                    y >= self.y and y <= self.y + self.height then
+                    -- Play click sound
+                    if self.soundsEnabled then
+                        local assets = require("assets/assetManager")
+                        assets:playSound(self.sounds.click)
+                    end
+                    
                     -- Execute callback directly when clicked instead of waiting for release
                     if self.callback then 
                         self.callback() 
@@ -123,6 +144,19 @@ function screenManager:initUI()
                     return true
                 end
                 return false
+            end,
+            
+            -- Allow customizing the sounds for this button
+            setSounds = function(self, hoverSound, clickSound)
+                self.sounds.hover = hoverSound or self.sounds.hover
+                self.sounds.click = clickSound or self.sounds.click
+                return self -- Enable method chaining
+            end,
+            
+            -- Enable/disable sounds for this button
+            enableSounds = function(self, enabled)
+                self.soundsEnabled = enabled
+                return self -- Enable method chaining
             end
         }
         

@@ -18,9 +18,9 @@ GAME = {
 -- In main.lua, add this after GAME is defined but before other initializations
 GAME.settings = {
     sound = {
-        musicVolume = 0.5,
-        sfxVolume = 0.7,
-        masterVolume = 0.8
+        musicVolume = 0.3,
+        sfxVolume = 0.5,
+        masterVolume = 0.3
     },
     graphics = {
         fullscreen = false,
@@ -53,6 +53,7 @@ function love.load()
     screens:init()
     gameState:init()
     
+    assets:setButtonSoundVolume(0.07) 
     -- Set the initial game state to main menu
     gameState:changeState("mainMenu")
 end

@@ -392,7 +392,9 @@ function assetManager:loadSounds()
         hit = nil,
         door = nil,
         pickup = nil,
-        levelup = nil
+        levelup = nil,
+        button_hover = nil,
+        button_click = nil
     }
     
     -- Try to load sounds, but don't crash if they don't exist
@@ -412,6 +414,8 @@ function assetManager:loadSounds()
     tryLoadSound("door", "assets/sounds/door.wav")
     tryLoadSound("pickup", "assets/sounds/pickup.wav")
     tryLoadSound("levelup", "assets/sounds/levelup.wav")
+    tryLoadSound("button_hover", "assets/Sounds/button_hover.wav")
+    tryLoadSound("button_click", "assets/Sounds/button_click.wav")
 end
 
 function assetManager:loadMusic()
@@ -447,6 +451,33 @@ function assetManager:playSound(name)
         -- Clone the source to allow overlapping sounds
         local clone = self.sounds[name]:clone()
         clone:play()
+    end
+end
+
+-- Set volume for all button sounds
+function assetManager:setButtonSoundVolume(volume)
+    if self.sounds.button_hover then
+        self.sounds.button_hover:setVolume(volume)
+    end
+    if self.sounds.button_click then
+        self.sounds.button_click:setVolume(volume)
+    end
+end
+
+-- Replace button sounds with new ones
+function assetManager:setButtonSounds(hoverSoundPath, clickSoundPath)
+    if hoverSoundPath then
+        local success, result = pcall(function() return love.audio.newSource(hoverSoundPath, "static") end)
+        if success then
+            self.sounds.button_hover = result
+        end
+    end
+    
+    if clickSoundPath then
+        local success, result = pcall(function() return love.audio.newSource(clickSoundPath, "static") end)
+        if success then
+            self.sounds.button_click = result
+        end
     end
 end
 

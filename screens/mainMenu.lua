@@ -243,6 +243,15 @@ function mainMenu:enter()
     self.elements.profileList.selectedIndex = nil
 end
 
+function mainMenu:update(dt)
+    -- Update visible UI elements
+    for _, element in pairs(self.elements) do
+        if element.visible ~= false and element.update then
+            element:update(dt)
+        end
+    end
+end
+
 function mainMenu:draw()
     -- Draw background
     love.graphics.clear(screenManager.colors.background)
@@ -580,18 +589,32 @@ function mainMenu:mousepressed(x, y, button, istouch, presses)
     for name, element in pairs(self.elements) do
         -- Only process visible elements
         if element.visible ~= false then
+            -- Check for both clicked (buttons) and pressed (sliders, etc.)
+            local handled = false
             if element.clicked then
                 if element:clicked(x, y, button) then
-                    -- Play click sound
-                    assetManager:playSound("click")
-                    
-                    if GAME.debug then
-                        print("Button clicked: " .. name)
-                    end
-                    
-                    clickHandled = true
-                    -- Don't break to allow hover effects on other elements
+                    handled = true
                 end
+            elseif element.pressed then
+                if element:pressed(x, y, button) then -- Pass button arg if needed by pressed
+                    handled = true
+                end
+            end
+
+            if handled then
+                -- Play click sound (consider different sound for slider interaction?)
+                assetManager:playSound("click") 
+                    
+                if GAME.debug then
+                    print("UI Element interacted: " .. name)
+                end
+                    
+                clickHandled = true
+                -- Important: If an element handles the press (like a slider starting a drag), 
+                -- we might want to break the loop so other elements below it don't also react.
+                -- However, the original code didn't break to allow hover effects. Let's keep that for now,
+                -- but be aware this could be adjusted if needed.
+                -- break 
             end
         end
     end
