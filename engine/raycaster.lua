@@ -183,15 +183,21 @@ local function loadShaders()
         float rayAngle = angle-(fov / 2.0f) + (screen_coords.x * step);
         vec2 dir = vec2(cos(rayAngle), sin(rayAngle));
         
-        float z = (height-cameraOffset)/(height - screen_coords.y + cameraTilt);
+        float offsetCorrection = (1*width-(height*2)) / 2;
+        float z = (height+cameraOffset+offsetCorrection)/(height - screen_coords.y + cameraTilt);
+        
         float s = 1.0f - (z/shadeDepth);
         s = clamp(s, 0.1, 1.0); // Limit minimum brightness
+        
         float ppx = position.x + dir.x * (z/cos(rayAngle-angle));
         float ppy = position.y + dir.y * (z/cos(rayAngle-angle));
+        
         float ux = floor(ppx);
         float uy = floor(ppy);
+        
         float u = ppx - ux;
         float v = ppy - uy;
+        
         float tileId = Texel(map, vec2(ux +0.5, uy+0.5) / mapDimensions).r;
         
         if (int(ux) < 0 || int(ux) >= mapDimensions.x || int(uy) < 0 || int(uy) >= mapDimensions.y || tileId < 0) {
