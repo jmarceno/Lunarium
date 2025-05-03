@@ -528,39 +528,84 @@ function assetManager:createFloorPlaceholder(index)
 end
 
 function assetManager:loadSounds()
-    -- Prepare sound table with placeholders
-    self.sounds = {
-        click = nil,
-        footstep = nil,
-        attack = nil,
-        spell = nil,
-        hit = nil,
-        door = nil,
-        pickup = nil,
-        levelup = nil,
-        button_hover = nil,
-        button_click = nil
+    self.sounds = {}
+    
+    -- Check for sounds directory
+    local soundsDirectory = "assets/Sounds"
+    local info = love.filesystem.getInfo(soundsDirectory)
+    if not info or info.type ~= "directory" then
+        print("Warning: Sounds directory not found")
+        return
+    end
+    
+    -- Load standard UI sounds
+    local uiSounds = {
+        "click", 
+        "hover", 
+        "pickup", 
+        "drop", 
+        "attack", 
+        "hit", 
+        "spell",
+        "footstep_gravel_walk_01"  -- Add our footstep sound
     }
     
-    -- Try to load sounds, but don't crash if they don't exist
-    local function tryLoadSound(name, path)
-        local success, result = pcall(function() return love.audio.newSource(path, "static") end)
-        if success then
-            self.sounds[name] = result
+    -- Try to load UI sounds
+    for _, soundName in ipairs(uiSounds) do
+        -- Try both .wav and .ogg formats
+        local extensions = {".wav", ".ogg"}
+        local loaded = false
+        
+        for _, ext in ipairs(extensions) do
+            local path = soundsDirectory .. "/" .. soundName .. ext
+            if love.filesystem.getInfo(path) then
+                local success, sound = pcall(function()
+                    return love.audio.newSource(path, "static")
+                end)
+                
+                if success and sound then
+                    self.sounds[soundName] = sound
+                    print("  - Loaded sound: " .. soundName)
+                    loaded = true
+                    break  -- Stop trying other extensions if one worked
+                else
+                    print("  - Failed to load sound: " .. path)
+                end
+            end
+        end
+        
+        if not loaded then
+            print("  - Could not find sound: " .. soundName .. " in any supported format")
         end
     end
     
-    -- Try to load all sounds
-    tryLoadSound("click", "assets/sounds/click.wav")
-    tryLoadSound("footstep", "assets/sounds/footstep.wav")
-    tryLoadSound("attack", "assets/sounds/attack.wav")
-    tryLoadSound("spell", "assets/sounds/spell.wav")
-    tryLoadSound("hit", "assets/sounds/hit.wav")
-    tryLoadSound("door", "assets/sounds/door.wav")
-    tryLoadSound("pickup", "assets/sounds/pickup.wav")
-    tryLoadSound("levelup", "assets/sounds/levelup.wav")
-    tryLoadSound("button_hover", "assets/Sounds/button_hover.wav")
-    tryLoadSound("button_click", "assets/Sounds/button_click.wav")
+    -- Also check for any other sound files in the directory
+    local files = love.filesystem.getDirectoryItems(soundsDirectory)
+    for _, file in ipairs(files) do
+        -- Check if file has a valid audio extension
+        local ext = file:match("%.(%w+)$")
+        if ext and (ext == "wav" or ext == "ogg" or ext == "mp3") then
+            -- Extract sound name without extension
+            local soundName = file:gsub("%." .. ext .. "$", "")
+            
+            -- Skip if we already loaded this sound
+            if not self.sounds[soundName] then
+                local path = soundsDirectory .. "/" .. file
+                local success, sound = pcall(function()
+                    return love.audio.newSource(path, "static")
+                end)
+                
+                if success and sound then
+                    self.sounds[soundName] = sound
+                    print("  - Loaded additional sound: " .. soundName)
+                else
+                    print("  - Failed to load additional sound: " .. path)
+                end
+            end
+        end
+    end
+    
+    print("Loaded " .. self:countTableElements(self.sounds) .. " sounds")
 end
 
 function assetManager:loadMusic()
@@ -591,11 +636,24 @@ function assetManager:loadMusic()
 end
 
 -- Play a sound if it's loaded
-function assetManager:playSound(name)
+function assetManager:playSound(name, pitch)
     if self.sounds[name] then
         -- Clone the source to allow overlapping sounds
         local clone = self.sounds[name]:clone()
+        
+        -- Apply pitch if specified
+        if pitch then
+            clone:setPitch(pitch)
+        end
+        
         clone:play()
+    end
+end
+
+-- Set volume for a specific sound
+function assetManager:setSoundVolume(name, volume)
+    if self.sounds[name] then
+        self.sounds[name]:setVolume(volume)
     end
 end
 

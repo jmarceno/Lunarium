@@ -47,6 +47,11 @@ function dungeon:init()
     self.loot = {}
     self.currentMonster = nil
     
+    -- Footstep sound variables
+    self.footstepTimer = 0
+    self.footstepInterval = 0.5 -- Time between footstep sounds in seconds
+    self.isMoving = false
+    
     -- Texture settings
     self.textureSettings = {
         wallTexturesEnabled = true,
@@ -448,6 +453,9 @@ end
 function dungeon:enter(params)
     -- Debug output to track flow
     print("Entering dungeon screen with params:", params and table.concat({"from_levelup="..(params.from_levelup and "true" or "false"), "from="..(params.from or "nil")}, ", ") or "nil")
+    
+    -- Set footstep sound volume to a lower level
+    assetManager:setSoundVolume("footstep_gravel_walk_01", 0.05) -- Set to 30% of normal volume
     
     -- Check if we're returning from inventory or level up screen
     if (params and params.from == "inventory" and self.map) or 
@@ -871,34 +879,59 @@ function dungeon:update(dt)
         -- Store old position
         local oldX, oldY = self.playerPos.x, self.playerPos.y
         
+        -- Reset isMoving flag before checking movements
+        self.isMoving = false
+        
         if love.keyboard.isDown("w") then
             raycaster:moveCamera(moveSpeed, self.map)
             playerMoved = true
+            self.isMoving = true
         end
         
         if love.keyboard.isDown("s") then
             raycaster:moveCamera(-moveSpeed, self.map)
             playerMoved = true
+            self.isMoving = true
         end
         
         if love.keyboard.isDown("a") then
             raycaster:rotateCamera(-turnSpeed)
             playerMoved = true
+            -- Not setting isMoving true for rotation, only for actual movement
         end
         
         if love.keyboard.isDown("d") then
             raycaster:rotateCamera(turnSpeed)
             playerMoved = true
+            -- Not setting isMoving true for rotation, only for actual movement
         end
         
         if love.keyboard.isDown("q") then
             raycaster:strafeCamera(-moveSpeed, self.map)
             playerMoved = true
+            self.isMoving = true
         end
         
         if love.keyboard.isDown("e") then
             raycaster:strafeCamera(moveSpeed, self.map)
             playerMoved = true
+            self.isMoving = true
+        end
+        
+        -- Play footstep sound when moving
+        if self.isMoving then
+            -- Update footstep timer
+            self.footstepTimer = self.footstepTimer - dt
+            if self.footstepTimer <= 0 then
+                -- Play footstep sound with random pitch variation
+                local randomPitch = 0.85 + math.random() * 0.3 -- Random pitch between 0.85 and 1.15
+                assetManager:playSound("footstep_gravel_walk_01", randomPitch)
+                -- Reset timer
+                self.footstepTimer = self.footstepInterval
+            end
+        else
+            -- Reset timer when not moving
+            self.footstepTimer = 0
         end
         
         -- Update player position from raycaster
