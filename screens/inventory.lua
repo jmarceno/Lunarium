@@ -129,7 +129,8 @@ function inventory:createUI()
                         if x >= tabX and x <= tabX + tabWidth - 2 then
                             -- Debug output
                             if GAME.debug then
-                                print("Character tab clicked: " .. character.name)
+                                local charName = character and character.name or "Unknown Character"
+                                print("Character tab clicked: " .. charName)
                             end
                             
                             inventory:selectCharacter(character)
@@ -223,7 +224,7 @@ function inventory:createUI()
                     love.graphics.setColor(1, 1, 1)
                     
                     love.graphics.print(
-                        item.name,
+                        item.name or "Unknown Item",
                         self.x + 20, itemY + 5
                     )
                     
@@ -434,8 +435,16 @@ function inventory:createUI()
                 love.graphics.setFont(screenManager.fonts.small)
                 love.graphics.setColor(0.8, 0.8, 1)
                 
+                -- Calculate character level as sum of job levels
+                local totalLevel = 0
+                if char.jobLevels then
+                    for _, level in pairs(char.jobLevels) do
+                        totalLevel = totalLevel + level
+                    end
+                end
+                
                 love.graphics.print(
-                    "Level " .. char.level .. " " .. char.job,
+                    "Level " .. totalLevel .. " " .. char.job,
                     self.x + 20, self.y + 75
                 )
                 
@@ -536,7 +545,7 @@ function inventory:createUI()
                 love.graphics.setColor(1, 1, 1)
                 
                 love.graphics.printf(
-                    item.name,
+                    item.name or "Unknown Item",
                     self.x + 20, self.y + 50,
                     self.width - 40, "left"
                 )
@@ -859,7 +868,11 @@ function inventory:createUI()
             love.graphics.setColor(1, 1, 1)
             
             if self.item then
-                love.graphics.printf(self.item.name, self.x + 20, self.y + 20, self.width - 40, "center")
+                love.graphics.printf(
+                    self.item.name or "Unknown Item", 
+                    self.x + 20, self.y + 20, 
+                    self.width - 40, "center"
+                )
             end
             
             love.graphics.setFont(screenManager.fonts.small)
@@ -1250,9 +1263,12 @@ function inventory:mousepressed(x, y, button, istouch, presses)
     -- Pass to action buttons if not yet handled
     if not clickHandled and self.selectedItem then
         if GAME.debug then
-            print("Checking action buttons. Selected item: " .. self.selectedItem.name)
+            -- Fix: Check if name exists before using it in print
+            local itemName = self.selectedItem.name or "Unknown Item"
+            print("Checking action buttons. Selected item: " .. itemName)
             if self.selectedCharacter then
-                print("Selected character: " .. self.selectedCharacter.name)
+                local charName = self.selectedCharacter.name or "Unknown Character"
+                print("Selected character: " .. charName)
             else
                 print("No character selected")
             end
@@ -1390,7 +1406,8 @@ end
 function inventory:selectCharacter(character)
     -- Debug output
     if GAME.debug then
-        print("Selecting character: " .. character.name)
+        local charName = character and character.name or "Unknown Character"
+        print("Selecting character: " .. charName)
     end
     
     -- Select character
@@ -1400,7 +1417,8 @@ function inventory:selectCharacter(character)
     assetManager:playSound("click")
     
     -- Show feedback
-    self:showFloatingMessage(character.name .. " selected", {0.3, 0.7, 1, 1})
+    local charName = character and character.name or "Unknown Character"
+    self:showFloatingMessage(charName .. " selected", {0.3, 0.7, 1, 1})
 end
 
 function inventory:selectItem(item)
@@ -1417,7 +1435,9 @@ function inventory:isItemEquipped(item, character)
     
     -- Debug output
     if GAME.debug then
-        print("Checking if item " .. item.name .. " is equipped by " .. character.name)
+        local itemName = item and item.name or "Unknown Item"
+        local charName = character and character.name or "Unknown Character"
+        print("Checking if item " .. itemName .. " is equipped by " .. charName)
         
         -- Print character's equipment
         for slot, equippedItem in pairs(character.equipment) do
@@ -1429,7 +1449,7 @@ function inventory:isItemEquipped(item, character)
     
     -- Check each equipment slot
     for slot, equippedItem in pairs(character.equipment) do
-        if equippedItem and equippedItem.name == item.name then
+        if equippedItem and equippedItem.name and item and item.name and equippedItem.name == item.name then
             if GAME.debug then
                 print("Item is equipped in slot: " .. slot)
             end
@@ -1520,7 +1540,9 @@ function inventory:equipItem()
     
     -- Debug output
     if GAME.debug then
-        print("Equipping " .. self.selectedItem.name .. " to " .. self.selectedCharacter.name)
+        local itemName = self.selectedItem.name or "Unknown Item"
+        local charName = self.selectedCharacter.name or "Unknown Character"
+        print("Equipping " .. itemName .. " to " .. charName)
     end
     
     -- Check if character can equip this item
@@ -1621,7 +1643,8 @@ function inventory:equipItem()
     assetManager:playSound("pickup")
     
     -- Show floating message
-    self:showFloatingMessage(self.selectedItem.name .. " equipped!", {0.2, 1, 0.2, 1})
+    local itemName = self.selectedItem.name or "Unknown Item"
+    self:showFloatingMessage(itemName .. " equipped!", {0.2, 1, 0.2, 1})
     
     -- Remove equipped item from inventory
     for i, item in ipairs(GAME.inventory) do
@@ -1766,7 +1789,8 @@ function inventory:confirmDropItem()
     end
     
     local dialog = self.elements.confirmDialog
-    dialog.message = "Are you sure you want to drop " .. self.selectedItem.name .. "?\nThis item will be permanently destroyed."
+    local itemName = self.selectedItem.name or "Unknown Item"
+    dialog.message = "Are you sure you want to drop " .. itemName .. "?\nThis item will be permanently destroyed."
     dialog.confirmCallback = function() self:dropItem() end
     dialog.cancelCallback = function() end
     dialog.visible = true
@@ -1829,7 +1853,8 @@ function inventory:sellItem()
         )
     else
         -- Single item, confirm sale
-        self.elements.confirmDialog.message = "Sell " .. self.selectedItem.name .. " to the " .. sellLocation .. " for " .. sellPrice .. " gold?"
+        local itemName = self.selectedItem.name or "Unknown Item"
+        self.elements.confirmDialog.message = "Sell " .. itemName .. " to the " .. sellLocation .. " for " .. sellPrice .. " gold?"
         self.elements.confirmDialog.confirmCallback = function()
             self:completeSale(1, sellPrice, sellLocation)
         end
@@ -1847,7 +1872,8 @@ function inventory:completeSale(quantity, price, location)
     GAME.gold = (GAME.gold or 0) + totalGold
     
     -- Show feedback message
-    self:showFloatingMessage("Sold " .. quantity .. " " .. self.selectedItem.name .. " for " .. totalGold .. " gold!", {1, 1, 0, 1})
+    local itemName = self.selectedItem.name or "Unknown Item"
+    self:showFloatingMessage("Sold " .. quantity .. " " .. itemName .. " for " .. totalGold .. " gold!", {1, 1, 0, 1})
     
     -- Remove sold items from inventory
     for i, item in ipairs(GAME.inventory) do
