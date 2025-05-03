@@ -38,6 +38,7 @@ local raycaster = {
     texturesEnabled = true,
     floorTexturesEnabled = true,
     entitiesEnabled = true,
+    spriteVerticalOffset = 0.3, -- Vertical offset for sprites (higher values = lower position)
     
     -- Camera properties
     camera = {
@@ -227,6 +228,7 @@ local function loadShaders()
     #ifdef PIXEL
     varying float v_depth;
     uniform float shadeDepth;
+    uniform float depth;
     
     vec4 effect(vec4 color, Image texture, vec2 texture_coords, vec2 screen_coords)
     {
@@ -236,8 +238,8 @@ local function loadShaders()
         float shade = 1.0 - (v_depth / shadeDepth);
         shade = clamp(shade, 0.2, 1.0);
         
-        gl_FragDepth = v_depth;
-        return vec4(texcolor.rgb * shade, texcolor.a);
+        gl_FragDepth = depth;
+        return vec4(texcolor.rgb * shade * color.rgb, texcolor.a * color.a);
     }
     #endif
     ]])
@@ -334,6 +336,8 @@ function raycaster:init(width, height)
     
     -- Setup sprite rendering
     self.spriteShader:send("shadeDepth", self.shadeDepth)
+    -- Initialize depth parameter
+    self.spriteShader:send("depth", 0.5)
     
     -- Define wall colors (used as fallback if textures are disabled)
     self.wallColors = {
@@ -708,7 +712,7 @@ function raycaster:renderEntities(entities)
         local spriteX = entity.x - self.camera.x
         local spriteY = entity.y - self.camera.y
         
-        -- Calculate sprite angle and whether it's in front of the camera
+        -- Calculate sprite angle relative to camera direction
         local objAngle = math.atan2(spriteY, spriteX) - self.camera.angle
         
         -- Normalize angle to [-PI, PI]
@@ -721,23 +725,61 @@ function raycaster:renderEntities(entities)
         if visible then
             -- Get sprite texture
             local texture = nil
-            if entity.texture then
+            
+            -- Check for monster sprite - use asset manager
+            if entity.type == "monster" and entity.id then
+                if assetManager.images.monsterSprites and assetManager.images.monsterSprites[entity.id] then
+                    texture = assetManager.images.monsterSprites[entity.id]
+                end
+            elseif entity.texture then
                 texture = assetManager.images.entities[entity.texture]
             end
             
-            if not texture and entity.color then
-                -- Use a colored rectangle if no texture is available
-                local dist = math.sqrt(spriteX*spriteX + spriteY*spriteY)
-                local perpDistance = dist * math.cos(objAngle)
-                
-                if perpDistance > 0 and perpDistance < self.maxDistance then
-                    -- Project sprite onto screen
+            -- Calculate perpendicular distance for correct scaling and depth
+            local dist = math.sqrt(spriteX*spriteX + spriteY*spriteY)
+            local perpDistance = dist * math.cos(objAngle)
+            
+            if perpDistance > 0 and perpDistance < self.maxDistance then
+                if texture then
+                    -- Apply proper depth for z-testing
+                    love.graphics.setDepthMode("lequal", true)
+                    
+                    -- Calculate sprite dimensions
+                    local fullHeight = self.viewWidth / perpDistance
+                    local aspectRatio = texture:getHeight() / texture:getWidth()
+                    local spriteHeight = fullHeight 
+                    local spriteWidth = spriteHeight / aspectRatio
+                    
+                    -- Calculate screen position
+                    local spriteScreenX = math.floor((self.viewWidth / 2) * (1 + (objAngle / (self.fov/2))))
+                    local drawStartY = math.floor(self.halfHeight - spriteHeight / 2 + (self.camera.height / perpDistance) + self.camera.tilt + (spriteHeight * self.spriteVerticalOffset))
+                    local drawStartX = math.floor(spriteScreenX - spriteWidth / 2)
+                    
+                    -- Calculate shade based on distance
+                    local shade = 1.0 - (perpDistance / self.shadeDepth)
+                    shade = math.max(0.3, shade)
+                    love.graphics.setColor(shade, shade, shade)
+                    
+                    -- Set depth value for this sprite
+                    self.spriteShader:send("depth", perpDistance / self.maxDistance)
+                    
+                    -- Draw the sprite with depth information
+                    love.graphics.draw(
+                        texture,
+                        drawStartX, drawStartY,
+                        0,
+                        spriteWidth / texture:getWidth(),
+                        spriteHeight / texture:getHeight()
+                    )
+                elseif entity.color then
+                    -- Use a colored rectangle if no texture is available
+                    -- Calculate sprite dimensions
                     local spriteHeight = math.floor(self.viewHeight / perpDistance)
                     local spriteWidth = spriteHeight
                     
                     -- Calculate screen position
                     local spriteScreenX = math.floor((self.viewWidth / 2) * (1 + (objAngle / (self.fov/2))))
-                    local drawStartY = math.floor(self.halfHeight - spriteHeight / 2 + (self.camera.height / perpDistance) + self.camera.tilt)
+                    local drawStartY = math.floor(self.halfHeight - spriteHeight / 2 + (self.camera.height / perpDistance) + self.camera.tilt + (spriteHeight * self.spriteVerticalOffset))
                     local drawStartX = math.floor(spriteScreenX - spriteWidth / 2)
                     
                     -- Clamp to screen bounds
@@ -756,50 +798,11 @@ function raycaster:renderEntities(entities)
                         entity.color[4] or 1
                     )
                     
-                    -- Draw the sprite as a rectangle checking Z-buffer for each column
-                    for stripe = 0, drawWidth - 1 do
-                        local worldX = drawStartX + stripe
-                        if worldX >= 0 and worldX < self.viewWidth then
-                            -- Only draw if in front of a wall
-                            if perpDistance < self.zBuffer[worldX + 1] then
-                                love.graphics.rectangle("fill", worldX, drawStartY, 1, drawHeight)
-                            end
-                        end
-                    end
-                end
-            elseif texture then
-                -- Render with texture using shader
-                local dist = math.sqrt(spriteX*spriteX + spriteY*spriteY)
-                local perpDistance = dist * math.cos(objAngle)
-                
-                if perpDistance > 0 and perpDistance < self.maxDistance then
-                    -- Calculate sprite dimensions
-                    local fullHeight = self.viewWidth / perpDistance
-                    local aspectRatio = texture:getHeight() / texture:getWidth()
-                    local spriteHeight = fullHeight 
-                    local spriteWidth = spriteHeight / aspectRatio
-                    
-                    -- Calculate screen position
-                    local spriteScreenX = math.floor((self.viewWidth / 2) * (1 + (objAngle / (self.fov/2))))
-                    local drawStartY = math.floor(self.halfHeight - spriteHeight / 2 + (self.camera.height / perpDistance) + self.camera.tilt)
-                    local drawStartX = math.floor(spriteScreenX - spriteWidth / 2)
-                    
-                    -- Draw the sprite using the original texture
-                    local shade = 1.0 - (perpDistance / self.shadeDepth)
-                    shade = math.max(0.3, shade)
-                    love.graphics.setColor(shade, shade, shade)
-                    
                     -- Set depth value for this sprite
-                    love.graphics.setDepthMode("lequal", true)
+                    self.spriteShader:send("depth", perpDistance / self.maxDistance)
                     
-                    -- Draw sprite checking Z-buffer
-                    love.graphics.draw(
-                        texture,
-                        drawStartX, drawStartY,
-                        0,
-                        spriteWidth / texture:getWidth(),
-                        spriteHeight / texture:getHeight()
-                    )
+                    -- Draw a rectangle for the sprite
+                    love.graphics.rectangle("fill", drawStartX, drawStartY, drawWidth, drawHeight)
                 end
             end
         end

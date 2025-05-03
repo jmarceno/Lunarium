@@ -669,7 +669,9 @@ function dungeon:populateDungeon(difficulty)
                     id = objective.targetId,
                     name = fetchedMonsterData.name, 
                     color = fetchedMonsterData.color,
-                    stats = fetchedMonsterData.stats
+                    stats = fetchedMonsterData.stats,
+                    sprite = fetchedMonsterData.sprite, -- Add sprite path
+                    category = fetchedMonsterData.category -- Add category
                 })
             end
         end
@@ -711,7 +713,9 @@ function dungeon:populateDungeon(difficulty)
             id = objective.bossId,
             name = fetchedBossData.name,
             color = fetchedBossData.color,
-            stats = fetchedBossData.stats -- Make sure boss stats are defined
+            stats = fetchedBossData.stats, -- Make sure boss stats are defined
+            sprite = fetchedBossData.sprite, -- Add sprite path
+            category = fetchedBossData.category -- Add category
         })
          -- Optionally add filler monsters/items, avoiding the end room
         self:addFillerEntities(difficulty, 5, true) 
@@ -785,7 +789,9 @@ function dungeon:addFillerEntities(difficulty, count, avoidEnd)
                     id = randomMonsterId,
                     name = fetchedMonsterData.name, 
                     color = fetchedMonsterData.color,
-                    stats = fetchedMonsterData.stats
+                    stats = fetchedMonsterData.stats,
+                    sprite = fetchedMonsterData.sprite, -- Add sprite path
+                    category = fetchedMonsterData.category -- Add category
                 })
             else
                 print("Warning: Could not get data for random filler monster ID: " .. tostring(randomMonsterId))

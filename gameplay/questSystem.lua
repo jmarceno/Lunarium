@@ -197,17 +197,17 @@ questSystem.questTypes = {
 questSystem.quests = {
     -- Easy quests
     {
-        id = "rats_in_cellar",
-        name = "Rats in the Cellar",
-        description = "The tavern's cellar is infested with giant rats. Clear them out.",
+        id = "fungal_infestation",
+        name = "Fungal Infestation",
+        description = "The forest edge is being overtaken by strange fungal creatures. Clear them out before they spread to town.",
         type = "KILL",
         level = 1,
         difficulty = questSystem.DIFFICULTY.EASY,
         giver = "Tavern",
         objective = {
             type = "kill",
-            targetId = "monster_rat",
-            targetName = "Giant Rat",
+            targetId = "shroomling",
+            targetName = "Shroomling",
             count = 5,
             current = 0
         },
@@ -239,18 +239,18 @@ questSystem.quests = {
     
     -- Medium quests
     {
-        id = "goblin_raid",
-        name = "Goblin Raid",
-        description = "A group of goblins has been raiding the town. Take them out.",
+        id = "cultist_threat",
+        name = "Cultist Threat",
+        description = "A group of cultists has been spotted in the area. Investigate and eliminate the threat.",
         type = "KILL",
         level = 3,
         difficulty = questSystem.DIFFICULTY.MEDIUM,
         giver = "Guild",
         objective = {
             type = "kill",
-            targetId = 2, -- Goblin ID
-            targetName = "Goblin",
-            count = 8,
+            targetId = "hooded_cultist", 
+            targetName = "Hooded Cultist",
+            count = 6,
             current = 0
         },
         rewards = { gold = 150, items = {} },
@@ -273,12 +273,12 @@ questSystem.quests = {
             current = 0
         },
         rewards = {
-            gold = 500,
+            gold = 180,
             items = {
                 {
-                    type = "weapon",
-                    name = "item_troll_crusher",
-                    count = 1
+                    type = "consumable",
+                    name = "HealingPotion",
+                    count = 3
                 }
             }
         },
@@ -318,33 +318,91 @@ questSystem.quests = {
         seed = 56789
     },
     {
-        id = "troll_boss",
-        name = "The Bridge Troll",
-        description = "A massive troll has taken residence under the bridge, blocking trade routes.",
+        id = "lich_king_battle",
+        name = "The Lich King",
+        description = "An ancient necromancer known as the Lich King has awakened. Stop his undead army from spreading.",
         type = "BOSS",
-        level = 6,
+        level = 10,
         difficulty = questSystem.DIFFICULTY.HARD,
         giver = "Guild",
         objective = {
             type = "boss",
-            bossId = 1,
-            bossName = "Bridge Troll",
+            bossId = "lich_king_boss",
+            bossName = "Lich King",
             locationId = 4,
-            locationName = "Stone Bridge",
+            locationName = "Ancient Crypt",
             completed = false
         },
         rewards = {
-            gold = 500,
+            gold = 800,
             items = {
                 {
                     type = "weapon",
-                    name = "Troll Crusher",
+                    name = "Necromancer's Bane",
                     count = 1
                 }
             }
         },
         status = questSystem.STATUS.AVAILABLE,
         seed = 67890
+    },
+    {
+        id = "fungal_corruption",
+        name = "Fungal Corruption",
+        description = "A powerful entity known as the Spore Lord is corrupting the forest. Defeat it before the corruption spreads.",
+        type = "BOSS",
+        level = 8,
+        difficulty = questSystem.DIFFICULTY.HARD,
+        giver = "Tavern",
+        objective = {
+            type = "boss",
+            bossId = "spore_lord_boss",
+            bossName = "Spore Lord",
+            locationId = 5,
+            locationName = "Ancient Grove",
+            completed = false
+        },
+        rewards = {
+            gold = 600,
+            items = {
+                {
+                    type = "armor",
+                    name = "Spore-Resistant Cloak",
+                    count = 1
+                }
+            }
+        },
+        status = questSystem.STATUS.AVAILABLE,
+        seed = 78901
+    },
+    {
+        id = "insect_invasion",
+        name = "Insect Invasion",
+        description = "Swarms of giant insects are attacking farms. Find and eliminate the hive matron.",
+        type = "BOSS",
+        level = 9,
+        difficulty = questSystem.DIFFICULTY.HARD,
+        giver = "Guild",
+        objective = {
+            type = "boss",
+            bossId = "matron_zirrk_boss",
+            bossName = "Matron Zirrk",
+            locationId = 6,
+            locationName = "Insect Hive",
+            completed = false
+        },
+        rewards = {
+            gold = 700,
+            items = {
+                {
+                    type = "weapon",
+                    name = "Hive Splitter",
+                    count = 1
+                }
+            }
+        },
+        status = questSystem.STATUS.AVAILABLE,
+        seed = 89012
     }
 }
 
@@ -380,18 +438,43 @@ function questSystem:generateRandomQuest(giver, level, difficulty)
     local questTemplate = self.questTypes[questType]
     
     if questType == "KILL" then
-        -- Monster targets based on level
-        local monsters = {
-            {id = 1, name = "Giant Rat"},
-            {id = 2, name = "Goblin"},
-            {id = 3, name = "Skeleton"},
-            {id = 4, name = "Orc"},
-            {id = 5, name = "Troll"}
+        -- Monster targets based on level and categories
+        local monsterCategories = {
+            { -- Level 1-2
+                {id = "fungal_fighter", name = "Fungal Fighter"},
+                {id = "shroomling", name = "Shroomling"},
+                {id = "zombie_farmer", name = "Zombie Farmer"},
+                {id = "horned_beetle", name = "Horned Beetle"}
+            },
+            { -- Level 3-4
+                {id = "walking_mushroom", name = "Walking Mushroom"},
+                {id = "toxic_sporeling", name = "Toxic Sporeling"},
+                {id = "cultists_initiate", name = "Cultist Initiate"},
+                {id = "hooded_cultist", name = "Hooded Cultist"},
+                {id = "zombie_biter", name = "Zombie Biter"},
+                {id = "skeletal_hound", name = "Skeletal Hound"},
+                {id = "buzzer", name = "Buzzer"},
+                {id = "armored_ant", name = "Armored Ant"}
+            },
+            { -- Level 5-7
+                {id = "fungal_zombie", name = "Fungal Zombie"},
+                {id = "cult_warlock", name = "Cult Warlock"},
+                {id = "cultist_pyromancer", name = "Cultist Pyromancer"},
+                {id = "plague_cultist", name = "Plague Cultist"},
+                {id = "skeleton_warrior", name = "Skeleton Warrior"},
+                {id = "ghoul_stalker", name = "Ghoul Stalker"},
+                {id = "tormented_ghoul", name = "Tormented Ghoul"},
+                {id = "mantis_warrior", name = "Mantis Warrior"},
+                {id = "wasp_demon", name = "Wasp Demon"}
+            }
         }
         
-        -- Select monster based on level
-        local monsterIndex = math.min(level, #monsters)
-        local monster = monsters[monsterIndex]
+        -- Select appropriate category based on level
+        local categoryIndex = math.min(math.ceil(level / 2), #monsterCategories)
+        local category = monsterCategories[categoryIndex]
+        
+        -- Select random monster from appropriate category
+        local monster = category[math.random(1, #category)]
         
         params = {
             targetId = monster.id,
@@ -467,31 +550,46 @@ function questSystem:generateRandomQuest(giver, level, difficulty)
     elseif questType == "BOSS" then
         -- Bosses
         local bosses = {
-            {id = "boss_spider", name = "Giant Spider"},
-            {id = "boss_ogre_chief", name = "Ogre Chieftain"},
-            {id = "boss_necromancer", name = "Necromancer"},
-            {id = "boss_wyvern", name = "Wyvern"},
-            {id = "boss_dragon", name = "Ancient Dragon"}
+            { -- Level 5-7
+                {id = "spore_witch_boss", name = "Spore Witch"},
+                {id = "chanting_fanatic_boss", name = "Chanting Fanatic"}
+            },
+            { -- Level 8-9
+                {id = "spore_lord_boss", name = "Spore Lord"},
+                {id = "skeleton_general_boss", name = "Skeleton General"},
+                {id = "matron_zirrk_boss", name = "Matron Zirrk"}
+            },
+            { -- Level 10+
+                {id = "demonic_leader_boss", name = "Demonic Leader"},
+                {id = "lich_king_boss", name = "Lich King"},
+                {id = "killerpede_boss", name = "Killerpede"}
+            }
         }
         
         -- Locations
         local locations = {
-            {id = 1, name = "Spider's Nest"},
-            {id = 2, name = "Ogre Camp"},
-            {id = 3, name = "Haunted Crypt"},
+            {id = 1, name = "Fungal Grove"},
+            {id = 2, name = "Cultist Altar"},
+            {id = 3, name = "Ancient Crypt"},
             {id = 4, name = "Dragon's Lair"},
-            {id = 5, name = "Ancient Throne"}
+            {id = 5, name = "Insect Hive"},
+            {id = 6, name = "Corrupted Temple"}
         }
         
-        -- Select boss and location based on level
-        local bossIndex = math.min(level, #bosses)
-        local locationIndex = math.min(level, #locations)
+        -- Select boss based on level
+        local categoryIndex = math.min(math.ceil((level - 4) / 2), #bosses)
+        categoryIndex = math.max(1, categoryIndex) -- Ensure minimum index is 1
+        local bossCategory = bosses[categoryIndex]
+        local boss = bossCategory[math.random(1, #bossCategory)]
+        
+        -- Select random location
+        local location = locations[math.random(1, #locations)]
         
         params = {
-            bossId = bosses[bossIndex].id,
-            bossName = bosses[bossIndex].name,
-            locationId = locations[locationIndex].id,
-            locationName = locations[locationIndex].name
+            bossId = boss.id,
+            bossName = boss.name,
+            locationId = location.id,
+            locationName = location.name
         }
     end
     

@@ -15,6 +15,9 @@ function assetManager:init()
     -- Load wall and floor textures
     self:loadWallAndFloorTextures()
     
+    -- Load monster sprites
+    self:loadMonsterSprites()
+    
     -- Create placeholder images for future textures
     self:createPlaceholders()
     
@@ -837,6 +840,69 @@ function assetManager:createTextureArrays()
     -- Initialize entities texture array
     self.images.entities = {}
     self.texArrays.entities = nil  -- Will be created when needed
+end
+
+-- Load monster sprites from the assets/Sprites/Enemies directory and subdirectories
+function assetManager:loadMonsterSprites()
+    if self.images.monsterSprites then
+        return self.images.monsterSprites
+    end
+    
+    self.images.monsterSprites = {}
+    
+    -- Check if enemies directory exists
+    local info = love.filesystem.getInfo("assets/Sprites/Enemies")
+    if not info or info.type ~= "directory" then
+        print("Warning: Enemies directory not found")
+        return self.images.monsterSprites
+    end
+    
+    -- Get list of enemy type subdirectories
+    local subDirs = love.filesystem.getDirectoryItems("assets/Sprites/Enemies")
+    local totalLoaded = 0
+    
+    for _, subDir in ipairs(subDirs) do
+        local subDirPath = "assets/Sprites/Enemies/" .. subDir
+        local subDirInfo = love.filesystem.getInfo(subDirPath)
+        
+        if subDirInfo and subDirInfo.type == "directory" then
+            print("Loading monster sprites from " .. subDirPath)
+            
+            -- Get sprite files from each category subdirectory
+            local files = love.filesystem.getDirectoryItems(subDirPath)
+            for _, file in ipairs(files) do
+                if file:match("%.png$") then
+                    local path = subDirPath .. "/" .. file
+                    local id = file:gsub("%.png$", "")
+                    
+                    -- Determine if this is a boss based on filename
+                    local isBoss = id:match("_BOSS$") ~= nil
+                    if isBoss then
+                        id = id:gsub("_BOSS$", "_boss") -- Convert to id format in monsterData
+                    end
+                    
+                    -- Load image
+                    local success, sprite = pcall(function()
+                        local img = love.graphics.newImage(path)
+                        img:setFilter("nearest", "nearest") -- Use nearest filtering for pixelated look
+                        return img
+                    end)
+                    
+                    if success and sprite then
+                        -- Store sprite indexed by filename
+                        self.images.monsterSprites[id] = sprite
+                        totalLoaded = totalLoaded + 1
+                        print("  - Loaded monster sprite: " .. id)
+                    else
+                        print("  - Failed to load monster sprite: " .. file)
+                    end
+                end
+            end
+        end
+    end
+    
+    print("Loaded " .. totalLoaded .. " monster sprites")
+    return self.images.monsterSprites
 end
 
 return assetManager
