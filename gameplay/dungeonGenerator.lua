@@ -1,6 +1,12 @@
 -- Dungeon Generator
 -- Procedurally generates dungeon maps
-local dungeonGenerator = {}
+local dungeonGenerator = {
+    -- Texture variety parameters
+    maxWallTextureTypes = 1,
+    maxFloorTextureTypes = 1,
+    maxTextureSets = 1,
+    maxRegionCount = 1
+}
 
 -- Map class definition
 local Map = {}
@@ -191,9 +197,23 @@ function Map:revealArea(centerX, centerY, radius)
 end
 
 -- Dungeon generator functions
-function dungeonGenerator:generate(width, height, seed)
+function dungeonGenerator:generate(width, height, seed, options)
     -- Set random seed
     math.randomseed(seed or os.time())
+    
+    -- Apply options if provided
+    options = options or {}
+    local textureOptions = options.texture or {}
+    local tempWallTypes = self.maxWallTextureTypes
+    local tempFloorTypes = self.maxFloorTextureTypes
+    local tempTextureSets = self.maxTextureSets
+    local tempRegionCount = self.maxRegionCount
+    
+    -- Override texture parameters if provided
+    if textureOptions.maxWallTypes then self.maxWallTextureTypes = textureOptions.maxWallTypes end
+    if textureOptions.maxFloorTypes then self.maxFloorTextureTypes = textureOptions.maxFloorTypes end
+    if textureOptions.maxSets then self.maxTextureSets = textureOptions.maxSets end
+    if textureOptions.maxRegions then self.maxRegionCount = textureOptions.maxRegions end
     
     -- Create new map
     local map = Map:new(width, height)
@@ -212,6 +232,12 @@ function dungeonGenerator:generate(width, height, seed)
     
     -- Add textures to the map
     self:assignTextures(map)
+    
+    -- Restore original parameters
+    self.maxWallTextureTypes = tempWallTypes
+    self.maxFloorTextureTypes = tempFloorTypes
+    self.maxTextureSets = tempTextureSets
+    self.maxRegionCount = tempRegionCount
     
     return map
 end
@@ -446,9 +472,32 @@ function dungeonGenerator:assignTextures(map)
         end
     end
     
+    -- LIMIT TEXTURE VARIETY: Select only a small subset of available textures
+    -- Use configurable parameters instead of hardcoded values
+    if #wallTextures > self.maxWallTextureTypes then
+        local limitedWallTextures = {}
+        for i = 1, self.maxWallTextureTypes do
+            local index = math.random(1, #wallTextures)
+            table.insert(limitedWallTextures, wallTextures[index])
+            table.remove(wallTextures, index)
+        end
+        wallTextures = limitedWallTextures
+    end
+    
+    if #floorTextures > self.maxFloorTextureTypes then
+        local limitedFloorTextures = {}
+        for i = 1, self.maxFloorTextureTypes do
+            local index = math.random(1, #floorTextures)
+            table.insert(limitedFloorTextures, floorTextures[index])
+            table.remove(floorTextures, index)
+        end
+        floorTextures = limitedFloorTextures
+    end
+    
     -- Create texture sets (wall+floor combinations)
     local textureSets = {}
-    local setCount = math.min(4, math.min(#wallTextures, #floorTextures))
+    -- Use configurable parameter for set count
+    local setCount = math.min(self.maxTextureSets, math.min(#wallTextures, #floorTextures))
     
     for i = 1, setCount do
         -- Randomly select a wall and floor texture for this set
@@ -465,8 +514,8 @@ function dungeonGenerator:assignTextures(map)
         table.remove(floorTextures, floorIndex)
     end
     
-    -- Group rooms and corridors into regions (1-4 regions depending on dungeon size)
-    local regionCount = math.min(4, math.ceil(maxAreaId / 5))
+    -- Group rooms and corridors into regions - using configurable parameter
+    local regionCount = math.min(self.maxRegionCount, math.ceil(maxAreaId / 10))
     local areaToRegion = {}
     
     for id = 1, maxAreaId do
