@@ -540,33 +540,24 @@ function dungeon:enter(params)
         local speedMultiplier = 1.0 + (math.min(difficulty, 5) * 0.2) -- Cap at 2x speed at difficulty 5
         self.moveSpeed = self.baseMoveSpeed * speedMultiplier
         
-        -- Set player starting position
+        -- Get the first room which is the starting room
+        local startRoom = self.map.rooms[1]
+        
+        -- Place player in the center of the starting room
         self.playerPos = {
-            x = self.map.start.x + 0.5,
-            y = self.map.start.y + 0.5,
+            x = math.floor(startRoom.x + startRoom.width / 2) + 0.5,
+            y = math.floor(startRoom.y + startRoom.height / 2) + 0.5,
             angle = 0
         }
         
-        -- Adjust the player's position to be away from the entrance
-        -- Calculate direction toward dungeon center
-        local centerX = self.map.width / 2
-        local centerY = self.map.height / 2
-        
-        -- Calculate direction vector from start to center
-        local dirX = centerX - self.map.start.x
-        local dirY = centerY - self.map.start.y
+        -- Set player's angle to face away from entrance (toward dungeon center)
+        local dirX = self.playerPos.x - self.map.start.x
+        local dirY = self.playerPos.y - self.map.start.y
         
         -- Normalize the direction vector
         local length = math.sqrt(dirX*dirX + dirY*dirY)
         if length > 0 then
-            dirX = dirX / length
-            dirY = dirY / length
-            
-            -- Move player 1.5 units in this direction (enough to not touch entrance)
-            self.playerPos.x = self.map.start.x + 0.5 + (dirX * 1.5)
-            self.playerPos.y = self.map.start.y + 0.5 + (dirY * 1.5)
-            
-            -- Set player's angle to face away from entrance (toward dungeon center)
+            -- Set player's angle to face away from entrance
             self.playerPos.angle = math.atan2(dirY, dirX)
         end
         
@@ -588,33 +579,24 @@ function dungeon:enter(params)
         -- Use base movement speed for default dungeons
         self.moveSpeed = self.baseMoveSpeed
         
-        -- Set player starting position
+        -- Get the first room which is the starting room
+        local startRoom = self.map.rooms[1]
+        
+        -- Place player in the center of the starting room
         self.playerPos = {
-            x = self.map.start.x + 0.5,
-            y = self.map.start.y + 0.5,
+            x = math.floor(startRoom.x + startRoom.width / 2) + 0.5,
+            y = math.floor(startRoom.y + startRoom.height / 2) + 0.5,
             angle = 0
         }
         
-        -- Adjust the player's position to be away from the entrance
-        -- Calculate direction toward dungeon center
-        local centerX = self.map.width / 2
-        local centerY = self.map.height / 2
-        
-        -- Calculate direction vector from start to center
-        local dirX = centerX - self.map.start.x
-        local dirY = centerY - self.map.start.y
+        -- Set player's angle to face away from entrance (toward dungeon center)
+        local dirX = self.playerPos.x - self.map.start.x
+        local dirY = self.playerPos.y - self.map.start.y
         
         -- Normalize the direction vector
         local length = math.sqrt(dirX*dirX + dirY*dirY)
         if length > 0 then
-            dirX = dirX / length
-            dirY = dirY / length
-            
-            -- Move player 1.5 units in this direction (enough to not touch entrance)
-            self.playerPos.x = self.map.start.x + 0.5 + (dirX * 1.5)
-            self.playerPos.y = self.map.start.y + 0.5 + (dirY * 1.5)
-            
-            -- Set player's angle to face away from entrance (toward dungeon center)
+            -- Set player's angle to face away from entrance
             self.playerPos.angle = math.atan2(dirY, dirX)
         end
         

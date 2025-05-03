@@ -397,12 +397,48 @@ function dungeonGenerator:placeStartAndEnd(map)
     local startRoom = map.rooms[1]
     local endRoom = map.rooms[#map.rooms]
     
-    -- Place start and end in the middle of these rooms
+    -- Calculate center of the starting room for player position
+    local centerX = math.floor(startRoom.x + startRoom.width / 2)
+    local centerY = math.floor(startRoom.y + startRoom.height / 2)
+    
+    -- Find a position for entrance near a wall (but not on a wall)
+    local entranceX, entranceY
+    
+    -- Try to place near the north wall
+    if startRoom.y + 1 < centerY - 1 then
+        entranceX = centerX
+        entranceY = startRoom.y + 1  -- One tile away from north wall
+    -- Try to place near the west wall
+    elseif startRoom.x + 1 < centerX - 1 then
+        entranceX = startRoom.x + 1  -- One tile away from west wall
+        entranceY = centerY
+    -- Try to place near the south wall
+    elseif startRoom.y + startRoom.height - 2 > centerY + 1 then
+        entranceX = centerX
+        entranceY = startRoom.y + startRoom.height - 2  -- One tile away from south wall
+    -- Try to place near the east wall
+    elseif startRoom.x + startRoom.width - 2 > centerX + 1 then
+        entranceX = startRoom.x + startRoom.width - 2  -- One tile away from east wall
+        entranceY = centerY
+    -- Fallback: use center but offset slightly to avoid direct overlap
+    else
+        entranceX = centerX - 1
+        entranceY = centerY
+    end
+    
+    -- Ensure entrance and player (center) don't overlap
+    if entranceX == centerX and entranceY == centerY then
+        -- If they would overlap, shift entrance by 1 tile
+        entranceX = entranceX - 1
+    end
+    
+    -- Set the entrance location
     map.start = {
-        x = math.floor(startRoom.x + startRoom.width / 2),
-        y = math.floor(startRoom.y + startRoom.height / 2)
+        x = entranceX,
+        y = entranceY
     }
     
+    -- Place end point in the middle of the end room
     map.end_ = {
         x = math.floor(endRoom.x + endRoom.width / 2),
         y = math.floor(endRoom.y + endRoom.height / 2)
