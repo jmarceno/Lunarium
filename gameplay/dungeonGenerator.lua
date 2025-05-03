@@ -16,9 +16,10 @@ function Map:new(width, height)
         end_ = {x = 0, y = 0},
         fogOfWar = {}, -- Track which cells have been seen
         textures = {
-            wall = {},   -- Wall texture for each cell
-            floor = {},  -- Floor texture for each cell
-            roomId = {}  -- Store which room/area each cell belongs to (for consistent texturing)
+            wall = {},    -- Wall texture for each cell
+            floor = {},   -- Floor texture for each cell
+            ceiling = {}, -- Ceiling texture for each cell (new)
+            roomId = {}   -- Store which room/area each cell belongs to (for consistent texturing)
         }
     }
     
@@ -28,12 +29,14 @@ function Map:new(width, height)
         map.fogOfWar[y] = {} -- Initialize fog of war
         map.textures.wall[y] = {}
         map.textures.floor[y] = {}
+        map.textures.ceiling[y] = {} -- Initialize ceiling textures
         map.textures.roomId[y] = {}
         for x = 0, width - 1 do
             map.data[y][x] = 1  -- 1 means wall
             map.fogOfWar[y][x] = false -- Initially all cells are hidden
             map.textures.wall[y][x] = nil -- No texture initially
             map.textures.floor[y][x] = nil -- No texture initially
+            map.textures.ceiling[y][x] = nil -- No ceiling texture initially
             map.textures.roomId[y][x] = 0 -- Not part of any room initially
         end
     end
@@ -99,6 +102,32 @@ function Map:setFloorTexture(x, y, texture)
     end
     
     self.textures.floor[y][x] = texture
+    return true
+end
+
+-- Get ceiling texture for a specific cell
+function Map:getCeilingTexture(x, y)
+    -- Check bounds
+    if x < 0 or y < 0 or x >= self.width or y >= self.height then
+        return nil
+    end
+    
+    -- If no ceiling texture is set, use the floor texture
+    if not self.textures.ceiling[y][x] then
+        return self.textures.floor[y][x]
+    end
+    
+    return self.textures.ceiling[y][x]
+end
+
+-- Set ceiling texture for a specific cell
+function Map:setCeilingTexture(x, y, texture)
+    -- Check bounds
+    if x < 0 or y < 0 or x >= self.width or y >= self.height then
+        return false
+    end
+    
+    self.textures.ceiling[y][x] = texture
     return true
 end
 
@@ -493,6 +522,17 @@ function dungeonGenerator:assignTextures(map)
                     -- If no adjacent floor, use the first texture set as default
                     map:setWallTexture(x, y, textureSets[1].wall)
                 end
+            end
+        end
+    end
+    
+    -- Assign ceiling textures based on room ID
+    -- For now, use the same texture as floor
+    for y = 0, map.height - 1 do
+        for x = 0, map.width - 1 do
+            if map:getCell(x, y) == 0 then  -- Only assign ceiling textures to floor cells
+                local floorTexture = map:getFloorTexture(x, y)
+                map:setCeilingTexture(x, y, floorTexture)
             end
         end
     end

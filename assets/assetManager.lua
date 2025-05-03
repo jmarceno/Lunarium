@@ -3,7 +3,9 @@
 local assetManager = {
     images = {},
     sounds = {},
-    music = {}
+    music = {},
+    texArrays = {}, -- Texture arrays for hardware-accelerated rendering
+    textureIds = {} -- Maps texture names to indices in texture arrays
 }
 
 function assetManager:init()
@@ -15,6 +17,9 @@ function assetManager:init()
     
     -- Create placeholder images for future textures
     self:createPlaceholders()
+    
+    -- Create texture arrays for hardware-accelerated rendering
+    self:createTextureArrays()
     
     -- Attempt to load sounds
     self:loadSounds()
@@ -634,6 +639,146 @@ function assetManager:playMusic(name)
     if self.music[name] then
         self.music[name]:play()
     end
+end
+
+-- Create texture arrays for hardware-accelerated rendering
+function assetManager:createTextureArrays()
+    -- Initialize texture ID maps
+    self.textureIds = {
+        walls = {},
+        floors = {},
+        ceilings = {}
+    }
+    
+    -- Helper function to convert an Image to ImageData
+    local function convertToImageData(image, defaultSize)
+        if not image then return nil end
+        
+        -- Create a canvas to draw the image to
+        local width, height = image:getDimensions()
+        width = width or defaultSize
+        height = height or defaultSize
+        
+        local canvas = love.graphics.newCanvas(width, height)
+        
+        -- Draw the image to the canvas
+        love.graphics.setCanvas(canvas)
+        love.graphics.clear()
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.draw(image, 0, 0)
+        love.graphics.setCanvas()
+        
+        -- Get the image data from the canvas
+        return canvas:newImageData()
+    end
+    
+    -- Create wall texture array
+    local wallTextures = {}
+    local wallCount = 0
+    for name, texture in pairs(self.images.walls) do
+        wallCount = wallCount + 1
+        local imgData = convertToImageData(texture, 64)
+        if imgData then
+            table.insert(wallTextures, imgData)
+            self.textureIds.walls[name] = wallCount - 1  -- 0-based index for shader
+        end
+    end
+    
+    if wallCount > 0 then
+        pcall(function()
+            self.texArrays.walls = love.graphics.newArrayImage(wallTextures)
+        end)
+        if self.texArrays.walls then
+            print("Created wall texture array with " .. wallCount .. " textures")
+        else
+            print("Failed to create wall texture array")
+        end
+    else
+        print("Warning: No wall textures found for array creation")
+        -- Create a dummy texture array with at least one texture
+        local dummyTexture = self:createWallPlaceholder(1)
+        local dummyData = convertToImageData(dummyTexture, 64)
+        self.texArrays.walls = love.graphics.newArrayImage({dummyData})
+        self.textureIds.walls["default"] = 0
+    end
+    
+    -- Create floor texture array
+    local floorTextures = {}
+    local floorCount = 0
+    for name, texture in pairs(self.images.floors) do
+        floorCount = floorCount + 1
+        local imgData = convertToImageData(texture, 64)
+        if imgData then
+            table.insert(floorTextures, imgData)
+            self.textureIds.floors[name] = floorCount - 1  -- 0-based index for shader
+        end
+    end
+    
+    if floorCount > 0 then
+        pcall(function()
+            self.texArrays.floors = love.graphics.newArrayImage(floorTextures)
+        end)
+        if self.texArrays.floors then
+            print("Created floor texture array with " .. floorCount .. " textures")
+        else
+            print("Failed to create floor texture array")
+        end
+    else
+        print("Warning: No floor textures found for array creation")
+        -- Create a dummy texture array with at least one texture
+        local dummyTexture = self:createFloorPlaceholder(1)
+        local dummyData = convertToImageData(dummyTexture, 64)
+        self.texArrays.floors = love.graphics.newArrayImage({dummyData})
+        self.textureIds.floors["default"] = 0
+    end
+    
+    -- Create ceiling texture array (copy of floor textures if none specified)
+    local ceilingTextures = {}
+    local ceilingCount = 0
+    
+    -- For now, we'll use the floor textures for ceilings
+    -- In the future, you might want to add dedicated ceiling textures
+    for name, texture in pairs(self.images.floors) do
+        ceilingCount = ceilingCount + 1
+        local imgData = convertToImageData(texture, 64)
+        if imgData then
+            table.insert(ceilingTextures, imgData)
+            self.textureIds.ceilings[name] = ceilingCount - 1  -- 0-based index for shader
+        end
+    end
+    
+    if ceilingCount > 0 then
+        pcall(function()
+            self.texArrays.ceilings = love.graphics.newArrayImage(ceilingTextures)
+        end)
+        if self.texArrays.ceilings then
+            print("Created ceiling texture array with " .. ceilingCount .. " textures")
+        else
+            print("Failed to create ceiling texture array")
+        end
+    else
+        print("Warning: No ceiling textures found for array creation")
+        -- Create a dummy texture array with at least one texture
+        local dummyTexture = self:createFloorPlaceholder(1)
+        local dummyData = convertToImageData(dummyTexture, 64)
+        self.texArrays.ceilings = love.graphics.newArrayImage({dummyData})
+        self.textureIds.ceilings["default"] = 0
+    end
+    
+    -- Free the temporary imagedata objects
+    for _, imgData in ipairs(wallTextures) do
+        imgData:release()
+    end
+    for _, imgData in ipairs(floorTextures) do
+        imgData:release()
+    end
+    for _, imgData in ipairs(ceilingTextures) do
+        imgData:release()
+    end
+    
+    -- Initialize entities texture array
+    self.images.entities = {}
+    self.texArrays.entities = nil  -- Will be created when needed
 end
 
 return assetManager

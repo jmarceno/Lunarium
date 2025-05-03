@@ -1,25 +1,282 @@
--- Raycaster Engine
--- Implements a raycaster renderer for first-person dungeon view
+-- Raycaster Engine with Hardware Acceleration
+-- Uses shaders for highly efficient rendering of the 3D environment
 local assetManager = require("assets/assetManager")
 
+-- Create a simple vector class for 2D operations (similar to HUMP library's vector)
+local Vector = {}
+Vector.__index = Vector
+
+function Vector.new(x, y)
+    return setmetatable({x = x or 0, y = y or 0}, Vector)
+end
+
+function Vector:clone()
+    return Vector.new(self.x, self.y)
+end
+
+function Vector:length()
+    return math.sqrt(self.x * self.x + self.y * self.y)
+end
+
+function Vector:normalize()
+    local len = self:length()
+    if len > 0 then
+        self.x = self.x / len
+        self.y = self.y / len
+    end
+    return self
+end
+
+-- Define the raycaster module
 local raycaster = {
     viewWidth = 1280,
     viewHeight = 720,
-    fov = 60,
+    fov = 60 * math.pi / 180, -- Convert to radians
     wallHeight = 1.0,
     maxDistance = 40,
-    texturesEnabled = true, -- Changed to true by default
-    floorTexturesEnabled = true, -- New flag for floor textures
+    shadeDepth = 30, -- How far before walls are completely dark
+    texturesEnabled = true,
+    floorTexturesEnabled = true,
+    entitiesEnabled = true,
     
     -- Camera properties
     camera = {
         x = 0,
         y = 0,
         angle = 0,
+        tilt = 0,
+        height = 0,
         plane = 0.66  -- camera plane distance (affects FOV)
+    },
+    
+    -- Performance stats
+    stats = {
+        raycastTime = 0,
+        wallsRenderTime = 0,
+        floorRenderTime = 0,
+        ceillingRenderTime = 0, 
+        spritesRenderTime = 0,
+        numChecks = 0,
+        renderTime = 0
     }
 }
 
+-- Load the shaders for hardware-accelerated rendering
+local function loadShaders()
+    -- Wall shader for efficient rendering of walls
+    raycaster.wallShader = love.graphics.newShader([[
+    #ifdef PIXEL
+    #define MAIN_CANVAS 0
+
+    struct RenderData {
+        float textureId;
+        float wallHeight;
+        float u;
+        float shade;
+        float rayLength;
+        float z;
+    };
+
+    uniform Image dataBuffer;
+    uniform ArrayImage textures;
+    uniform float cameraOffset;
+    uniform float cameraTilt;
+
+    RenderData extractRenderData(float screenU) {
+        RenderData result;
+        
+        vec4 row1 = Texel(dataBuffer, vec2(screenU, 0));
+        vec4 row2 = Texel(dataBuffer, vec2(screenU, 1));
+        
+        result.textureId = row1.r;
+        result.wallHeight = row1.g;
+        result.u = row1.b;
+        result.shade = row1.a;
+        result.rayLength = row2.r;
+        result.z = row2.g;
+        
+        return result;
+    }
+
+    void effect() {
+        vec2 screen_coords = love_PixelCoord;
+        RenderData rd = extractRenderData((screen_coords.x)/love_ScreenSize.x);
+        
+        float ceilling = (love_ScreenSize.y/2.0) - (rd.wallHeight/2.0) + (cameraOffset / rd.rayLength) + cameraTilt;
+        float floor = ceilling + rd.wallHeight;
+        float v = (screen_coords.y-ceilling) / rd.wallHeight;
+        
+        if (screen_coords.y < ceilling || screen_coords.y > floor) {
+            // Write a blank pixel and set max depth for areas that aren't walls
+            love_Canvases[MAIN_CANVAS] = vec4(0);
+            gl_FragDepth = 1;
+        } else {
+            vec3 colour = Texel(textures, vec3(rd.u, v, rd.textureId)).rgb * rd.shade;
+            love_Canvases[MAIN_CANVAS] = vec4(colour, 1);
+            gl_FragDepth = rd.z;
+        }
+    }
+    #endif
+    ]])
+
+    -- Floor shader for hardware-accelerated floor rendering
+    raycaster.floorShader = love.graphics.newShader([[
+    #ifdef PIXEL
+    uniform float width;
+    uniform float height;
+    uniform vec2 position;
+    uniform ArrayImage textures;
+    uniform Image map;
+    uniform ivec2 mapDimensions;
+    uniform float fov;
+    uniform float angle;
+    uniform float cameraOffset;
+    uniform float cameraTilt;
+    uniform float shadeDepth;
+
+    vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords)
+    {
+        float step = fov / width;
+        float rayAngle = angle-(fov / 2.0f) + (screen_coords.x * step);
+        vec2 dir = vec2(cos(rayAngle), sin(rayAngle));
+        
+        float offsetCorrection = (1*width-(height*2)) / 2;
+        float z = (height+cameraOffset+offsetCorrection)/(screen_coords.y-cameraTilt-(height));
+        float s = 1.0f - (z/shadeDepth);
+        s = clamp(s, 0.2, 1.0); // Limit minimum brightness
+        float ppx = position.x + dir.x * (z/cos(rayAngle-angle));
+        float ppy = position.y + dir.y * (z/cos(rayAngle-angle));
+        float ux = floor(ppx);
+        float uy = floor(ppy);          
+        float u = ppx - ux;
+        float v = ppy - uy;
+        float tileId = Texel(map, vec2(ux +0.5, uy+0.5) / mapDimensions).r;
+        
+        if (int(ux) < 0 || int(ux) >= mapDimensions.x || int(uy) < 0 || int(uy) >= mapDimensions.y || tileId < 0) {
+            return vec4(0.4, 0.4, 0.2, 1.0) * s; // Default color for out of bounds
+        }
+        
+        vec3 colour = Texel(textures, vec3(u, v, tileId)).rgb;
+        return vec4(colour * s, 1);
+    }
+    #endif
+    ]])
+
+    -- Ceiling shader for hardware-accelerated ceiling rendering
+    raycaster.ceilingShader = love.graphics.newShader([[
+    #ifdef PIXEL
+    uniform float width;
+    uniform float height;
+    uniform vec2 position;
+    uniform ArrayImage textures;
+    uniform Image map;
+    uniform ivec2 mapDimensions;
+    uniform float fov;
+    uniform float angle;
+    uniform float cameraOffset;
+    uniform float cameraTilt;
+    uniform float shadeDepth;
+
+    vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords)
+    {
+        float step = fov / width;
+        float rayAngle = angle-(fov / 2.0f) + (screen_coords.x * step);
+        vec2 dir = vec2(cos(rayAngle), sin(rayAngle));
+        
+        float z = (height-cameraOffset)/(height - screen_coords.y + cameraTilt);
+        float s = 1.0f - (z/shadeDepth);
+        s = clamp(s, 0.1, 1.0); // Limit minimum brightness
+        float ppx = position.x + dir.x * (z/cos(rayAngle-angle));
+        float ppy = position.y + dir.y * (z/cos(rayAngle-angle));
+        float ux = floor(ppx);
+        float uy = floor(ppy);
+        float u = ppx - ux;
+        float v = ppy - uy;
+        float tileId = Texel(map, vec2(ux +0.5, uy+0.5) / mapDimensions).r;
+        
+        if (int(ux) < 0 || int(ux) >= mapDimensions.x || int(uy) < 0 || int(uy) >= mapDimensions.y || tileId < 0) {
+            return vec4(0.1, 0.1, 0.3, 1.0) * s; // Default ceiling color
+        }
+        
+        vec3 colour = Texel(textures, vec3(u, v, tileId)).rgb;
+        return vec4(colour * s, 1);
+    }
+    #endif
+    ]])
+
+    -- Sprite shader for rendering entities
+    raycaster.spriteShader = love.graphics.newShader([[
+    #ifdef VERTEX
+    attribute float VertexDepth;
+    
+    varying float v_depth;
+
+    vec4 position(mat4 transform_projection, vec4 vertex_position)
+    {
+        v_depth = VertexDepth;
+        return transform_projection * vertex_position;
+    }
+    #endif
+
+    #ifdef PIXEL
+    varying float v_depth;
+    uniform float shadeDepth;
+    
+    vec4 effect(vec4 color, Image texture, vec2 texture_coords, vec2 screen_coords)
+    {
+        vec4 texcolor = Texel(texture, texture_coords);
+        if (texcolor.a < 0.1) discard;
+        
+        float shade = 1.0 - (v_depth / shadeDepth);
+        shade = clamp(shade, 0.2, 1.0);
+        
+        gl_FragDepth = v_depth;
+        return vec4(texcolor.rgb * shade, texcolor.a);
+    }
+    #endif
+    ]])
+end
+
+-- Create a DDA ray casting result class
+local RayCastResult = {
+    collisionOccurred = false,
+    collisionPoint = {x = 0, y = 0},
+    collisionSide = 0, -- 0 for NS walls, 1 for EW walls
+    rayLength = 0,
+    totalChecks = 0,
+    u = 0, -- Texture coordinate
+    tileId = 0,
+    side = 0,
+    dx = 0,
+    dy = 0,
+    x = 0,
+    y = 0
+}
+
+function RayCastResult:new()
+    local o = {}
+    setmetatable(o, self)
+    self.__index = self
+    return o
+end
+
+function RayCastResult:reset()
+    self.collisionOccurred = false
+    self.collisionPoint.x = 0
+    self.collisionPoint.y = 0
+    self.collisionSide = 0
+    self.rayLength = 0
+    self.totalChecks = 0
+    self.u = 0
+    self.tileId = 0
+    self.side = 0
+    self.dx = 0
+    self.dy = 0
+    self.x = 0
+    self.y = 0
+end
+
+-- Initialize the raycaster
 function raycaster:init(width, height)
     self.viewWidth = width or self.viewWidth
     self.viewHeight = height or self.viewHeight
@@ -28,8 +285,21 @@ function raycaster:init(width, height)
     self.halfHeight = self.viewHeight / 2
     self.halfWidth = self.viewWidth / 2
     
-    -- Create a canvas for rendering
+    -- Load shaders
+    loadShaders()
+    
+    -- Create canvases for rendering
     self.canvas = love.graphics.newCanvas(self.viewWidth, self.viewHeight)
+    self.depthBuffer = love.graphics.newCanvas(self.viewWidth, self.viewHeight, {type = "2d", format = "depth16", readable = true})
+    self.spriteMode = {self.canvas, depthstencil = self.depthBuffer}
+    self.justDepthBuffer = {depthstencil = self.depthBuffer}
+    
+    -- Create data buffer for wall rendering
+    -- Data buffer layout:
+    -- Row 0: [textureId, wallHeight, texture U, shade]
+    -- Row 1: [rayLength, normalized z, rayDirX, rayDirY]
+    self.dataBuffer = love.image.newImageData(self.viewWidth, 2, "rgba16f")
+    self.dataBufferTexture = love.graphics.newImage(self.dataBuffer)
     
     -- Initialize camera
     self.camera.x = 2
@@ -39,6 +309,25 @@ function raycaster:init(width, height)
     self.camera.dirY = math.sin(self.camera.angle)
     self.camera.planeX = -self.camera.dirY * self.camera.plane
     self.camera.planeY = self.camera.dirX * self.camera.plane
+    self.cameraPosition = {self.camera.x, self.camera.y}
+    
+    -- Initialize raycasting result
+    self.result = RayCastResult:new()
+    
+    -- Setup wall shader
+    self.wallShader:send("dataBuffer", self.dataBufferTexture)
+    
+    -- Setup floor and ceiling shaders
+    self.floorShader:send("width", self.viewWidth)
+    self.floorShader:send("height", self.halfHeight)
+    self.floorShader:send("shadeDepth", self.shadeDepth)
+    
+    self.ceilingShader:send("width", self.viewWidth)
+    self.ceilingShader:send("height", self.halfHeight)
+    self.ceilingShader:send("shadeDepth", self.shadeDepth)
+    
+    -- Setup sprite rendering
+    self.spriteShader:send("shadeDepth", self.shadeDepth)
     
     -- Define wall colors (used as fallback if textures are disabled)
     self.wallColors = {
@@ -54,7 +343,7 @@ function raycaster:init(width, height)
         { 0.3, 0.3, 0.3 }   -- Dark Gray
     }
     
-    -- Initialize Z-buffer for depth testing
+    -- Create Z-buffer for depth testing
     self.zBuffer = {}
     for i = 1, self.viewWidth do
         self.zBuffer[i] = self.maxDistance
@@ -75,6 +364,10 @@ function raycaster:setCamera(x, y, angle)
     self.camera.dirY = math.sin(angle)
     self.camera.planeX = -self.camera.dirY * self.camera.plane
     self.camera.planeY = self.camera.dirX * self.camera.plane
+    
+    -- Update camera position array for shaders
+    self.cameraPosition[1] = x
+    self.cameraPosition[2] = y
 end
 
 -- Move camera forward/backward
@@ -85,10 +378,12 @@ function raycaster:moveCamera(distance, map)
     -- Check collision with walls
     if map:isCellWalkable(math.floor(newX), math.floor(self.camera.y)) then
         self.camera.x = newX
+        self.cameraPosition[1] = newX
     end
     
     if map:isCellWalkable(math.floor(self.camera.x), math.floor(newY)) then
         self.camera.y = newY
+        self.cameraPosition[2] = newY
     end
 end
 
@@ -103,10 +398,12 @@ function raycaster:strafeCamera(distance, map)
     -- Check collision with walls
     if map:isCellWalkable(math.floor(newX), math.floor(self.camera.y)) then
         self.camera.x = newX
+        self.cameraPosition[1] = newX
     end
     
     if map:isCellWalkable(math.floor(self.camera.x), math.floor(newY)) then
         self.camera.y = newY
+        self.cameraPosition[2] = newY
     end
 end
 
@@ -121,363 +418,438 @@ function raycaster:rotateCamera(angle)
     self.camera.planeY = self.camera.dirX * self.camera.plane
 end
 
--- Cast a single ray and return hit information
-function raycaster:castRay(rayAngle, map)
-    local rayDirX = math.cos(rayAngle)
-    local rayDirY = math.sin(rayAngle)
+-- Cast a single ray using DDA (Digital Differential Analysis) algorithm
+function raycaster:castRay(rayStart, rayDir, map, result)
+    result:reset()
     
-    -- Current map cell
-    local mapX = math.floor(self.camera.x)
-    local mapY = math.floor(self.camera.y)
+    -- Ray direction
+    result.dx = rayDir.x
+    result.dy = rayDir.y
     
-    -- Length of ray from current position to next x or y-side
-    local deltaDistX = math.abs(1 / rayDirX)
-    local deltaDistY = math.abs(1 / rayDirY)
+    -- Calculate steps and initial side distances
+    local rayUnitStepSize = {
+        x = math.sqrt(1 + (rayDir.y/rayDir.x) * (rayDir.y/rayDir.x)),
+        y = math.sqrt(1 + (rayDir.x/rayDir.y) * (rayDir.x/rayDir.y))
+    }
     
-    -- Direction to step in x or y direction (either +1 or -1)
-    local stepX, stepY
+    local mapCheck = {
+        x = math.floor(rayStart.x),
+        y = math.floor(rayStart.y)
+    }
     
-    -- Length of ray from one side to next
-    local sideDistX, sideDistY
+    local rayLength = {x = 0, y = 0}
+    local step = {x = 0, y = 0}
     
-    -- Calculate step and initial sideDist
-    if rayDirX < 0 then
-        stepX = -1
-        sideDistX = (self.camera.x - mapX) * deltaDistX
+    -- Calculate step and initial rayLength
+    if rayDir.x < 0 then
+        step.x = -1
+        rayLength.x = (rayStart.x - mapCheck.x) * rayUnitStepSize.x
     else
-        stepX = 1
-        sideDistX = (mapX + 1.0 - self.camera.x) * deltaDistX
+        step.x = 1
+        rayLength.x = (mapCheck.x + 1 - rayStart.x) * rayUnitStepSize.x
     end
     
-    if rayDirY < 0 then
-        stepY = -1
-        sideDistY = (self.camera.y - mapY) * deltaDistY
+    if rayDir.y < 0 then
+        step.y = -1
+        rayLength.y = (rayStart.y - mapCheck.y) * rayUnitStepSize.y
     else
-        stepY = 1
-        sideDistY = (mapY + 1.0 - self.camera.y) * deltaDistY
+        step.y = 1
+        rayLength.y = (mapCheck.y + 1 - rayStart.y) * rayUnitStepSize.y
     end
     
-    -- Perform DDA (Digital Differential Analysis)
-    local hit = 0  -- Was a wall hit?
-    local side     -- Was a NS or EW wall hit?
-    local wallType -- Type of wall that was hit
-    local wallTexture -- Texture name for the wall that was hit
+    -- DDA algorithm
+    local hitWall = false
+    local distance = 0
+    local side = 0 -- 0 for NS walls, 1 for EW walls
+    local numChecks = 0
     
-    while hit == 0 and mapX >= 0 and mapY >= 0 and mapX < map.width and mapY < map.height do
-        -- Jump to next map square, either in x or y direction
-        if sideDistX < sideDistY then
-            sideDistX = sideDistX + deltaDistX
-            mapX = mapX + stepX
+    while distance <= self.maxDistance and not hitWall do
+        numChecks = numChecks + 1
+        
+        -- Jump to next map square
+        if rayLength.x < rayLength.y then
+            mapCheck.x = mapCheck.x + step.x
+            distance = rayLength.x
+            rayLength.x = rayLength.x + rayUnitStepSize.x
             side = 0
         else
-            sideDistY = sideDistY + deltaDistY
-            mapY = mapY + stepY
+            mapCheck.y = mapCheck.y + step.y
+            distance = rayLength.y
+            rayLength.y = rayLength.y + rayUnitStepSize.y
             side = 1
         end
         
         -- Check if ray has hit a wall
-        wallType = map:getCell(mapX, mapY)
-        
-        -- Get the wall texture for this cell if textures are enabled
-        if self.texturesEnabled then
-            wallTexture = map:getWallTexture(mapX, mapY)
+        local cellType = map:getCell(mapCheck.x, mapCheck.y)
+        if cellType > 0 then
+            hitWall = true
+            
+            result.tileId = map:getWallTexture(mapCheck.x, mapCheck.y) or cellType
+            result.x = mapCheck.x
+            result.y = mapCheck.y
+            result.rayLength = distance
+            result.totalChecks = numChecks
+            result.side = side
+            result.collisionOccurred = true
+            
+            -- Calculate exact hit position for texture mapping
+            result.collisionPoint.x = rayStart.x + rayDir.x * distance
+            result.collisionPoint.y = rayStart.y + rayDir.y * distance
+            
+            -- Calculate texture U coordinate based on the exact hit position
+            if side == 0 then
+                result.u = result.collisionPoint.y - math.floor(result.collisionPoint.y)
+                if rayDir.x > 0 then result.u = 1 - result.u end
+            else
+                result.u = result.collisionPoint.x - math.floor(result.collisionPoint.x)
+                if rayDir.y < 0 then result.u = 1 - result.u end
+            end
         end
-        
-        if wallType > 0 then
-            hit = 1
-        end
     end
     
-    -- Calculate distance projected on camera direction
-    local perpWallDist
-    if side == 0 then
-        perpWallDist = (mapX - self.camera.x + (1 - stepX) / 2) / rayDirX
-    else
-        perpWallDist = (mapY - self.camera.y + (1 - stepY) / 2) / rayDirY
-    end
-    
-    -- Calculate wall height and draw coordinates
-    -- Use integer lineHeight for consistent pixel coverage
-    local lineHeight = math.max(1, math.floor(self.viewHeight / perpWallDist * self.wallHeight))
-    
-    local drawStart = math.floor(-lineHeight / 2 + self.viewHeight / 2)
-    if drawStart < 0 then drawStart = 0 end
-    
-    -- Calculate drawEnd precisely based on drawStart and integer lineHeight
-    local drawEnd = drawStart + lineHeight - 1 
-    if drawEnd >= self.viewHeight then drawEnd = self.viewHeight - 1 end
-    
-    -- Ensure drawEnd is at least drawStart (for very short walls)
-    drawEnd = math.max(drawStart, drawEnd)
-    
-    -- Calculate texture coordinates
-    local wallX
-    if side == 0 then
-        wallX = self.camera.y + perpWallDist * rayDirY
-    else
-        wallX = self.camera.x + perpWallDist * rayDirX
-    end
-    wallX = wallX - math.floor(wallX)
-    
-    -- Return hit information
-    return {
-        distance = perpWallDist,
-        height = lineHeight,
-        drawStart = drawStart,
-        drawEnd = drawEnd,
-        side = side,
-        wallType = wallType,
-        wallX = wallX,
-        mapX = mapX,
-        mapY = mapY,
-        wallTexture = wallTexture,
-        rayDirX = rayDirX,
-        rayDirY = rayDirY
-    }
+    return hitWall
 end
 
--- Render the scene
-function raycaster:render(map, entities)
-    if not map then return end
+-- Prepare map data for GPU-based floor/ceiling rendering
+function raycaster:prepareMapData(map)
+    if not map.floorsTexture or not map.ceilingsTexture then
+        -- Create floor and ceiling data textures
+        local floorImageData = love.image.newImageData(map.width, map.height, "rgba16f")
+        local ceilingImageData = love.image.newImageData(map.width, map.height, "rgba16f")
+        
+        -- Fill textures with tile IDs
+        for y = 0, map.height - 1 do
+            for x = 0, map.width - 1 do
+                local floorTile = map:getFloorTexture(x, y)
+                local ceilingTile = map:getCeilingTexture(x, y)
+                
+                local floorId = type(floorTile) == "string" and assetManager.textureIds.floors[floorTile] or 0
+                local ceilingId = type(ceilingTile) == "string" and assetManager.textureIds.ceilings[ceilingTile] or 0
+                
+                floorImageData:setPixel(x, y, floorId, 0, 0, 0)
+                ceilingImageData:setPixel(x, y, ceilingId, 0, 0, 0)
+            end
+        end
+        
+        -- Create textures from the image data
+        map.floorsTexture = love.graphics.newImage(floorImageData)
+        map.ceilingsTexture = love.graphics.newImage(ceilingImageData)
+        map.dimensions = {map.width, map.height}
+        
+        -- Clean up image data
+        floorImageData:release()
+        ceilingImageData:release()
+    end
     
-    -- Clear the canvas
+    return map
+end
+
+-- Render walls using GPU shader
+function raycaster:renderWalls(map)
+    local position = {x = self.camera.x, y = self.camera.y}
+    local angle = self.camera.angle
+    local fov = self.fov
+    
+    local totalChecks = 0
+    local angleStep = fov / self.viewWidth
+    local startAngle = angle - (fov / 2)
+    
+    local start = love.timer.getTime()
+    
+    -- Cast rays and collect wall data
+    for x = 0, self.viewWidth - 1 do
+        local rayAngle = startAngle + (x * angleStep)
+        local rayDir = {
+            x = math.cos(rayAngle),
+            y = math.sin(rayAngle)
+        }
+        
+        -- Cast ray to find walls
+        if self:castRay(position, rayDir, map, self.result) then
+            -- Calculate perpendicular wall distance to avoid fisheye effect
+            local correctedRayLength = self.result.rayLength * math.cos(rayAngle - angle)
+            
+            -- Calculate wall height on screen
+            local wallHeight = (self.viewWidth) / correctedRayLength
+            
+            -- Calculate shade based on distance and side
+            local shade = (1 - (0.5 * self.result.side)) * (1 - (correctedRayLength / self.shadeDepth))
+            shade = math.max(0.2, shade) -- Ensure minimum brightness
+            
+            -- Get texture ID for the wall
+            local textureId = 0
+            if self.texturesEnabled and self.result.tileId then
+                if type(self.result.tileId) == "string" then
+                    textureId = assetManager.textureIds.walls[self.result.tileId] or 0
+                else
+                    textureId = self.result.tileId
+                end
+            end
+            
+            -- Store wall rendering data in data buffer
+            self.dataBuffer:setPixel(x, 0, textureId, wallHeight, self.result.u, shade)
+            self.dataBuffer:setPixel(x, 1, correctedRayLength, correctedRayLength / self.maxDistance, rayDir.x, rayDir.y)
+            
+            -- Update Z-buffer for sprite rendering
+            self.zBuffer[x + 1] = correctedRayLength
+        else
+            -- Ray reached max length without hitting anything
+            self.dataBuffer:setPixel(x, 0, 0, 0, 0, 0)
+            self.dataBuffer:setPixel(x, 1, self.maxDistance, 1, rayDir.x, rayDir.y)
+            self.zBuffer[x + 1] = self.maxDistance
+        end
+        
+        totalChecks = totalChecks + self.result.totalChecks
+    end
+    
+    local raycastTime = (love.timer.getTime() - start)
+    start = love.timer.getTime()
+    
+    -- Update the texture with the wall data
+    self.dataBufferTexture:replacePixels(self.dataBuffer)
+    
+    -- Render walls with shader
+    love.graphics.setCanvas({self.canvas, depthstencil = self.depthBuffer})
+    love.graphics.setDepthMode("always", true)
+    love.graphics.setShader(self.wallShader)
+    
+    -- Send shader uniforms
+    self.wallShader:send("cameraOffset", self.camera.height)
+    self.wallShader:send("cameraTilt", self.camera.tilt)
+    self.wallShader:send("textures", assetManager.texArrays.walls)
+    
+    -- Draw walls
+    love.graphics.rectangle("fill", 0, 0, self.viewWidth, self.viewHeight)
+    love.graphics.setShader()
+    
+    local renderTime = (love.timer.getTime() - start)
+    
+    -- Update stats
+    self.stats.raycastTime = raycastTime
+    self.stats.wallsRenderTime = renderTime
+    self.stats.numChecks = totalChecks
+end
+
+-- Render floor and ceiling with GPU shaders
+function raycaster:renderFloorAndCeiling(map)
+    -- Prepare map data for GPU rendering if needed
+    self:prepareMapData(map)
+    
+    -- Render ceiling
+    local start = love.timer.getTime()
     love.graphics.setCanvas(self.canvas)
-    love.graphics.clear(0, 0, 0) -- Black background
+    love.graphics.setShader(self.ceilingShader)
     
-    -- Draw ceiling (black)
-    love.graphics.setColor(0, 0, 0) -- Black ceiling
-    love.graphics.rectangle("fill", 0, 0, self.viewWidth, self.halfHeight)
+    -- Send shader uniforms for ceiling
+    self.ceilingShader:send("position", self.cameraPosition)
+    self.ceilingShader:send("textures", assetManager.texArrays.ceilings)
+    self.ceilingShader:send("fov", self.fov)
+    self.ceilingShader:send("angle", self.camera.angle)
+    self.ceilingShader:send("cameraTilt", self.camera.tilt)
+    self.ceilingShader:send("cameraOffset", self.camera.height)
+    self.ceilingShader:send("map", map.ceilingsTexture)
+    self.ceilingShader:send("mapDimensions", map.dimensions)
     
-    -- Draw floor using texture or solid color
+    -- Draw ceiling
+    love.graphics.rectangle("fill", 0, 0, self.viewWidth, self.halfHeight + self.camera.tilt)
+    
+    self.stats.ceillingRenderTime = love.timer.getTime() - start
+    
+    -- Render floor
+    start = love.timer.getTime()
+    love.graphics.setShader(self.floorShader)
+    
+    -- Send shader uniforms for floor
+    self.floorShader:send("position", self.cameraPosition)
+    self.floorShader:send("textures", assetManager.texArrays.floors)
+    self.floorShader:send("fov", self.fov)
+    self.floorShader:send("angle", self.camera.angle)
+    self.floorShader:send("cameraTilt", self.camera.tilt)
+    self.floorShader:send("cameraOffset", self.camera.height)
+    self.floorShader:send("map", map.floorsTexture)
+    self.floorShader:send("mapDimensions", map.dimensions)
+    
+    -- Draw floor
+    love.graphics.rectangle("fill", 0, self.halfHeight + self.camera.tilt, self.viewWidth, self.halfHeight - self.camera.tilt)
+    
+    self.stats.floorRenderTime = love.timer.getTime() - start
+    
+    -- Reset shader
+    love.graphics.setShader()
+end
+
+-- Draw entities using sprite rendering
+function raycaster:renderEntities(entities)
+    if not entities or not self.entitiesEnabled then return end
+    
+    local start = love.timer.getTime()
+    
+    -- Setup for sprite rendering
+    love.graphics.setCanvas(self.spriteMode)
+    love.graphics.setDepthMode("lequal", true)
+    love.graphics.setShader(self.spriteShader)
+    
+    -- Sort entities by distance (farthest to closest for correct drawing order)
+    table.sort(entities, function(a, b)
+        local distA = (a.x - self.camera.x)^2 + (a.y - self.camera.y)^2
+        local distB = (b.x - self.camera.x)^2 + (b.y - self.camera.y)^2
+        return distA > distB
+    end)
+    
+    -- Draw each entity
+    for _, entity in ipairs(entities) do
+        -- Calculate sprite position relative to camera
+        local spriteX = entity.x - self.camera.x
+        local spriteY = entity.y - self.camera.y
+        
+        -- Calculate sprite angle and whether it's in front of the camera
+        local objAngle = math.atan2(spriteY, spriteX) - self.camera.angle
+        
+        -- Normalize angle to [-PI, PI]
+        if objAngle < -math.pi then objAngle = objAngle + 2 * math.pi end
+        if objAngle > math.pi then objAngle = objAngle - 2 * math.pi end
+        
+        -- Check if sprite is visible (in front of camera within FOV)
+        local visible = math.abs(objAngle) < self.fov / 1.5
+        
+        if visible then
+            -- Get sprite texture
+            local texture = nil
+            if entity.texture then
+                texture = assetManager.images.entities[entity.texture]
+            end
+            
+            if not texture and entity.color then
+                -- Use a colored rectangle if no texture is available
+                local dist = math.sqrt(spriteX*spriteX + spriteY*spriteY)
+                local perpDistance = dist * math.cos(objAngle)
+                
+                if perpDistance > 0 and perpDistance < self.maxDistance then
+                    -- Project sprite onto screen
+                    local spriteHeight = math.floor(self.viewHeight / perpDistance)
+                    local spriteWidth = spriteHeight
+                    
+                    -- Calculate screen position
+                    local spriteScreenX = math.floor((self.viewWidth / 2) * (1 + (objAngle / (self.fov/2))))
+                    local drawStartY = math.floor(self.halfHeight - spriteHeight / 2 + (self.camera.height / perpDistance) + self.camera.tilt)
+                    local drawStartX = math.floor(spriteScreenX - spriteWidth / 2)
+                    
+                    -- Clamp to screen bounds
+                    local drawHeight = math.min(spriteHeight, self.viewHeight - drawStartY)
+                    local drawWidth = math.min(spriteWidth, self.viewWidth - drawStartX)
+                    
+                    -- Calculate shade based on distance
+                    local shade = 1.0 - (perpDistance / self.shadeDepth)
+                    shade = math.max(0.2, shade)
+                    
+                    -- Set color with correct shading
+                    love.graphics.setColor(
+                        entity.color[1] * shade,
+                        entity.color[2] * shade,
+                        entity.color[3] * shade,
+                        entity.color[4] or 1
+                    )
+                    
+                    -- Draw the sprite as a rectangle checking Z-buffer for each column
+                    for stripe = 0, drawWidth - 1 do
+                        local worldX = drawStartX + stripe
+                        if worldX >= 0 and worldX < self.viewWidth then
+                            -- Only draw if in front of a wall
+                            if perpDistance < self.zBuffer[worldX + 1] then
+                                love.graphics.rectangle("fill", worldX, drawStartY, 1, drawHeight)
+                            end
+                        end
+                    end
+                end
+            elseif texture then
+                -- Render with texture using shader
+                local dist = math.sqrt(spriteX*spriteX + spriteY*spriteY)
+                local perpDistance = dist * math.cos(objAngle)
+                
+                if perpDistance > 0 and perpDistance < self.maxDistance then
+                    -- Calculate sprite dimensions
+                    local fullHeight = self.viewWidth / perpDistance
+                    local aspectRatio = texture:getHeight() / texture:getWidth()
+                    local spriteHeight = fullHeight 
+                    local spriteWidth = spriteHeight / aspectRatio
+                    
+                    -- Calculate screen position
+                    local spriteScreenX = math.floor((self.viewWidth / 2) * (1 + (objAngle / (self.fov/2))))
+                    local drawStartY = math.floor(self.halfHeight - spriteHeight / 2 + (self.camera.height / perpDistance) + self.camera.tilt)
+                    local drawStartX = math.floor(spriteScreenX - spriteWidth / 2)
+                    
+                    -- Draw the sprite using the original texture
+                    local shade = 1.0 - (perpDistance / self.shadeDepth)
+                    shade = math.max(0.3, shade)
+                    love.graphics.setColor(shade, shade, shade)
+                    
+                    -- Set depth value for this sprite
+                    love.graphics.setDepthMode("lequal", true)
+                    
+                    -- Draw sprite checking Z-buffer
+                    love.graphics.draw(
+                        texture,
+                        drawStartX, drawStartY,
+                        0,
+                        spriteWidth / texture:getWidth(),
+                        spriteHeight / texture:getHeight()
+                    )
+                end
+            end
+        end
+    end
+    
+    -- Reset shader and depth mode
+    love.graphics.setShader()
+    love.graphics.setDepthMode("always", false)
+    
+    self.stats.spritesRenderTime = love.timer.getTime() - start
+end
+
+-- Render the complete scene
+function raycaster:render(map, entities)
+    if not map or not self.initialized then return end
+    
+    -- Clear the depth buffer
+    love.graphics.setCanvas(self.justDepthBuffer)
+    love.graphics.clear()
+    
+    -- Clear the main canvas
+    love.graphics.setCanvas(self.canvas)
+    love.graphics.clear(0, 0, 0, 1)
+    
+    -- Start timing
+    local startTime = love.timer.getTime()
+    
+    -- Render floor and ceiling first (if enabled)
     if self.floorTexturesEnabled then
-        self:renderFloorWithTextures(map) -- Restore call to row-based rendering
+        self:renderFloorAndCeiling(map)
     else
-        -- Fallback to solid color if textures are disabled
-        love.graphics.setColor(0.4, 0.4, 0.2)
+        -- Draw solid color floor and ceiling
+        love.graphics.setCanvas(self.canvas)
+        love.graphics.setColor(0.1, 0.1, 0.3) -- Ceiling color
+        love.graphics.rectangle("fill", 0, 0, self.viewWidth, self.halfHeight)
+        love.graphics.setColor(0.4, 0.4, 0.2) -- Floor color
         love.graphics.rectangle("fill", 0, self.halfHeight, self.viewWidth, self.halfHeight)
     end
     
-    -- Reset Z-buffer
-    for i = 1, self.viewWidth do
-        self.zBuffer[i] = self.maxDistance
+    -- Render walls
+    self:renderWalls(map)
+    
+    -- Render entities
+    if entities and #entities > 0 then
+        self:renderEntities(entities)
     end
     
-    -- Cast rays and draw walls
-    for x = 0, self.viewWidth - 1 do
-        -- Calculate ray position and direction
-        local cameraX = 2 * x / self.viewWidth - 1  -- x-coordinate in camera space (-1 to 1)
-        local rayDirX = self.camera.dirX + self.camera.planeX * cameraX
-        local rayDirY = self.camera.dirY + self.camera.planeY * cameraX
-        local rayAngle = math.atan2(rayDirY, rayDirX)
-        
-        -- Cast the ray for wall hit
-        local hit = self:castRay(rayAngle, map)
-        
-        -- Store the perpendicular wall distance in the Z-buffer
-        self.zBuffer[x + 1] = hit.distance
-        
-        -- Draw wall with texture or solid color
-        if self.texturesEnabled and hit.wallTexture and assetManager.images.walls[hit.wallTexture] then
-            self:drawWallWithTexture(x, hit)
-        else
-            -- Fallback to solid color if textures are disabled or missing
-            self:drawWallWithColor(x, hit)
-        end
-    end
-    
-    -- Draw entities if provided
-    if entities then
-        -- Sort entities by distance (painter's algorithm)
-        table.sort(entities, function(a, b)
-            local distA = (a.x - self.camera.x)^2 + (a.y - self.camera.y)^2
-            local distB = (b.x - self.camera.x)^2 + (b.y - self.camera.y)^2
-            return distA > distB
-        end)
-        
-        -- Draw each entity
-        for _, entity in ipairs(entities) do
-            self:drawEntity(entity)
-        end
-    end
-    
-    -- Reset canvas
+    -- Reset canvas and draw to screen
     love.graphics.setCanvas()
-    
-    -- Draw the canvas to the screen
     love.graphics.setColor(1, 1, 1)
     love.graphics.draw(self.canvas, 0, 0)
     
+    -- Update total render time
+    self.stats.renderTime = love.timer.getTime() - startTime
+    
     return self.canvas
-end
-
--- Draw a wall with texture
-function raycaster:drawWallWithTexture(x, hit)
-    local texture = assetManager.images.walls[hit.wallTexture]
-    if not texture then return end
-    
-    local texWidth = texture:getWidth()
-    local texHeight = texture:getHeight()
-    
-    -- Calculate texture x coordinate
-    local texX = math.floor(hit.wallX * texWidth)
-    
-    -- Flip texture x coordinate if needed to avoid mirror effect
-    if (hit.side == 0 and hit.rayDirX > 0) or (hit.side == 1 and hit.rayDirY < 0) then
-        texX = texWidth - texX - 1
-    end
-    
-    -- Make y-sides darker for depth impression
-    if hit.side == 1 then
-        love.graphics.setColor(0.7, 0.7, 0.7)
-    else
-        love.graphics.setColor(1, 1, 1)
-    end
-    
-    -- Calculate the precise height to draw on screen
-    local drawHeight = hit.drawEnd - hit.drawStart + 1 -- Use adjusted drawEnd
-    
-    -- Draw a vertical stripe of the texture, ensuring scaling covers the full height
-    love.graphics.draw(
-        texture,
-        love.graphics.newQuad(texX, 0, 1, texHeight, texWidth, texHeight),
-        x, hit.drawStart,
-        0, 1, drawHeight / texHeight -- Scale based on calculated drawHeight
-    )
-end
-
--- Draw a wall with solid color (fallback)
-function raycaster:drawWallWithColor(x, hit)
-    -- Choose wall color based on wall type and side
-    local wallColor = self.wallColors[((hit.wallType - 1) % #self.wallColors) + 1]
-    
-    -- Make y-sides darker
-    if hit.side == 1 then
-        wallColor = {wallColor[1] * 0.7, wallColor[2] * 0.7, wallColor[3] * 0.7}
-    end
-    
-    -- Set color and draw the vertical line, ensuring it covers the full height
-    love.graphics.setColor(wallColor)
-    love.graphics.line(x, hit.drawStart, x, hit.drawEnd) -- Draw line includes the end pixel
-end
-
--- Render floor with textures (Restored)
-function raycaster:renderFloorWithTextures(map)
-    -- Calculate floor and ceiling row ranges
-    local floorStart = math.floor(self.halfHeight) + 1 -- Ensure integer start
-    local floorEnd = self.viewHeight
-    
-    -- Use rowDensity = 1 for accuracy
-    local rowDensity = 1 
-    
-    -- For each pixel row
-    for y = floorStart, floorEnd -1, rowDensity do -- Loop up to height - 1
-        -- Calculate row distance from horizon
-        -- Use y - self.halfHeight, ensure y is pixel center?
-        local rowDistance = (0.5 * self.viewHeight * self.wallHeight) / (y - self.halfHeight) 
-        
-        -- Calculate the real world step vector for this row
-        local floorStepX = rowDistance * (self.camera.planeX * 2.0 / self.viewWidth)
-        local floorStepY = rowDistance * (self.camera.planeY * 2.0 / self.viewWidth)
-        
-        -- Calculate the real world position for the leftmost pixel of this row
-        local floorX = self.camera.x + rowDistance * (self.camera.dirX - self.camera.planeX)
-        local floorY = self.camera.y + rowDistance * (self.camera.dirY - self.camera.planeY)
-        
-        -- For each pixel in the row
-        for x = 0, self.viewWidth - 1 do
-            -- Get the map cell coordinates
-            local cellX = math.floor(floorX)
-            local cellY = math.floor(floorY)
-            
-            -- Make sure we're within map bounds
-            if cellX >= 0 and cellY >= 0 and cellX < map.width and cellY < map.height then
-                -- Get floor texture for this cell
-                local floorTextureName = map:getFloorTexture(cellX, cellY)
-                
-                if floorTextureName and assetManager.images.floors[floorTextureName] then
-                    local texture = assetManager.images.floors[floorTextureName]
-                    local texWidth = texture:getWidth()
-                    local texHeight = texture:getHeight()
-                    
-                    -- Calculate texture coordinates (wrap around)
-                    local tx = math.floor(texWidth * (floorX - cellX)) % texWidth
-                    local ty = math.floor(texHeight * (floorY - cellY)) % texHeight
-                    
-                    -- Draw the floor pixel using the texture color
-                    love.graphics.setColor(1, 1, 1) -- Use full color from texture
-                    love.graphics.draw(
-                        texture,
-                        love.graphics.newQuad(tx, ty, 1, 1, texWidth, texHeight),
-                        x, y,
-                        0, 1, rowDensity -- Scale vertically if rowDensity > 1
-                    )
-                else
-                    -- Fallback to solid color if texture is missing
-                    love.graphics.setColor(0.4, 0.4, 0.2)
-                    love.graphics.points(x, y)
-                end
-            else
-                 -- Out of bounds, draw default floor color
-                 love.graphics.setColor(0.4, 0.4, 0.2)
-                 love.graphics.points(x, y)
-            end
-            
-            -- Advance floor position for the next pixel in the row
-            floorX = floorX + floorStepX
-            floorY = floorY + floorStepY
-        end
-    end
-end
-
--- Draw an entity (monster, item, etc.)
-function raycaster:drawEntity(entity)
-    -- Translate entity position to relative to camera
-    local spriteX = entity.x - self.camera.x
-    local spriteY = entity.y - self.camera.y
-    
-    -- Transform sprite with the inverse camera matrix
-    -- [ planeX   dirX ] -1                                       [ dirY      -dirX ]
-    -- [               ]       =  1/(planeX*dirY-dirX*planeY) *   [                 ]
-    -- [ planeY   dirY ]                                          [ -planeY  planeX ]
-    
-    local invDet = 1.0 / (self.camera.planeX * self.camera.dirY - self.camera.dirX * self.camera.planeY)
-    
-    local transformX = invDet * (self.camera.dirY * spriteX - self.camera.dirX * spriteY)
-    local transformY = invDet * (-self.camera.planeY * spriteX + self.camera.planeX * spriteY)
-    
-    -- Only draw if in front of camera (transformY > 0)
-    if transformY <= 0 then return end
-    
-    local spriteScreenX = math.floor((self.viewWidth / 2) * (1 + transformX / transformY))
-    
-    -- Calculate sprite height and width
-    local spriteHeight = math.abs(math.floor(self.viewHeight / transformY))
-    local spriteWidth = spriteHeight
-    
-    -- Calculate drawing bounds
-    local drawStartY = math.floor(-spriteHeight / 2 + self.viewHeight / 2)
-    local drawEndY = math.floor(spriteHeight / 2 + self.viewHeight / 2)
-    local drawStartX = math.floor(-spriteWidth / 2 + spriteScreenX)
-    local drawEndX = math.floor(spriteWidth / 2 + spriteScreenX)
-    
-    -- Adjust bounds to be within screen
-    drawStartY = math.max(0, drawStartY)
-    drawEndY = math.min(self.viewHeight - 1, drawEndY)
-    drawStartX = math.max(0, drawStartX)
-    drawEndX = math.min(self.viewWidth - 1, drawEndX)
-    
-    -- Check if entity is behind a wall using the Z-buffer for each column
-    for stripe = drawStartX, drawEndX do
-        -- Only continue if screen column is valid
-        if stripe >= 0 and stripe < self.viewWidth then
-            -- Check if this part of the entity is in front of the wall
-            if transformY < self.zBuffer[stripe + 1] then
-                -- Draw vertical stripe of the entity
-                love.graphics.setColor(entity.color or {1, 0, 0})
-                love.graphics.rectangle("fill", stripe, drawStartY, 1, drawEndY - drawStartY)
-            end
-        end
-    end
 end
 
 return raycaster
