@@ -374,6 +374,91 @@ function combatSystem:createCombat(party, enemy)
                 end
             }
             
+            -- Party member selection list (for single_ally targeted skills/items)
+            self.elements.partySelectList = {
+                visible = false,
+                x = 20, -- Move to left side of screen
+                y = GAME.height - partyHeight - 250, -- Position above the party UI
+                width = 250,
+                height = 200,
+                selectedIndex = nil,
+                combatRef = self, -- Store reference to the combat instance
+                
+                draw = function(self)
+                    if not self.visible then return end
+                    
+                    -- Draw background
+                    love.graphics.setColor(0, 0, 0, 0.8)
+                    love.graphics.rectangle("fill", self.x, self.y, self.width, self.height)
+                    
+                    -- Draw border
+                    love.graphics.setColor(0.5, 0.7, 0.8)
+                    love.graphics.rectangle("line", self.x, self.y, self.width, self.height)
+                    
+                    -- Draw title
+                    love.graphics.setFont(screenManager.fonts.medium)
+                    love.graphics.setColor(1, 1, 1)
+                    love.graphics.print("Select Target", self.x + 10, self.y + 5)
+                    
+                    -- Draw party member list
+                    love.graphics.setFont(screenManager.fonts.small)
+                    
+                    -- Use the stored combat reference
+                    local party = self.combatRef.party
+                    
+                    -- Draw each party member that is active
+                    for i, character in ipairs(party) do
+                        if character.active then
+                            local y = self.y + 30 + (i - 1) * 25
+                            
+                            -- Highlight selected character
+                            if self.selectedIndex == i then
+                                love.graphics.setColor(0.3, 0.5, 0.7)
+                                love.graphics.rectangle("fill", self.x + 5, y - 2, self.width - 10, 22)
+                            end
+                            
+                            -- Draw character name
+                            love.graphics.setColor(1, 1, 1)
+                            love.graphics.print(character.name, self.x + 10, y)
+                            
+                            -- Draw HP info
+                            love.graphics.setColor(0.8, 0.3, 0.3)
+                            love.graphics.print("HP: " .. character.currentHP .. "/" .. character.maxHP, self.x + 120, y)
+                        end
+                    end
+                end,
+                
+                clicked = function(self, x, y)
+                    if not self.visible then return false end
+                    
+                    -- Check if click is within bounds
+                    if x >= self.x and x <= self.x + self.width and
+                       y >= self.y and y <= self.y + self.height then
+                       
+                        -- Use the stored combat reference
+                        local party = self.combatRef.party
+                        local activeIndex = 0
+                        
+                        for i, character in ipairs(party) do
+                            if character.active then
+                                activeIndex = activeIndex + 1
+                                local memberY = self.y + 30 + (i - 1) * 25
+                                
+                                if y >= memberY - 2 and y <= memberY + 20 then
+                                    -- Select this party member
+                                    self.selectedIndex = i
+                                    return true
+                                end
+                            end
+                        end
+                        
+                        return true
+                    end
+                    
+                    return false
+                end
+            }
+            
             -- Confirm button (for skills/items) - stacked vertically
             self.elements.confirmButton = screenManager.UI.Button(
                 280, GAME.height - partyHeight - 200, 
@@ -502,6 +587,10 @@ function combatSystem:createCombat(party, enemy)
                 
                 if self.elements.itemList then
                     self.elements.itemList:draw()
+                end
+                
+                if self.elements.partySelectList then
+                    self.elements.partySelectList:draw()
                 end
             end
             
@@ -797,8 +886,17 @@ function combatSystem:createCombat(party, enemy)
                 self.elements.itemButton.visible = false
                 self.elements.defendButton.visible = false
                 
-                -- Draw confirm and back buttons for skill/item selection
-                if self.elements.skillList.visible or self.elements.itemList.visible then
+                -- Debug: Show the current state
+                if GAME.debug then
+                    print("Selection UI state:")
+                    print("  Selected action: " .. self.selectedAction)
+                    print("  Skill list visible: " .. tostring(self.elements.skillList.visible))
+                    print("  Item list visible: " .. tostring(self.elements.itemList.visible))
+                    print("  Party list visible: " .. tostring(self.elements.partySelectList.visible))
+                end
+                
+                -- Draw confirm and back buttons for skill/item/party selection
+                if self.elements.skillList.visible or self.elements.itemList.visible or self.elements.partySelectList.visible then
                     self.elements.confirmButton.visible = true
                     self.elements.backButton.visible = true
                     self.elements.confirmButton:draw()
@@ -993,6 +1091,15 @@ function combatSystem:createCombat(party, enemy)
             
             -- Show skill list
             self.elements.skillList.visible = true
+            
+            -- Update confirm button callback to standard confirmation
+            self.elements.confirmButton.callback = function()
+                self:confirmAction()
+            end
+            
+            -- Make sure buttons are visible
+            self.elements.confirmButton.visible = true
+            self.elements.backButton.visible = true
         end,
         
         -- Show item list
@@ -1021,6 +1128,15 @@ function combatSystem:createCombat(party, enemy)
             
             -- Show item list
             self.elements.itemList.visible = true
+            
+            -- Update confirm button callback to standard confirmation
+            self.elements.confirmButton.callback = function()
+                self:confirmAction()
+            end
+            
+            -- Make sure buttons are visible
+            self.elements.confirmButton.visible = true
+            self.elements.backButton.visible = true
         end,
         
         -- Confirm selected action
@@ -1043,18 +1159,26 @@ function combatSystem:createCombat(party, enemy)
                     if selectedSkill.skill.target == "single_enemy" or
                        selectedSkill.skill.target == "all_enemies" then
                         self.selectedTarget = self.enemy
+                        -- Execute skill immediately
+                        self:executeSkill()
                     elseif selectedSkill.skill.target == "single_ally" then
-                        -- For simplicity, target self for now
-                        self.selectedTarget = self.party[self.currentCharacter]
+                        -- Show party selection UI instead of auto-targeting
+                        self:showPartySelectionUI("skill")
+                        return -- Wait for party selection
                     elseif selectedSkill.skill.target == "all_allies" then
                         -- Target all allies (handled in execution)
                         self.selectedTarget = self.party
+                        -- Execute skill immediately
+                        self:executeSkill()
                     elseif selectedSkill.skill.target == "self" then
                         self.selectedTarget = self.party[self.currentCharacter]
+                        -- Execute skill immediately
+                        self:executeSkill()
+                    else
+                        -- Default case for any other target types
+                        self.selectedTarget = self.party[self.currentCharacter]
+                        self:executeSkill()
                     end
-                    
-                    -- Execute skill
-                    self:executeSkill()
                 else
                     -- No skill selected, do nothing
                     self:addLog("No skill selected.", {1, 0.5, 0})
@@ -1074,11 +1198,17 @@ function combatSystem:createCombat(party, enemy)
                     -- Set selected item
                     self.selectedItem = selectedItem.item
                     
-                    -- For simplicity, target self for now
-                    self.selectedTarget = self.party[self.currentCharacter]
-                    
-                    -- Execute item use
-                    self:executeItemUse()
+                    -- Check if item targets a single ally
+                    if selectedItem.item.target == "single_ally" then
+                        -- Show party selection UI
+                        self:showPartySelectionUI("item")
+                        return -- Wait for party selection
+                    else
+                        -- For other item types, target self for now
+                        self.selectedTarget = self.party[self.currentCharacter]
+                        -- Execute item use immediately
+                        self:executeItemUse()
+                    end
                 else
                     -- No item selected, do nothing
                     self:addLog("No item selected.", {1, 0.5, 0})
@@ -1089,6 +1219,59 @@ function combatSystem:createCombat(party, enemy)
             -- Hide lists
             self.elements.skillList.visible = false
             self.elements.itemList.visible = false
+            self.elements.partySelectList.visible = false
+        end,
+        
+        -- Show party selection UI
+        showPartySelectionUI = function(self, actionType)
+            -- Hide other selection lists
+            self.elements.skillList.visible = false
+            self.elements.itemList.visible = false
+            
+            -- Reset selection
+            self.elements.partySelectList.selectedIndex = nil
+            
+            -- Show party selection list
+            self.elements.partySelectList.visible = true
+            
+            -- Store the action type for later reference
+            self.partySelectionActionType = actionType
+            
+            -- Update confirm button callback
+            self.elements.confirmButton.callback = function()
+                self:confirmPartySelection()
+            end
+            
+            -- Make sure buttons are visible
+            self.elements.confirmButton.visible = true
+            self.elements.backButton.visible = true
+        end,
+        
+        -- Confirm party member selection
+        confirmPartySelection = function(self)
+            local selectedIndex = self.elements.partySelectList.selectedIndex
+            
+            -- Check if a party member was selected
+            if not selectedIndex then
+                self:addLog("No target selected.", {1, 0.5, 0})
+                return
+            end
+            
+            -- Set the selected party member as the target
+            self.selectedTarget = self.party[selectedIndex]
+            
+            -- Hide party selection UI
+            self.elements.partySelectList.visible = false
+            
+            -- Execute the action based on type
+            if self.partySelectionActionType == "skill" then
+                self:executeSkill()
+            elseif self.partySelectionActionType == "item" then
+                self:executeItemUse()
+            end
+            
+            -- Reset party selection tracking
+            self.partySelectionActionType = nil
         end,
         
         -- Cancel current selection
@@ -1098,10 +1281,12 @@ function combatSystem:createCombat(party, enemy)
             self.selectedTarget = nil
             self.selectedSkill = nil
             self.selectedItem = nil
+            self.partySelectionActionType = nil
             
             -- Hide lists
             self.elements.skillList.visible = false
             self.elements.itemList.visible = false
+            self.elements.partySelectList.visible = false
             
             -- Make sure action buttons are visible again
             self.elements.attackButton.visible = true
@@ -1201,7 +1386,27 @@ function combatSystem:createCombat(party, enemy)
         -- Execute skill use
         executeSkill = function(self)
             local currentChar = self.party[self.currentCharacter]
-            if not currentChar or not self.selectedSkill then return end
+            if not currentChar or not self.selectedSkill then 
+                if GAME.debug then
+                    print("executeSkill failed: ", currentChar and "Character OK" or "No character", 
+                          self.selectedSkill and "Skill OK" or "No skill")
+                end
+                return 
+            end
+            
+            -- Log skill execution for debugging
+            if GAME.debug then
+                print("Executing skill: " .. self.selectedSkill.name)
+                print("  Target type: " .. (self.selectedSkill.target or "unknown"))
+                print("  Selected target: " .. (self.selectedTarget and self.selectedTarget.name or "none"))
+            end
+            
+            -- Check if we have a valid target
+            if not self.selectedTarget and self.selectedSkill.target ~= "all_allies" then
+                self:addLog("No valid target for skill.", {1, 0.5, 0})
+                if GAME.debug then print("Missing target for skill " .. self.selectedSkill.name) end
+                return
+            end
             
             -- Check MP cost
             if currentChar.currentMP < self.selectedSkill.mpCost then
@@ -1305,11 +1510,19 @@ function combatSystem:createCombat(party, enemy)
                     assetManager:playSound("spell")
                     
                     -- Add to combat log
-                    self:addLog(
-                        currentChar.name .. " uses " .. self.selectedSkill.name .. 
-                        " and heals " .. self.selectedTarget.name .. " for " .. healing .. " HP!",
-                        {0.2, 0.8, 0.2}
-                    )
+                    if self.selectedTarget == currentChar then
+                        self:addLog(
+                            currentChar.name .. " uses " .. self.selectedSkill.name .. 
+                            " and heals self for " .. healing .. " HP!",
+                            {0.2, 0.8, 0.2}
+                        )
+                    else
+                        self:addLog(
+                            currentChar.name .. " uses " .. self.selectedSkill.name .. 
+                            " and heals " .. self.selectedTarget.name .. " for " .. healing .. " HP!",
+                            {0.2, 0.8, 0.2}
+                        )
+                    end
                 end
                 
                 -- Apply skill effects
@@ -1537,6 +1750,12 @@ function combatSystem:createCombat(party, enemy)
             local currentChar = self.party[self.currentCharacter]
             if not currentChar or not self.selectedItem then return end
             
+            -- Make sure we have a valid target
+            if not self.selectedTarget then
+                self:addLog("No target selected for item use.", {1, 0.5, 0})
+                return
+            end
+            
             -- Use item on target
             local success = itemSystem:useItem(self.selectedItem, self.selectedTarget)
             
@@ -1545,10 +1764,17 @@ function combatSystem:createCombat(party, enemy)
                 assetManager:playSound("pickup")
                 
                 -- Add to combat log
-                self:addLog(
-                    currentChar.name .. " uses " .. self.selectedItem.name .. "!",
-                    {0.2, 0.8, 0.8}
-                )
+                if self.selectedTarget == currentChar then
+                    self:addLog(
+                        currentChar.name .. " uses " .. self.selectedItem.name .. " on self!",
+                        {0.2, 0.8, 0.8}
+                    )
+                else
+                    self:addLog(
+                        currentChar.name .. " uses " .. self.selectedItem.name .. " on " .. self.selectedTarget.name .. "!",
+                        {0.2, 0.8, 0.8}
+                    )
+                end
                 
                 -- Remove item from inventory
                 if GAME.inventory then
@@ -1564,8 +1790,8 @@ function combatSystem:createCombat(party, enemy)
                     end
                 end
                 
-                -- End turn
-                self:nextTurn()
+                -- End turn after a short delay
+                self.turnEndDelay = 0.7
             else
                 -- Item use failed
                 self:addLog("Item use failed!")
@@ -2029,11 +2255,18 @@ function combatSystem:createCombat(party, enemy)
                     return false 
                 end
                 
+                -- Check party selection list clicks
+                if self.elements.partySelectList and self.elements.partySelectList.visible and self.elements.partySelectList:clicked(x, y) then
+                    -- Click was handled by the list, but combat is not over
+                    return false
+                end
+                
                 -- Check other button clicks (Attack, Skill, Item, Defend, Confirm, Back)
                 for name, element in pairs(self.elements) do
                     -- Exclude lists and the continue button (handled above)
                     if element.clicked and element ~= self.elements.skillList and 
                        element ~= self.elements.itemList and 
+                       element ~= self.elements.partySelectList and
                        element ~= self.elements.continueButton then
                         
                         if element.visible ~= false and element:clicked(x, y, button) then
