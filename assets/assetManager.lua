@@ -905,4 +905,52 @@ function assetManager:loadMonsterSprites()
     return self.images.monsterSprites
 end
 
+-- Get an image by type and id
+-- Types: "portrait", "monster", "item", "wall", "floor"
+-- Returns the image if found, nil otherwise
+function assetManager:getImage(type, id)
+    if type == "portrait" then
+        -- Check in portraits collection
+        if self.images.portraits and self.images.portraits[id] then
+            return self.images.portraits[id]
+        end
+        
+        -- If not found in portraits, check in profiles by index (legacy support)
+        if self.images.profiles and tonumber(id) and self.images.profiles[tonumber(id)] then
+            return self.images.profiles[tonumber(id)]
+        end
+    elseif type == "monster" then
+        -- Check in monster sprites collection
+        if self.images.monsterSprites and self.images.monsterSprites[id] then
+            return self.images.monsterSprites[id]
+        end
+        
+        -- If not found by ID, try to use a placeholder monster sprite
+        if self.images.monsters and tonumber(id) and self.images.monsters[tonumber(id)] then
+            return self.images.monsters[tonumber(id)]
+        elseif self.images.monsters and self.images.monsters[1] then
+            -- Return the first monster placeholder as fallback
+            return self.images.monsters[1]
+        end
+    elseif type == "item" then
+        -- Check in items collection
+        if self.images.items and tonumber(id) and self.images.items[tonumber(id)] then
+            return self.images.items[tonumber(id)]
+        end
+    elseif type == "wall" then
+        -- Check in walls collection
+        if self.images.walls and self.images.walls[id] then
+            return self.images.walls[id]
+        end
+    elseif type == "floor" then
+        -- Check in floors collection
+        if self.images.floors and self.images.floors[id] then
+            return self.images.floors[id]
+        end
+    end
+    
+    -- Image not found
+    return nil
+end
+
 return assetManager

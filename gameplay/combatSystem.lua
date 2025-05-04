@@ -181,31 +181,42 @@ function combatSystem:createCombat(party, enemy)
         
         -- Create UI elements
         createUI = function(self)
+            -- Calculate button positions relative to the bottom of the screen
+            local partyHeight = 90 -- Height of the party display section
+            local buttonY = GAME.height - partyHeight - 50 -- Move buttons up by 50px from party UI
+            local buttonSpacing = 10 -- Space between buttons
+            local buttonWidth = 150
+            local buttonHeight = 40
+            
+            -- Calculate starting X position to center the buttons
+            local totalButtonWidth = (buttonWidth * 4) + (buttonSpacing * 3)
+            local startX = (GAME.width - totalButtonWidth) / 2
+            
             -- Action buttons
             self.elements.attackButton = screenManager.UI.Button(
-                50, GAME.height - 150, 
-                150, 40, "Attack", 
+                startX, buttonY, 
+                buttonWidth, buttonHeight, "Attack", 
                 function() self:selectAction("attack") end
             )
             self.elements.attackButton.visible = true
             
             self.elements.skillButton = screenManager.UI.Button(
-                210, GAME.height - 150, 
-                150, 40, "Skills", 
+                startX + buttonWidth + buttonSpacing, buttonY, 
+                buttonWidth, buttonHeight, "Skills", 
                 function() self:selectAction("skill") end
             )
             self.elements.skillButton.visible = true
             
             self.elements.itemButton = screenManager.UI.Button(
-                370, GAME.height - 150, 
-                150, 40, "Items", 
+                startX + (buttonWidth + buttonSpacing) * 2, buttonY, 
+                buttonWidth, buttonHeight, "Items", 
                 function() self:selectAction("item") end
             )
             self.elements.itemButton.visible = true
             
             self.elements.defendButton = screenManager.UI.Button(
-                530, GAME.height - 150, 
-                150, 40, "Defend", 
+                startX + (buttonWidth + buttonSpacing) * 3, buttonY, 
+                buttonWidth, buttonHeight, "Defend", 
                 function() self:selectAction("defend") end
             )
             self.elements.defendButton.visible = true
@@ -214,8 +225,8 @@ function combatSystem:createCombat(party, enemy)
             self.elements.skillList = {
                 visible = false,
                 skills = {},
-                x = 100,
-                y = GAME.height - 250,
+                x = 20, -- Move to left side of screen
+                y = GAME.height - partyHeight - 250, -- Position above the party UI
                 width = 250,
                 height = 200,
                 
@@ -290,8 +301,8 @@ function combatSystem:createCombat(party, enemy)
             self.elements.itemList = {
                 visible = false,
                 items = {},
-                x = 100,
-                y = GAME.height - 250,
+                x = 20, -- Move to left side of screen
+                y = GAME.height - partyHeight - 250, -- Position above the party UI
                 width = 250,
                 height = 200,
                 
@@ -363,17 +374,17 @@ function combatSystem:createCombat(party, enemy)
                 end
             }
             
-            -- Confirm button (for skills/items)
+            -- Confirm button (for skills/items) - stacked vertically
             self.elements.confirmButton = screenManager.UI.Button(
-                360, GAME.height - 200, 
+                280, GAME.height - partyHeight - 200, 
                 120, 40, "Confirm", 
                 function() self:confirmAction() end
             )
             self.elements.confirmButton.visible = false
             
-            -- Back button (for skills/items)
+            -- Back button (for skills/items) - stacked vertically
             self.elements.backButton = screenManager.UI.Button(
-                360, GAME.height - 150, 
+                280, GAME.height - partyHeight - 150, 
                 120, 40, "Back", 
                 function() self:cancelSelection() end
             )
@@ -520,9 +531,44 @@ function combatSystem:createCombat(party, enemy)
                 GAME.width / 2 - 30, 92
             )
             
+            -- Draw enemy sprite below the health bar
+            love.graphics.setColor(1, 1, 1)
+            
+            -- Try to load and draw the enemy sprite
+            local sprite = nil
+            if self.enemy.id then
+                -- Use enemy ID to get sprite
+                sprite = assetManager:getImage("monster", self.enemy.id)
+            end
+            
+            if sprite then
+                -- Calculate size for sprite (max 200px width/height while maintaining aspect ratio)
+                local maxSize = 200
+                local width = sprite:getWidth()
+                local height = sprite:getHeight()
+                local scale = math.min(maxSize / width, maxSize / height)
+                
+                -- Draw centered below the health bar
+                love.graphics.draw(
+                    sprite, 
+                    GAME.width / 2 - (width * scale / 2), 
+                    120, -- Position below the health bar
+                    0, -- rotation
+                    scale, -- scale x
+                    scale  -- scale y
+                )
+            else
+                -- Draw placeholder if sprite not found
+                love.graphics.setColor(0.6, 0.6, 0.6)
+                love.graphics.rectangle("fill", GAME.width / 2 - 60, 120, 120, 120)
+                love.graphics.setColor(0.8, 0.4, 0.4)
+                love.graphics.setFont(screenManager.fonts.medium)
+                love.graphics.printf(self.enemy.name or "Monster", GAME.width / 2 - 60, 170, 120, "center")
+            end
+            
             -- Draw status effects
             local statusX = GAME.width / 2 - 100
-            local statusY = 115
+            local statusY = 330 -- Move status effects below the sprite
             
             for status, info in pairs(self.enemy.status) do
                 love.graphics.setColor(0.8, 0.8, 0.2)
@@ -533,14 +579,30 @@ function combatSystem:createCombat(party, enemy)
         
         -- Draw party information
         drawParty = function(self)
+            -- Create a background panel at the bottom of the screen
+            local panelHeight = 90
+            local panelY = GAME.height - panelHeight
+            
+            -- Draw panel background
+            love.graphics.setColor(0.1, 0.1, 0.2, 0.8)
+            love.graphics.rectangle("fill", 0, panelY, GAME.width, panelHeight)
+            
+            -- Draw panel border
+            love.graphics.setColor(0.3, 0.3, 0.5)
+            love.graphics.rectangle("line", 0, panelY, GAME.width, panelHeight)
+            
+            -- Calculate width available for each character
+            local characterWidth = GAME.width / #self.party
+            
             for i, character in ipairs(self.party) do
-                local x = 20 + (i - 1) * 180
-                local y = GAME.height - 350
+                local x = (i - 1) * characterWidth + 20
+                local y = panelY + 10
                 
-                -- Highlight current character's turn
+                -- Draw character container
                 if self.state == combatSystem.STATE.PLAYER_TURN and i == self.currentCharacter then
+                    -- Highlight current character
                     love.graphics.setColor(0.3, 0.3, 0.7, 0.5)
-                    love.graphics.rectangle("fill", x - 5, y - 5, 170, 140)
+                    love.graphics.rectangle("fill", x - 10, y - 5, characterWidth - 20, panelHeight - 10, 5, 5)
                 end
                 
                 -- Draw character name
@@ -552,72 +614,136 @@ function combatSystem:createCombat(party, enemy)
                 end
                 love.graphics.print(character.name, x, y)
                 
-                -- Draw job
-                love.graphics.setFont(screenManager.fonts.small)
-                love.graphics.setColor(0.8, 0.8, 1)
-                love.graphics.print(character.job, x, y + 25)
+                -- Draw HP/MP bars side by side
+                local barWidth = characterWidth - 100 -- Leave space for portrait
+                local barHeight = 15
                 
                 -- Draw HP bar
-                local healthWidth = 150 * (character.currentHP / character.maxHP)
+                local healthWidth = barWidth * (character.currentHP / character.maxHP)
                 love.graphics.setColor(0.2, 0.2, 0.2)
-                love.graphics.rectangle("fill", x, y + 50, 150, 15)
+                love.graphics.rectangle("fill", x, y + 30, barWidth, barHeight)
                 love.graphics.setColor(0.8, 0.2, 0.2)
-                love.graphics.rectangle("fill", x, y + 50, healthWidth, 15)
+                love.graphics.rectangle("fill", x, y + 30, healthWidth, barHeight)
                 
                 -- Draw HP text
+                love.graphics.setFont(screenManager.fonts.small)
                 love.graphics.setColor(1, 1, 1)
                 love.graphics.print(
-                    character.currentHP .. " / " .. character.maxHP,
-                    x + 50, y + 50
+                    "HP: " .. character.currentHP .. "/" .. character.maxHP,
+                    x + 5, y + 30
                 )
                 
                 -- Draw MP bar
-                local manaWidth = 150 * (character.currentMP / character.maxMP)
+                local mpWidth = barWidth * (character.currentMP / character.maxMP)
                 love.graphics.setColor(0.2, 0.2, 0.2)
-                love.graphics.rectangle("fill", x, y + 70, 150, 15)
+                love.graphics.rectangle("fill", x, y + 50, barWidth, barHeight)
                 love.graphics.setColor(0.2, 0.2, 0.8)
-                love.graphics.rectangle("fill", x, y + 70, manaWidth, 15)
+                love.graphics.rectangle("fill", x, y + 50, mpWidth, barHeight)
                 
                 -- Draw MP text
                 love.graphics.setColor(1, 1, 1)
                 love.graphics.print(
-                    character.currentMP .. " / " .. character.maxMP,
-                    x + 50, y + 70
+                    "MP: " .. character.currentMP .. "/" .. character.maxMP,
+                    x + 5, y + 50
                 )
                 
-                -- Draw status effects
-                local statusX = x
-                local statusY = y + 90
+                -- Draw character portrait
+                local portraitSize = 60
+                local portraitX = x + barWidth + 20
+                local portraitY = y + 15
                 
-                for status, info in pairs(character.status) do
+                -- Try to load and draw character portrait
+                local portrait = nil
+                if character.portraitId then
+                    portrait = assetManager:getImage("portrait", character.portraitId)
+                end
+                
+                if portrait then
+                    -- Draw portrait with fixed size
+                    love.graphics.setColor(1, 1, 1)
+                    love.graphics.draw(
+                        portrait,
+                        portraitX,
+                        portraitY,
+                        0, -- rotation
+                        portraitSize / portrait:getWidth(), -- scale x
+                        portraitSize / portrait:getHeight() -- scale y
+                    )
+                else
+                    -- Draw placeholder if portrait not found
+                    love.graphics.setColor(0.5, 0.5, 0.6)
+                    love.graphics.rectangle("fill", portraitX, portraitY, portraitSize, portraitSize)
+                    
+                    -- Draw first letter of character name in placeholder
+                    love.graphics.setColor(0.9, 0.9, 1)
+                    love.graphics.setFont(screenManager.fonts.large)
+                    love.graphics.printf(
+                        string.sub(character.name, 1, 1),
+                        portraitX,
+                        portraitY + portraitSize/4,
+                        portraitSize,
+                        "center"
+                    )
+                end
+                
+                -- Draw any status effects as small icons or text
+                if next(character.status) then
+                    love.graphics.setFont(screenManager.fonts.small)
                     love.graphics.setColor(0.8, 0.8, 0.2)
-                    love.graphics.print(status, statusX, statusY)
-                    statusY = statusY + 15
+                    
+                    local statusX = x
+                    local statusY = y + 70
+                    local statusText = "Status: "
+                    
+                    for status, _ in pairs(character.status) do
+                        statusText = statusText .. status .. " "
+                    end
+                    
+                    -- Truncate if too long
+                    if love.graphics.getFont():getWidth(statusText) > barWidth then
+                        statusText = string.sub(statusText, 1, 20) .. "..."
+                    end
+                    
+                    love.graphics.print(statusText, statusX, statusY)
                 end
             end
         end,
         
         -- Draw combat log
         drawCombatLog = function(self)
+            -- Position in bottom right corner, above the party panel
+            local panelHeight = 90 -- Should match party panel height
+            local logWidth = 260
+            local logHeight = 180
+            local logX = GAME.width - logWidth - 20 -- 20px margin from right edge
+            local logY = GAME.height - panelHeight - logHeight - 20 -- Above party panel with 20px gap
+            
             -- Draw log background
             love.graphics.setColor(0, 0, 0, 0.7)
-            love.graphics.rectangle("fill", GAME.width - 280, 50, 260, 300)
+            love.graphics.rectangle("fill", logX, logY, logWidth, logHeight, 5, 5) -- Added rounded corners
+            
+            -- Draw log border
+            love.graphics.setColor(0.4, 0.4, 0.6)
+            love.graphics.rectangle("line", logX, logY, logWidth, logHeight, 5, 5)
             
             -- Draw log title
             love.graphics.setFont(screenManager.fonts.medium)
             love.graphics.setColor(1, 1, 1)
-            love.graphics.print("Combat Log", GAME.width - 270, 55)
+            love.graphics.print("Combat Log", logX + 10, logY + 5)
             
             -- Draw log entries
             love.graphics.setFont(screenManager.fonts.small)
             
-            local startIndex = math.max(1, #self.log - 15)
+            -- Calculate how many entries can fit
+            local entriesVisible = math.floor((logHeight - 30) / 18) -- 30px for header, 18px per entry
+            local startIndex = math.max(1, #self.log - entriesVisible + 1)
+            
             for i = startIndex, #self.log do
                 local entry = self.log[i]
-                local y = 85 + (i - startIndex) * 18
+                local y = logY + 30 + (i - startIndex) * 18
                 
                 love.graphics.setColor(entry.color or {1, 1, 1})
-                love.graphics.print(entry.text, GAME.width - 270, y)
+                love.graphics.print(entry.text, logX + 10, y)
             end
         end,
         
@@ -626,13 +752,26 @@ function combatSystem:createCombat(party, enemy)
             local currentChar = self.party[self.currentCharacter]
             if not currentChar then return end
             
-            -- Draw turn info
+            -- Draw turn info - centered above the buttons
             love.graphics.setFont(screenManager.fonts.medium)
             love.graphics.setColor(1, 1, 1)
-            love.graphics.print(
-                currentChar.name .. "'s Turn",
-                50, GAME.height - 190
-            )
+            
+            -- Position turn text higher to avoid overlap
+            local buttonY = self.elements.attackButton.y
+            local turnTextY = buttonY - 60 -- Increased from 40 to 60
+            
+            -- Create a background panel for the turn text for better visibility
+            local turnText = currentChar.name .. "'s Turn"
+            local textWidth = love.graphics.getFont():getWidth(turnText)
+            local textX = GAME.width / 2 - textWidth / 2
+            
+            -- Draw text background
+            love.graphics.setColor(0, 0, 0, 0.6)
+            love.graphics.rectangle("fill", textX - 10, turnTextY - 5, textWidth + 20, 30, 5, 5)
+            
+            -- Draw text
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.print(turnText, textX, turnTextY)
             
             -- Draw action buttons - always draw them if it's player's turn
             if not self.selectedAction then
@@ -670,21 +809,30 @@ function combatSystem:createCombat(party, enemy)
         
         -- Draw UI for enemy turn state
         drawEnemyTurnUI = function(self)
-            -- Draw "Enemy Turn" text
+            -- Get where the action buttons would be
+            local partyHeight = 90 -- Height of the party display section
+            local buttonY = GAME.height - partyHeight - 50 -- Same as in createUI
+            local turnTextY = buttonY - 40
+            
+            -- Draw "Enemy Turn" text centered
             love.graphics.setFont(screenManager.fonts.medium)
             love.graphics.setColor(1, 0.5, 0.5)
-            love.graphics.print(
-                "Enemy Turn",
-                50, GAME.height - 190
-            )
             
-            -- Show a "Waiting..." message
+            local turnText = "Enemy Turn"
+            local textWidth = love.graphics.getFont():getWidth(turnText)
+            local textX = GAME.width / 2 - textWidth / 2
+            
+            love.graphics.print(turnText, textX, turnTextY)
+            
+            -- Show a "Waiting..." message below it
             love.graphics.setFont(screenManager.fonts.small)
             love.graphics.setColor(1, 1, 1, 0.7)
-            love.graphics.print(
-                "Waiting for enemy action...",
-                50, GAME.height - 160
-            )
+            
+            local waitText = "Waiting for enemy action..."
+            local waitWidth = love.graphics.getFont():getWidth(waitText)
+            local waitX = GAME.width / 2 - waitWidth / 2
+            
+            love.graphics.print(waitText, waitX, turnTextY + 25)
         end,
         
         -- Draw UI for victory state
