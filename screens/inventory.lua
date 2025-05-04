@@ -1138,6 +1138,114 @@ function inventory:createUI()
             self.value = value
         end
     }
+    
+    -- Create hand selection dialog for dual-wield
+    self.elements.handSelector = {
+        x = GAME.width / 2 - 150,
+        y = GAME.height / 2 - 100,
+        width = 300,
+        height = 180,
+        message = "",
+        item = nil,
+        confirmCallback = nil,
+        cancelCallback = nil,
+        visible = false,
+        
+        draw = function(self)
+            if not self.visible then return end
+            
+            -- Dim background
+            love.graphics.setColor(0, 0, 0, 0.7)
+            love.graphics.rectangle("fill", 0, 0, GAME.width, GAME.height)
+            
+            -- Draw panel
+            love.graphics.setColor(0.2, 0.2, 0.3, 0.95)
+            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 8, 8)
+            love.graphics.setColor(0.8, 0.8, 0.8)
+            love.graphics.rectangle("line", self.x, self.y, self.width, self.height, 8, 8)
+            
+            -- Draw item name and message
+            love.graphics.setFont(screenManager.fonts.medium)
+            love.graphics.setColor(1, 1, 1)
+            
+            if self.item then
+                love.graphics.printf(
+                    self.item.name or "Unknown Item", 
+                    self.x + 20, self.y + 20, 
+                    self.width - 40, "center"
+                )
+            end
+            
+            love.graphics.setFont(screenManager.fonts.small)
+            love.graphics.printf(self.message, self.x + 20, self.y + 50, self.width - 40, "center")
+            
+            -- Draw main hand button
+            love.graphics.setColor(0.3, 0.6, 0.3)
+            love.graphics.rectangle("fill", self.x + 40, self.y + 80, 100, 40, 5, 5)
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.setFont(screenManager.fonts.small)
+            love.graphics.printf("Main Hand", self.x + 40, self.y + 92, 100, "center")
+            
+            -- Draw off-hand button
+            love.graphics.setColor(0.6, 0.3, 0.3)
+            love.graphics.rectangle("fill", self.x + self.width - 140, self.y + 80, 100, 40, 5, 5)
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.printf("Off Hand", self.x + self.width - 140, self.y + 92, 100, "center")
+            
+            -- Draw cancel button
+            love.graphics.setColor(0.4, 0.4, 0.4)
+            love.graphics.rectangle("fill", self.x + self.width/2 - 50, self.y + self.height - 50, 100, 30, 5, 5)
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.printf("Cancel", self.x + self.width/2 - 50, self.y + self.height - 42, 100, "center")
+        end,
+        
+        clicked = function(self, x, y, button)
+            if not self.visible then return false end
+            
+            -- Main hand button
+            if x >= self.x + 40 and x <= self.x + 140 and
+               y >= self.y + 80 and y <= self.y + 120 then
+                if self.confirmCallback then
+                    self.confirmCallback("weapon")
+                end
+                self.visible = false
+                assetManager:playSound("click")
+                return true
+            end
+            
+            -- Off-hand button
+            if x >= self.x + self.width - 140 and x <= self.x + self.width - 40 and
+               y >= self.y + 80 and y <= self.y + 120 then
+                if self.confirmCallback then
+                    self.confirmCallback("offhand")
+                end
+                self.visible = false
+                assetManager:playSound("click")
+                return true
+            end
+            
+            -- Cancel button
+            if x >= self.x + self.width/2 - 50 and x <= self.x + self.width/2 + 50 and
+               y >= self.y + self.height - 50 and y <= self.y + self.height - 20 then
+                if self.cancelCallback then
+                    self.cancelCallback()
+                end
+                self.visible = false
+                assetManager:playSound("click")
+                return true
+            end
+            
+            return true
+        end,
+        
+        show = function(self, item, message, callback, cancelCallback)
+            self.item = item
+            self.message = message or "Select hand to equip:"
+            self.confirmCallback = callback
+            self.cancelCallback = cancelCallback
+            self.visible = true
+        end
+    }
 end
 
 function inventory:enter(params)
@@ -1234,6 +1342,11 @@ function inventory:draw()
         self.elements.quantitySelector:draw()
     end
     
+    -- Draw hand selector if visible
+    if self.elements.handSelector.visible then
+        self.elements.handSelector:draw()
+    end
+    
     -- Draw floating message if exists
     if self.floatingMessage and self.floatingMessage.timeRemaining > 0 then
         love.graphics.setFont(screenManager.fonts.medium)
@@ -1289,6 +1402,12 @@ function inventory:mousepressed(x, y, button, istouch, presses)
     -- Check if quantity selector is visible first
     if self.elements.quantitySelector.visible then
         self.elements.quantitySelector:clicked(x, y, button)
+        return true
+    end
+    
+    -- Check if hand selector is visible first
+    if self.elements.handSelector.visible then
+        self.elements.handSelector:clicked(x, y, button)
         return true
     end
     
@@ -1765,6 +1884,52 @@ function inventory:equipItem()
         end
     end
     
+    -- Special case for weapons - if character can dual-wield, show hand selection
+    local characterSystem = require("gameplay/character")
+    if self.selectedItem.type == "weapon" and characterSystem:canDualWield(self.selectedCharacter) then
+        -- Show hand selector dialog
+        self.elements.handSelector:show(
+            self.selectedItem,
+            "Choose which hand to equip this weapon:",
+            function(slot)
+                self:completeEquip(slot)
+            end,
+            function()
+                -- Cancel callback
+            end
+        )
+    else
+        -- For other item types or characters that can't dual-wield,
+        -- determine equipment slot automatically
+        local slot = nil
+        
+        if self.selectedItem.type == "weapon" then
+            slot = "weapon"
+        elseif self.selectedItem.type == "armor" then
+            slot = "body"
+        elseif self.selectedItem.type == "accessory" then
+            -- Find first empty accessory slot or use the first one
+            if not self.selectedCharacter.equipment.accessory1 then
+                slot = "accessory1"
+            elseif not self.selectedCharacter.equipment.accessory2 then
+                slot = "accessory2"
+            else
+                slot = "accessory1" -- Replace the first accessory if both are filled
+            end
+        end
+        
+        if slot then
+            self:completeEquip(slot)
+        end
+    end
+end
+
+-- Helper function to complete equipping an item after slot selection
+function inventory:completeEquip(slot)
+    if not self.selectedItem or not self.selectedCharacter then
+        return
+    end
+    
     -- Initialize equipment if not exists
     if not self.selectedCharacter.equipment then
         self.selectedCharacter.equipment = {}
@@ -1774,9 +1939,6 @@ function inventory:equipItem()
     if not self.selectedCharacter.attributes then
         self.selectedCharacter.attributes = {}
     end
-    
-    -- Determine equipment slot
-    local slot = self.selectedItem.slot or "weapon"
     
     -- Unequip previous item if exists
     local prevItem = self.selectedCharacter.equipment[slot]
@@ -1877,7 +2039,7 @@ function inventory:equipItem()
     
     -- Remove equipped item from inventory
     for i, item in ipairs(GAME.inventory) do
-        if item == self.selectedItem then
+        if item.uniqueId and self.selectedItem.uniqueId and item.uniqueId == self.selectedItem.uniqueId then
             table.remove(GAME.inventory, i)
             break
         end
@@ -1949,11 +2111,21 @@ function inventory:showContextMenu(x, y)
        self.selectedItem.type == "accessory" then
         -- Only show equip if character is selected
         if self.selectedCharacter then
-            table.insert(options, {
-                text = "Equip",
-                callback = function() self:equipItem() end,
-                hover = false
-            })
+            -- For weapons and dual-wield characters, we'll show different equip options
+            local characterSystem = require("gameplay/character")
+            if self.selectedItem.type == "weapon" and characterSystem:canDualWield(self.selectedCharacter) then
+                table.insert(options, {
+                    text = "Equip...",
+                    callback = function() self:equipItem() end,
+                    hover = false
+                })
+            else
+                table.insert(options, {
+                    text = "Equip",
+                    callback = function() self:equipItem() end,
+                    hover = false
+                })
+            end
         end
     end
     
@@ -2174,6 +2346,12 @@ function inventory:keypressed(key, scancode, isrepeat)
             self.elements.quantitySelector.visible = false
             if self.elements.quantitySelector.cancelCallback then
                 self.elements.quantitySelector.cancelCallback()
+            end
+            return true
+        elseif self.elements.handSelector.visible then
+            self.elements.handSelector.visible = false
+            if self.elements.handSelector.cancelCallback then
+                self.elements.handSelector.cancelCallback()
             end
             return true
         elseif self.elements.contextMenu.visible then

@@ -453,6 +453,25 @@ function character:unequipItem(char, slot)
     return item
 end
 
+-- Check if a character can dual-wield weapons
+function character:canDualWield(char)
+    if not char or not char.job then
+        return false
+    end
+    
+    -- Jobs that can dual-wield weapons
+    local dualWieldJobs = {
+        ["Rogue"] = true,
+        ["Assassin"] = true,
+        ["Ninja"] = true,
+        ["DualBlader"] = true,
+        ["Shadowblade"] = true
+    }
+    
+    -- Check if current job allows dual-wielding
+    return dualWieldJobs[char.job] == true
+end
+
 -- Calculate attack power
 function character:calculateAttackPower(char)
     local basePower = char.attributes.STR
