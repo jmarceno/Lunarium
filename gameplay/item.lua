@@ -3,8 +3,12 @@
 
 local itemSystem = {
     items = {},
-    monsterParts = {}
+    monsterParts = {},
+    nextItemId = 1  -- Initialize ID counter
 }
+
+-- Track the next available unique ID for items
+itemSystem.nextItemId = 1
 
 -- Item types
 itemSystem.ITEM_TYPE = {
@@ -53,7 +57,7 @@ itemSystem.items = {
         requirements = {
             STR = 5
         },
-        jobs = {"Fighter", "Knight", "Paladin"}
+        jobs = {"Fighter", "Knight", "Paladin", "Rogue"}
     },
     
     Dagger = {
@@ -759,34 +763,28 @@ end
 
 -- Get a random item of a specific type
 function itemSystem:getRandomItem(itemType, level)
-    local items = {}
-    level = level or 1
+    local candidates = {}
     
-    -- Filter items by type and level requirement
+    -- Gather suitable items
     for name, item in pairs(self.items) do
         if item.type == itemType then
-            local maxReq = 0
-            
-            -- Check requirements if they exist
-            if item.requirements then
-                for _, req in pairs(item.requirements) do
-                    maxReq = math.max(maxReq, req)
-                end
-            end
-            
-            -- Add item if level appropriate (rough estimate)
-            if maxReq <= level * 5 then
-                table.insert(items, item)
+            -- Simple level requirement check (can be more sophisticated)
+            if not level or not item.level or item.level <= level then
+                table.insert(candidates, name)
             end
         end
     end
     
-    -- Return random item or default consumable if none found
-    if #items > 0 then
-        return items[math.random(1, #items)]
-    else
-        return self.items["HealthPotion"]
+    -- Select random item from candidates
+    if #candidates > 0 then
+        local randomName = candidates[math.random(1, #candidates)]
+        local baseItem = self.items[randomName]
+        
+        -- Create a clone with unique ID
+        return self:cloneItemWithId(baseItem)
     end
+    
+    return nil
 end
 
 -- Get a random monster part based on difficulty
@@ -1004,32 +1002,107 @@ end
 
 -- Generate a random item for stealing based on enemy level
 function itemSystem:generateRandomItem(level)
-    local items = {}
     level = level or 1
     
-    -- Determine item type (mostly consumables and monster parts, rarely equipment)
-    local roll = math.random(1, 100)
-    local itemType
+    -- Choose item type
+    local types = {"weapon", "armor", "accessory", "consumable"}
+    local chosenType = types[math.random(1, #types)]
     
-    if roll <= 10 then -- 10% chance for weapon
-        itemType = "weapon"
-    elseif roll <= 15 then -- 5% chance for armor
-        itemType = "armor"
-    elseif roll <= 20 then -- 5% chance for accessory
-        itemType = "accessory"
-    elseif roll <= 50 then -- 30% chance for consumable
-        itemType = "consumable"
-    else -- 50% chance for monster part
-        return self:getRandomMonsterPart(level)
+    -- Get random item of that type
+    local item = self:getRandomItem(chosenType, level)
+    
+    -- If no item found, fallback to a basic item
+    if not item then
+        local fallbacks = {
+            weapon = "ShortSword",
+            armor = "LeatherArmor",
+            accessory = "IronRing",
+            consumable = "HealthPotion"
+        }
+        
+        local baseItem = self.items[fallbacks[chosenType]]
+        if baseItem then
+            -- Create a clone with unique ID
+            item = self:cloneItemWithId(baseItem)
+        end
     end
     
-    -- Get a random item of the chosen type
-    return self:getRandomItem(itemType, level)
+    return item
 end
 
 -- Get an item by name (ID)
 function itemSystem:getItemData(itemId)
     return self.items[itemId]
+end
+
+-- Generate a unique ID for an item
+function itemSystem:generateUniqueId()
+    local uniqueId = "item_" .. self.nextItemId
+    self.nextItemId = self.nextItemId + 1
+    return uniqueId
+end
+
+-- Clone an item with a unique ID
+function itemSystem:cloneItemWithId(itemName)
+    local baseItem
+    if type(itemName) == "string" then
+        baseItem = self:getItem(itemName)
+    elseif type(itemName) == "table" then
+        baseItem = itemName
+    end
+    
+    if not baseItem then
+        return nil
+    end
+    
+    -- Create a deep copy of the item
+    local newItem = {}
+    for key, value in pairs(baseItem) do
+        newItem[key] = value
+    end
+    
+    -- Assign a unique ID
+    newItem.uniqueId = self:generateUniqueId()
+    
+    return newItem
+end
+
+-- Add an item to the inventory with unique ID
+function itemSystem:addToInventory(item)
+    if not item then return false end
+    
+    -- Ensure the item has a unique ID
+    if not item.uniqueId then
+        item.uniqueId = self:generateUniqueId()
+    end
+    
+    -- Only stack non-equippable items (consumables, materials, monster parts)
+    if item.type == "consumable" or item.type == "material" or item.type == "monster_part" then
+        -- Look for existing stack
+        for _, invItem in ipairs(GAME.inventory) do
+            if invItem.name == item.name and invItem.type == item.type then
+                -- Increase count of existing stack
+                invItem.count = (invItem.count or 1) + (item.count or 1)
+                return true
+            end
+        end
+        
+        -- No stack found, set count if needed
+        if not item.count then
+            item.count = 1
+        end
+    else
+        -- For equippable items (weapons, armor, accessories), always ensure they have unique IDs
+        -- and add them as separate entries - never stack them
+        -- This ensures each equippable item is distinct and can be tracked individually
+        
+        -- Set count to 1 if not already set
+        item.count = 1
+    end
+    
+    -- Add item to inventory
+    table.insert(GAME.inventory, item)
+    return true
 end
 
 return itemSystem

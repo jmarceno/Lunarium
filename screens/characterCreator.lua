@@ -1128,6 +1128,19 @@ function characterCreator:finishParty()
         GAME.inventory = {}
     end
     
+    -- Add all equipped items to the inventory
+    local itemSystem = require("gameplay/item")
+    for _, character in ipairs(self.characters) do
+        if character.equipment then
+            for slot, item in pairs(character.equipment) do
+                if item then
+                    -- Add the equipped item to inventory using the new function
+                    itemSystem:addToInventory(item)
+                end
+            end
+        end
+    end
+    
     -- Initialize gold if needed
     if not GAME.gold then
         GAME.gold = 100

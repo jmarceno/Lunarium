@@ -700,38 +700,12 @@ function shop:buyItem()
     -- Deduct gold
     GAME.gold = GAME.gold - self.selectedItem.value
     
-    -- Add item to inventory
-    if not GAME.inventory then
-        GAME.inventory = {}
-    end
+    -- Create a new item with proper unique ID
+    local newItem = itemSystem:cloneItemWithId(self.selectedItem)
     
-    -- Check if item already exists in inventory
-    local found = false
-    
-    for _, item in ipairs(GAME.inventory) do
-        if item.name == self.selectedItem.name then
-            item.count = (item.count or 1) + 1
-            found = true
-            break
-        end
-    end
-    
-    -- Add new item if not found
-    if not found then
-        local newItem = {}
-        
-        -- Copy item data
-        for key, value in pairs(self.selectedItem) do
-            newItem[key] = value
-        end
-        
-        -- Add count for stackable items
-        if newItem.type == "consumable" or newItem.type == "material" then
-            newItem.count = 1
-        end
-        
-        table.insert(GAME.inventory, newItem)
-    end
+    -- Add item to inventory using the item system's function
+    -- which will handle unique IDs and stacking properly
+    itemSystem:addToInventory(newItem)
     
     -- Play success sound
     assetManager:playSound("pickup")

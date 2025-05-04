@@ -137,7 +137,7 @@ function character:new(name, jobName, attributes, profileIndex, portraitId)
     
     -- Add starting equipment from job
     for slot, itemName in pairs(job.startingEquipment) do
-        local item = itemSystem:getItem(itemName)
+        local item = itemSystem:cloneItemWithId(itemName)
         if item then
             char.equipment[slot] = item
         end
@@ -457,9 +457,28 @@ end
 function character:calculateAttackPower(char)
     local basePower = char.attributes.STR
 
-    -- Add weapon power
+    -- Add main weapon power
     if char.equipment.weapon and char.equipment.weapon.attack then
         basePower = basePower + char.equipment.weapon.attack
+    end
+    
+    -- Add off-hand weapon power if a weapon is equipped there
+    if char.equipment.offhand and char.equipment.offhand.type == "weapon" and char.equipment.offhand.attack then
+        -- Only add a portion of the off-hand weapon's power (dual-wield balance)
+        local offhandMultiplier = 0.5 -- 50% effectiveness for off-hand weapons
+        
+        -- Rogues get better dual-wield efficiency
+        if char.job == "Rogue" then
+            offhandMultiplier = 0.7 -- 70% effectiveness for rogues
+        end
+        
+        -- Special jobs get even better dual-wield efficiency
+        if char.job == "Ninja" or char.job == "DualBlader" then
+            offhandMultiplier = 0.8 -- 80% effectiveness for advanced dual-wielders
+        end
+        
+        -- Apply the multiplier to the off-hand weapon's attack value
+        basePower = basePower + math.floor(char.equipment.offhand.attack * offhandMultiplier)
     end
     
     return basePower

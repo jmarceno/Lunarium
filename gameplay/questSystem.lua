@@ -686,24 +686,7 @@ function questSystem:completeQuest(questId)
         -- Add item rewards to inventory
         if completedQuest.rewards.items then
             for _, item in ipairs(completedQuest.rewards.items) do
-                if not GAME.inventory then
-                    GAME.inventory = {}
-                end
-                
-                -- Check if item already exists in inventory
-                local found = false
-                for _, invItem in ipairs(GAME.inventory) do
-                    if invItem.name == item.name then
-                        invItem.count = (invItem.count or 1) + (item.count or 1)
-                        found = true
-                        break
-                    end
-                end
-                
-                -- Add new item if not found
-                if not found then
-                    table.insert(GAME.inventory, item)
-                end
+                itemSystem:addToInventory(item)
             end
         end
         

@@ -178,15 +178,25 @@ function inventory:createUI()
                 -- Sort items
                 if inventory.sortBy == "type" then
                     table.sort(displayedItems, function(a, b)
-                        if a.type == b.type then
-                            return a.name < b.name
+                        -- Check if types exist, default to empty string if nil
+                        local aType = a.type or ""
+                        local bType = b.type or ""
+                        
+                        if aType == bType then
+                            -- Check if names exist, default to empty string if nil
+                            local aName = a.name or ""
+                            local bName = b.name or ""
+                            return aName < bName
                         else
-                            return inventory:getTypeOrder(a.type) < inventory:getTypeOrder(b.type)
+                            return inventory:getTypeOrder(aType) < inventory:getTypeOrder(bType)
                         end
                     end)
                 elseif inventory.sortBy == "name" then
                     table.sort(displayedItems, function(a, b)
-                        return a.name < b.name
+                        -- Check if names exist, default to empty string if nil
+                        local aName = a.name or ""
+                        local bName = b.name or ""
+                        return aName < bName
                     end)
                 elseif inventory.sortBy == "value" then
                     table.sort(displayedItems, function(a, b)
@@ -369,15 +379,25 @@ function inventory:createUI()
                     -- Sort items
                     if inventory.sortBy == "type" then
                         table.sort(displayedItems, function(a, b)
-                            if a.type == b.type then
-                                return a.name < b.name
+                            -- Check if types exist, default to empty string if nil
+                            local aType = a.type or ""
+                            local bType = b.type or ""
+                            
+                            if aType == bType then
+                                -- Check if names exist, default to empty string if nil
+                                local aName = a.name or ""
+                                local bName = b.name or ""
+                                return aName < bName
                             else
-                                return inventory:getTypeOrder(a.type) < inventory:getTypeOrder(b.type)
+                                return inventory:getTypeOrder(aType) < inventory:getTypeOrder(bType)
                             end
                         end)
                     elseif inventory.sortBy == "name" then
                         table.sort(displayedItems, function(a, b)
-                            return a.name < b.name
+                            -- Check if names exist, default to empty string if nil
+                            local aName = a.name or ""
+                            local bName = b.name or ""
+                            return aName < bName
                         end)
                     elseif inventory.sortBy == "value" then
                         table.sort(displayedItems, function(a, b)
@@ -413,7 +433,7 @@ function inventory:createUI()
         x = GAME.width - 300,
         y = 90,
         width = 280,
-        height = 200,
+        height = 250,
         
         draw = function(self)
             -- Draw panel background
@@ -521,16 +541,58 @@ function inventory:createUI()
                         self.x + 90, self.y + 165
                     )
                 end
+                
+                -- Draw accessory 1 slot
+                love.graphics.setColor(0.7, 0.7, 0.7)
+                love.graphics.print(
+                    "Accessory 1:",
+                    self.x + 30, self.y + 185
+                )
+                
+                if char.equipment.accessory1 then
+                    love.graphics.setColor(1, 1, 1)
+                    love.graphics.print(
+                        char.equipment.accessory1.name,
+                        self.x + 110, self.y + 185
+                    )
+                else
+                    love.graphics.setColor(0.5, 0.5, 0.5)
+                    love.graphics.print(
+                        "None",
+                        self.x + 110, self.y + 185
+                    )
+                end
+                
+                -- Draw accessory 2 slot
+                love.graphics.setColor(0.7, 0.7, 0.7)
+                love.graphics.print(
+                    "Accessory 2:",
+                    self.x + 30, self.y + 205
+                )
+                
+                if char.equipment.accessory2 then
+                    love.graphics.setColor(1, 1, 1)
+                    love.graphics.print(
+                        char.equipment.accessory2.name,
+                        self.x + 110, self.y + 205
+                    )
+                else
+                    love.graphics.setColor(0.5, 0.5, 0.5)
+                    love.graphics.print(
+                        "None",
+                        self.x + 110, self.y + 205
+                    )
+                end
             end
         end
     }
     
     -- Create item details panel
     self.elements.itemDetailsPanel = {
-        x = GAME.width - 300,
-        y = 300,
-        width = 280,
-        height = 230,
+        x = GAME.width - 300, -- Align with character panel
+        y = 350, -- Positioned below character panel (90 + 250 + 10)
+        width = 280, -- Match character panel width
+        height = 280, -- Keep the same height
         
         draw = function(self)
             -- Draw panel background
@@ -635,7 +697,74 @@ function inventory:createUI()
                 -- Draw value
                 if item.value then
                     love.graphics.setColor(1, 1, 0)
-                    love.graphics.print("Value: " .. item.value .. " gold", self.x + 20, self.y + 200)
+                    love.graphics.print("Value: " .. item.value .. " gold", self.x + 20, self.y + self.height - 20)
+                end
+                
+                -- Draw requirements if the item is equipment
+                if item.type == "weapon" or item.type == "armor" or item.type == "accessory" then
+                    -- Draw a separator line
+                    love.graphics.setColor(0.4, 0.4, 0.5)
+                    love.graphics.line(
+                        self.x + 20, self.y + 190, 
+                        self.x + self.width - 20, self.y + 190
+                    )
+                    
+                    -- Left column - Requirements
+                    if item.requirements then
+                        local reqX = self.x + 20
+                        local reqY = self.y + 200
+                        
+                        love.graphics.setColor(1, 0.8, 0.2)
+                        love.graphics.print("Requirements:", reqX, reqY)
+                        reqY = reqY + 20
+                        
+                        -- List each requirement
+                        love.graphics.setColor(0.9, 0.9, 0.9)
+                        for attr, value in pairs(item.requirements) do
+                            love.graphics.print(attr .. ": " .. value, reqX + 10, reqY)
+                            reqY = reqY + 15
+                        end
+                    end
+                    
+                    -- Right column - Jobs
+                    if item.jobs and #item.jobs > 0 then
+                        local jobsX = self.x + (self.width / 2)
+                        local jobsY = self.y + 200
+                        
+                        love.graphics.setColor(0.2, 0.8, 0.5)
+                        love.graphics.print("Usable by:", jobsX, jobsY)
+                        jobsY = jobsY + 20
+                        
+                        -- Format jobs list with more space
+                        local jobsList = table.concat(item.jobs, ", ")
+                        -- Allow for more text due to wider panel
+                        if #jobsList > 40 then
+                            jobsList = string.sub(jobsList, 1, 40) .. "..."
+                        end
+                        
+                        love.graphics.setColor(0.8, 1, 0.8)
+                        love.graphics.printf(jobsList, jobsX, jobsY, self.width/2 - 30, "left")
+                        jobsY = jobsY + 25
+                        
+                        -- If inventory.selectedCharacter exists, indicate if they can use it
+                        if inventory.selectedCharacter then
+                            local canEquip = false
+                            for _, job in ipairs(item.jobs) do
+                                if job == inventory.selectedCharacter.job then
+                                    canEquip = true
+                                    break
+                                end
+                            end
+                            
+                            if canEquip then
+                                love.graphics.setColor(0.2, 1, 0.2)
+                                love.graphics.print("Can equip", jobsX, jobsY)
+                            else
+                                love.graphics.setColor(1, 0.2, 0.2)
+                                love.graphics.print("Cannot equip", jobsX, jobsY)
+                            end
+                        end
+                    end
                 end
             end
         end
@@ -650,13 +779,13 @@ function inventory:createUI()
         ),
         
         equipButton = screenManager.UI.Button(
-            GAME.width - 190, GAME.height - 60, 
+            GAME.width - 280, GAME.height - 60, 
             80, 40, "Equip", 
             function() inventory:equipItem() end
         ),
         
         sellButton = screenManager.UI.Button(
-            GAME.width - 190, GAME.height - 110, 
+            GAME.width - 190, GAME.height - 60, 
             80, 40, "Sell", 
             function() inventory:sellItem() end
         ),
@@ -667,6 +796,7 @@ function inventory:createUI()
             function() inventory:dropItem() end
         )
     }
+    
     
     -- Set visibility for action buttons
     self.elements.actionButtons.useButton.visible = true
@@ -922,7 +1052,7 @@ function inventory:createUI()
                 love.graphics.setColor(1, 0.8, 0.2)
                 love.graphics.printf(
                     "Value: " .. (self.value * self.quantity) .. " gold",
-                    self.x + 20, self.y + 160, self.width - 40, "center"
+                    self.x + 20, self.y + 170, self.width - 40, "center"
                 )
             end
             
@@ -1029,6 +1159,36 @@ function inventory:enter(params)
         self.selectedCharacter = GAME.party[1]
     else
         self.selectedCharacter = nil
+    end
+    
+    -- Verify inventory items have necessary fields
+    if GAME.inventory then
+        for i, item in ipairs(GAME.inventory) do
+            -- Ensure all items have at least basic properties
+            if not item.name then item.name = "Unknown Item" end
+            if not item.type then item.type = "material" end
+            if not item.uniqueId then 
+                item.uniqueId = itemSystem:generateUniqueId()
+            end
+        end
+    end
+    
+    -- Adjust UI layout
+    self:adjustLayout()
+end
+
+-- Adjust UI panel sizes and positions
+function inventory:adjustLayout()
+    -- Increase character panel height to accommodate accessory slots
+    if self.elements and self.elements.characterPanel then
+        self.elements.characterPanel.height = 250
+    end
+    
+    -- Position item details panel below character panel
+    if self.elements and self.elements.itemDetailsPanel then
+        self.elements.itemDetailsPanel.x = GAME.width - 300
+        self.elements.itemDetailsPanel.y = 350
+        self.elements.itemDetailsPanel.width = 280
     end
 end
 
@@ -1168,15 +1328,25 @@ function inventory:mousepressed(x, y, button, istouch, presses)
             -- Sort items
             if self.sortBy == "type" then
                 table.sort(displayedItems, function(a, b)
-                    if a.type == b.type then
-                        return a.name < b.name
+                    -- Check if types exist, default to empty string if nil
+                    local aType = a.type or ""
+                    local bType = b.type or ""
+                    
+                    if aType == bType then
+                        -- Check if names exist, default to empty string if nil
+                        local aName = a.name or ""
+                        local bName = b.name or ""
+                        return aName < bName
                     else
-                        return self:getTypeOrder(a.type) < self:getTypeOrder(b.type)
+                        return self:getTypeOrder(aType) < self:getTypeOrder(bType)
                     end
                 end)
             elseif self.sortBy == "name" then
                 table.sort(displayedItems, function(a, b)
-                    return a.name < b.name
+                    -- Check if names exist, default to empty string if nil
+                    local aName = a.name or ""
+                    local bName = b.name or ""
+                    return aName < bName
                 end)
             elseif self.sortBy == "value" then
                 table.sort(displayedItems, function(a, b)
@@ -1375,7 +1545,9 @@ function inventory:mousereleased(x, y, button, istouch, presses)
 end
 
 function inventory:getTypeOrder(type)
-    if type == "weapon" then
+    if not type then
+        return 99  -- Place items with nil type at the end
+    elseif type == "weapon" then
         return 1
     elseif type == "armor" then
         return 2
@@ -1436,20 +1608,25 @@ function inventory:isItemEquipped(item, character)
     -- Debug output
     if GAME.debug then
         local itemName = item and item.name or "Unknown Item"
+        local itemId = item and item.uniqueId or "No ID"
         local charName = character and character.name or "Unknown Character"
-        print("Checking if item " .. itemName .. " is equipped by " .. charName)
+        print("Checking if item " .. itemName .. " (ID: " .. itemId .. ") is equipped by " .. charName)
         
         -- Print character's equipment
         for slot, equippedItem in pairs(character.equipment) do
             if equippedItem then
-                print("Slot " .. slot .. ": " .. (equippedItem.name or "unknown"))
+                local equippedId = equippedItem.uniqueId or "No ID"
+                print("Slot " .. slot .. ": " .. (equippedItem.name or "unknown") .. " (ID: " .. equippedId .. ")")
             end
         end
     end
     
     -- Check each equipment slot
     for slot, equippedItem in pairs(character.equipment) do
-        if equippedItem and equippedItem.name and item and item.name and equippedItem.name == item.name then
+        -- Compare by uniqueId if available, otherwise fallback to reference comparison
+        if equippedItem and item and 
+           ((equippedItem.uniqueId and item.uniqueId and equippedItem.uniqueId == item.uniqueId) or
+            equippedItem == item) then
             if GAME.debug then
                 print("Item is equipped in slot: " .. slot)
             end
@@ -1538,6 +1715,13 @@ function inventory:equipItem()
         return
     end
     
+    -- Check if item is already equipped by the selected character
+    if self:isItemEquipped(self.selectedItem, self.selectedCharacter) then
+        self:showFloatingMessage("This item is already equipped!", {1, 0.5, 0.5, 1})
+        assetManager:playSound("hit")
+        return
+    end
+    
     -- Debug output
     if GAME.debug then
         local itemName = self.selectedItem.name or "Unknown Item"
@@ -1565,6 +1749,11 @@ function inventory:equipItem()
     
     -- Check requirements
     if self.selectedItem.requirements then
+        -- Make sure character has attributes table
+        if not self.selectedCharacter.attributes then
+            self.selectedCharacter.attributes = {}
+        end
+        
         for attr, req in pairs(self.selectedItem.requirements) do
             if not self.selectedCharacter.attributes[attr] or 
                self.selectedCharacter.attributes[attr] < req then
@@ -1581,6 +1770,11 @@ function inventory:equipItem()
         self.selectedCharacter.equipment = {}
     end
     
+    -- Make sure character has attributes table
+    if not self.selectedCharacter.attributes then
+        self.selectedCharacter.attributes = {}
+    end
+    
     -- Determine equipment slot
     local slot = self.selectedItem.slot or "weapon"
     
@@ -1591,22 +1785,41 @@ function inventory:equipItem()
     if prevItem then
         -- Remove attack/defense bonuses
         if prevItem.attack then
+            -- Initialize attack stat if it doesn't exist
+            if self.selectedCharacter.attack == nil then
+                self.selectedCharacter.attack = prevItem.attack  -- Set to exactly the bonus amount so subtraction will result in 0
+            end
             self.selectedCharacter.attack = self.selectedCharacter.attack - prevItem.attack
         end
         if prevItem.magicAttack then
+            -- Initialize magicAttack stat if it doesn't exist
+            if self.selectedCharacter.magicAttack == nil then
+                self.selectedCharacter.magicAttack = prevItem.magicAttack
+            end
             self.selectedCharacter.magicAttack = self.selectedCharacter.magicAttack - prevItem.magicAttack
         end
         if prevItem.defense then
+            -- Initialize defense stat if it doesn't exist
+            if self.selectedCharacter.defense == nil then
+                self.selectedCharacter.defense = prevItem.defense
+            end
             self.selectedCharacter.defense = self.selectedCharacter.defense - prevItem.defense
         end
         if prevItem.magicDefense then
+            -- Initialize magicDefense stat if it doesn't exist
+            if self.selectedCharacter.magicDefense == nil then
+                self.selectedCharacter.magicDefense = prevItem.magicDefense
+            end
             self.selectedCharacter.magicDefense = self.selectedCharacter.magicDefense - prevItem.magicDefense
         end
         
         -- Remove attribute bonuses if any
         if prevItem.attributes then
             for attr, bonus in pairs(prevItem.attributes) do
-                if self.selectedCharacter.attributes[attr] then
+                if self.selectedCharacter.attributes then
+                    if self.selectedCharacter.attributes[attr] == nil then
+                        self.selectedCharacter.attributes[attr] = bonus
+                    end
                     self.selectedCharacter.attributes[attr] = self.selectedCharacter.attributes[attr] - bonus
                 end
             end
@@ -1618,16 +1831,32 @@ function inventory:equipItem()
     
     -- Add stat bonuses from new item
     if self.selectedItem.attack then
-        self.selectedCharacter.attack = (self.selectedCharacter.attack or 0) + self.selectedItem.attack
+        -- Initialize attack stat if it doesn't exist
+        if self.selectedCharacter.attack == nil then
+            self.selectedCharacter.attack = 0
+        end
+        self.selectedCharacter.attack = self.selectedCharacter.attack + self.selectedItem.attack
     end
     if self.selectedItem.magicAttack then
-        self.selectedCharacter.magicAttack = (self.selectedCharacter.magicAttack or 0) + self.selectedItem.magicAttack
+        -- Initialize magicAttack stat if it doesn't exist
+        if self.selectedCharacter.magicAttack == nil then
+            self.selectedCharacter.magicAttack = 0
+        end
+        self.selectedCharacter.magicAttack = self.selectedCharacter.magicAttack + self.selectedItem.magicAttack
     end
     if self.selectedItem.defense then
-        self.selectedCharacter.defense = (self.selectedCharacter.defense or 0) + self.selectedItem.defense
+        -- Initialize defense stat if it doesn't exist
+        if self.selectedCharacter.defense == nil then
+            self.selectedCharacter.defense = 0
+        end
+        self.selectedCharacter.defense = self.selectedCharacter.defense + self.selectedItem.defense
     end
     if self.selectedItem.magicDefense then
-        self.selectedCharacter.magicDefense = (self.selectedCharacter.magicDefense or 0) + self.selectedItem.magicDefense
+        -- Initialize magicDefense stat if it doesn't exist
+        if self.selectedCharacter.magicDefense == nil then
+            self.selectedCharacter.magicDefense = 0
+        end
+        self.selectedCharacter.magicDefense = self.selectedCharacter.magicDefense + self.selectedItem.magicDefense
     end
     
     -- Add attribute bonuses if any

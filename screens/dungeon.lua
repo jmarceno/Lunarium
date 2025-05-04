@@ -812,7 +812,7 @@ function dungeon:addFillerEntities(difficulty, count, avoidEnd)
             }
             -- Add random loot to chest
             item.contents = itemSystem:generateRandomLoot(difficulty, math.random(1,2)) -- Use itemSystem
-            table.insert(self.entities, item)
+            itemSystem:addToInventory(item)
         end
     end
 end
@@ -1061,7 +1061,7 @@ function dungeon:checkEntityInteraction()
                                 print("Collected QUEST ITEM from chest: " .. item.name)
                                 questSystem:updateProgress("item_pickup", {itemId = item.questItemId, count = item.count or 1})
                             end
-                            table.insert(GAME.inventory, item)
+                            itemSystem:addToInventory(item)
                             print("Collected Item: " .. item.name) -- Debug
                             -- Notify quest system if it's a regular item pickup (might be relevant for some quests)
                         end
@@ -1323,7 +1323,9 @@ function dungeon:keypressed(key, scancode, isrepeat)
 
                 -- Handle victory rewards (loot, remove enemy)
                 if GAME.inventory and loot then
-                    for _, item in ipairs(loot) do table.insert(GAME.inventory, item) end
+                    for _, item in ipairs(loot) do 
+                        itemSystem:addToInventory(item)
+                    end
                 end
                 for i = #self.entities, 1, -1 do
                     if self.entities[i] == enemyToRemove then
@@ -1415,7 +1417,9 @@ function dungeon:mousepressed(x, y, button, istouch, presses)
 
                 -- Handle victory rewards (loot, remove enemy)
                 if GAME.inventory and loot then
-                    for _, item in ipairs(loot) do table.insert(GAME.inventory, item) end
+                    for _, item in ipairs(loot) do 
+                        itemSystem:addToInventory(item)
+                    end
                 end
                 for i = #self.entities, 1, -1 do
                     if self.entities[i] == enemyToRemove then

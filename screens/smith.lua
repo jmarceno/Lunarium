@@ -992,7 +992,7 @@ function smith:craftItem()
     end
     
     -- Add to inventory
-    table.insert(GAME.inventory, self.craftedItem)
+    itemSystem:addToInventory(self.craftedItem)
     
     -- Play success sound
     assetManager:playSound("pickup")

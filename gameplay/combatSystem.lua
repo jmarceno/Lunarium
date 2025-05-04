@@ -1631,21 +1631,13 @@ function combatSystem:createCombat(party, enemy)
                 local stolenItem = itemSystem:generateRandomItem(self.enemy.stats.level or 1)
                 
                 -- Add item to inventory
-                if GAME.inventory and stolenItem then
-                    table.insert(GAME.inventory, stolenItem)
-                    
-                    -- Add to combat log
-                    self:addLog(
-                        character.name .. " successfully steals " .. stolenItem.name .. "!",
-                        {0.2, 0.8, 0.8}
-                    )
-                else
-                    -- Add to combat log
-                    self:addLog(
-                        character.name .. " successfully steals an item!",
-                        {0.2, 0.8, 0.8}
-                    )
-                end
+                itemSystem:addToInventory(stolenItem)
+                
+                -- Add to combat log
+                self:addLog(
+                    character.name .. " successfully steals " .. stolenItem.name .. "!",
+                    {0.2, 0.8, 0.8}
+                )
             else
                 -- Failed to steal
                 self:addLog(
