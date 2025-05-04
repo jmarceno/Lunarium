@@ -1719,6 +1719,14 @@ function inventory:selectItem(item)
 end
 
 function inventory:isItemEquipped(item, character)
+    -- Quick check if item has the equipped properties
+    if item and item.equippedBy and item.equippedSlot and character then
+        -- Check if this item is equipped by this character
+        if item.equippedBy == character.name then
+            return true
+        end
+    end
+
     -- Check if item is equipped by character
     if not character or not character.equipment then
         return false
@@ -1751,6 +1759,19 @@ function inventory:isItemEquipped(item, character)
             end
             return true
         end
+    end
+    
+    -- Special check for amulet and ring slots since they're new
+    if character.equipment.amulet and item and
+       ((character.equipment.amulet.uniqueId and item.uniqueId and character.equipment.amulet.uniqueId == item.uniqueId) or
+        character.equipment.amulet == item) then
+        return true
+    end
+    
+    if character.equipment.ring and item and
+       ((character.equipment.ring.uniqueId and item.uniqueId and character.equipment.ring.uniqueId == item.uniqueId) or
+        character.equipment.ring == item) then
+        return true
     end
     
     if GAME.debug then
@@ -1839,6 +1860,15 @@ function inventory:equipItem()
         self:showFloatingMessage("This item is already equipped!", {1, 0.5, 0.5, 1})
         assetManager:playSound("hit")
         return
+    end
+    
+    -- Check if item is equipped by another character
+    for _, character in ipairs(GAME.party) do
+        if character ~= self.selectedCharacter and self:isItemEquipped(self.selectedItem, character) then
+            self:showFloatingMessage("This item is equipped by " .. character.name .. "!", {1, 0.5, 0.5, 1})
+            assetManager:playSound("hit")
+            return
+        end
     end
     
     -- Debug output
@@ -2000,6 +2030,11 @@ function inventory:completeEquip(slot)
     -- Equip new item
     self.selectedCharacter.equipment[slot] = self.selectedItem
     
+    -- Ensure the item's slot property matches where it's equipped
+    if slot == "amulet" or slot == "ring" then
+        self.selectedItem.slot = slot
+    end
+    
     -- Add stat bonuses from new item
     if self.selectedItem.attack then
         -- Initialize attack stat if it doesn't exist
@@ -2046,17 +2081,30 @@ function inventory:completeEquip(slot)
     local itemName = self.selectedItem.name or "Unknown Item"
     self:showFloatingMessage(itemName .. " equipped!", {0.2, 1, 0.2, 1})
     
-    -- Remove equipped item from inventory
-    for i, item in ipairs(GAME.inventory) do
-        if item.uniqueId and self.selectedItem.uniqueId and item.uniqueId == self.selectedItem.uniqueId then
-            table.remove(GAME.inventory, i)
-            break
-        end
-    end
+    -- Mark the item as equipped but do NOT remove it from inventory
+    -- This is important for rings and amulets to be visible in the inventory
+    -- and to properly track equipped status
+    self.selectedItem.equippedBy = self.selectedCharacter.name
+    self.selectedItem.equippedSlot = slot
     
     -- Add unequipped item to inventory if exists
     if prevItem then
-        table.insert(GAME.inventory, prevItem)
+        -- Clear equipped status on the previous item
+        prevItem.equippedBy = nil
+        prevItem.equippedSlot = nil
+        
+        -- If the previous item isn't already in inventory, add it
+        local prevItemInInventory = false
+        for _, invItem in ipairs(GAME.inventory) do
+            if prevItem.uniqueId and invItem.uniqueId and prevItem.uniqueId == invItem.uniqueId then
+                prevItemInInventory = true
+                break
+            end
+        end
+        
+        if not prevItemInInventory then
+            table.insert(GAME.inventory, prevItem)
+        end
     end
     
     -- Refresh selected item
