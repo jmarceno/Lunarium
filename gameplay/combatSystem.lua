@@ -182,7 +182,7 @@ function combatSystem:createCombat(party, enemy)
         -- Create UI elements
         createUI = function(self)
             -- Calculate button positions relative to the bottom of the screen
-            local partyHeight = 90 -- Height of the party display section
+            local partyHeight = 110 -- Height of the party display section (increased from 90)
             local buttonY = GAME.height - partyHeight - 50 -- Move buttons up by 50px from party UI
             local buttonSpacing = 10 -- Space between buttons
             local buttonWidth = 150
@@ -669,7 +669,7 @@ function combatSystem:createCombat(party, enemy)
         -- Draw party information
         drawParty = function(self)
             -- Create a background panel at the bottom of the screen
-            local panelHeight = 90
+            local panelHeight = 110 -- Increased from 90
             local panelY = GAME.height - panelHeight
             
             -- Draw panel background
@@ -801,7 +801,7 @@ function combatSystem:createCombat(party, enemy)
         -- Draw combat log
         drawCombatLog = function(self)
             -- Position in bottom right corner, above the party panel
-            local panelHeight = 90 -- Should match party panel height
+            local panelHeight = 110 -- Should match party panel height (increased from 90)
             local logWidth = 260
             local logHeight = 180
             local logX = GAME.width - logWidth - 20 -- 20px margin from right edge
