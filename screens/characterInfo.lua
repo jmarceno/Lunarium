@@ -311,7 +311,7 @@ function characterInfo:createUI()
                 local slots = {
                     {name = "Weapon", key = "weapon"}, {name = "Offhand", key = "offhand"},
                     {name = "Head", key = "head"}, {name = "Body", key = "body"},
-                    {name = "Accessory 1", key = "accessory1"}, {name = "Accessory 2", key = "accessory2"}
+                    {name = "Amulet", key = "amulet"}, {name = "Ring", key = "ring"}
                 }
                 local itemLineHeight = 40 -- Height per item slot
 

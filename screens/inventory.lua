@@ -545,14 +545,14 @@ function inventory:createUI()
                 -- Draw accessory 1 slot
                 love.graphics.setColor(0.7, 0.7, 0.7)
                 love.graphics.print(
-                    "Accessory 1:",
+                    "Amulet:",
                     self.x + 30, self.y + 185
                 )
                 
-                if char.equipment.accessory1 then
+                if char.equipment.amulet then
                     love.graphics.setColor(1, 1, 1)
                     love.graphics.print(
-                        char.equipment.accessory1.name,
+                        char.equipment.amulet.name,
                         self.x + 110, self.y + 185
                     )
                 else
@@ -566,14 +566,14 @@ function inventory:createUI()
                 -- Draw accessory 2 slot
                 love.graphics.setColor(0.7, 0.7, 0.7)
                 love.graphics.print(
-                    "Accessory 2:",
+                    "Ring:",
                     self.x + 30, self.y + 205
                 )
                 
-                if char.equipment.accessory2 then
+                if char.equipment.ring then
                     love.graphics.setColor(1, 1, 1)
                     love.graphics.print(
-                        char.equipment.accessory2.name,
+                        char.equipment.ring.name,
                         self.x + 110, self.y + 205
                     )
                 else
@@ -1909,12 +1909,21 @@ function inventory:equipItem()
             slot = "body"
         elseif self.selectedItem.type == "accessory" then
             -- Find first empty accessory slot or use the first one
-            if not self.selectedCharacter.equipment.accessory1 then
-                slot = "accessory1"
-            elseif not self.selectedCharacter.equipment.accessory2 then
-                slot = "accessory2"
+            if self.selectedItem.slot == "amulet" then
+                slot = "amulet"
+            elseif self.selectedItem.slot == "ring" then
+                slot = "ring"
+            elseif self.selectedItem.slot == "offhand" then
+                slot = "offhand"
             else
-                slot = "accessory1" -- Replace the first accessory if both are filled
+                -- Legacy accessory items with no specific slot
+                if not self.selectedCharacter.equipment.amulet then
+                    slot = "amulet"
+                elseif not self.selectedCharacter.equipment.ring then
+                    slot = "ring"
+                else
+                    slot = "amulet" -- Replace the amulet if both are filled
+                end
             end
         end
         

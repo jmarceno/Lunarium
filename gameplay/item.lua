@@ -27,8 +27,8 @@ itemSystem.EQUIP_SLOT = {
     OFFHAND = "offhand",
     HEAD = "head",
     BODY = "body",
-    ACCESSORY1 = "accessory1",
-    ACCESSORY2 = "accessory2"
+    AMULET = "amulet",
+    RING = "ring"
 }
 
 -- Weapon types
@@ -401,6 +401,104 @@ itemSystem.items = {
             DEX = 10
         },
         jobs = {"Ranger"}
+    },
+    
+    -- Basic amulets and rings
+    CopperAmulet = {
+        name = "Copper Amulet",
+        description = "A simple copper amulet with minor protective properties.",
+        type = "accessory",
+        slot = "amulet",
+        defense = 2,
+        magicDefense = 3,
+        value = 80,
+        requirements = {},
+        jobs = {"Fighter", "Knight", "Mage", "Cleric", "Rogue", "Ranger", "BlackMage", "WhiteMage", "Paladin", "Assassin", "Berserker"}
+    },
+    
+    SilverAmulet = {
+        name = "Silver Amulet",
+        description = "A silver amulet that enhances the wearer's magic abilities.",
+        type = "accessory",
+        slot = "amulet",
+        magicDefense = 5,
+        magicAttack = 3,
+        value = 150,
+        requirements = {},
+        jobs = {"Mage", "Cleric", "BlackMage", "WhiteMage", "Paladin"}
+    },
+    
+    AmuletOfProtection = {
+        name = "Amulet of Protection",
+        description = "An enchanted amulet that provides substantial defense.",
+        type = "accessory",
+        slot = "amulet",
+        defense = 4,
+        magicDefense = 6,
+        value = 250,
+        requirements = {
+            WIS = 8
+        },
+        jobs = {"Fighter", "Knight", "Cleric", "Paladin", "WhiteMage"}
+    },
+    
+    IronRing = {
+        name = "Iron Ring",
+        description = "A simple iron ring that provides minimal protection.",
+        type = "accessory",
+        slot = "ring",
+        defense = 1,
+        value = 50,
+        requirements = {},
+        jobs = {"Fighter", "Knight", "Mage", "Cleric", "Rogue", "Ranger", "BlackMage", "WhiteMage", "Paladin", "Assassin", "Berserker"}
+    },
+    
+    BandOfStrength = {
+        name = "Band of Strength",
+        description = "A ring that enhances the wearer's physical power.",
+        type = "accessory",
+        slot = "ring",
+        attack = 3,
+        value = 120,
+        attributes = {
+            STR = 2
+        },
+        requirements = {
+            STR = 6
+        },
+        jobs = {"Fighter", "Knight", "Paladin", "Berserker"}
+    },
+    
+    MageRing = {
+        name = "Mage Ring",
+        description = "A ring infused with arcane energy that enhances spellcasting.",
+        type = "accessory",
+        slot = "ring",
+        magicAttack = 5,
+        value = 180,
+        attributes = {
+            INT = 2
+        },
+        requirements = {
+            INT = 6
+        },
+        jobs = {"Mage", "BlackMage", "WhiteMage", "Cleric"}
+    },
+    
+    RingOfDexterity = {
+        name = "Ring of Dexterity",
+        description = "A finely crafted ring that improves the wearer's agility.",
+        type = "accessory",
+        slot = "ring",
+        evasion = 5,
+        value = 200,
+        attributes = {
+            DEX = 2
+        },
+        requirements = {
+            DEX = 7
+        },
+        jobs = {"Rogue", "Ranger", "Assassin"}
     },
     
     -- Master equipment

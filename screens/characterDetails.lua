@@ -746,33 +746,33 @@ function characterDetails:createUI()
                 love.graphics.setColor(0.9, 0.9, 0.9)
                 
                 love.graphics.print(
-                    "Accessory 1:",
+                    "Amulet:",
                     self.x + 350, self.y + 170
                 )
                 
-                -- Draw accessory 1 details
-                if char.equipment.accessory1 then
+                -- Draw amulet details
+                if char.equipment.amulet then
                     love.graphics.setFont(screenManager.fonts.small)
                     love.graphics.setColor(1, 1, 1)
                     
                     love.graphics.print(
-                        char.equipment.accessory1.name,
+                        char.equipment.amulet.name,
                         self.x + 450, self.y + 170
                     )
                     
                     -- Print various possible accessory stats
                     local statY = self.y + 190
-                    if char.equipment.accessory1.defense then
+                    if char.equipment.amulet.defense then
                         love.graphics.print(
-                            "Defense: " .. char.equipment.accessory1.defense,
+                            "Defense: " .. char.equipment.amulet.defense,
                             self.x + 450, statY
                         )
                         statY = statY + 20
                     end
                     
-                    if char.equipment.accessory1.magicDefense then
+                    if char.equipment.amulet.magicDefense then
                         love.graphics.print(
-                            "Magic Defense: " .. char.equipment.accessory1.magicDefense,
+                            "Magic Defense: " .. char.equipment.amulet.magicDefense,
                             self.x + 450, statY
                         )
                     end
@@ -786,38 +786,38 @@ function characterDetails:createUI()
                     )
                 end
                 
-                -- Draw accessory 2 slot
+                -- Draw ring slot
                 love.graphics.setFont(screenManager.fonts.medium)
                 love.graphics.setColor(0.9, 0.9, 0.9)
                 
                 love.graphics.print(
-                    "Accessory 2:",
+                    "Ring:",
                     self.x + 50, self.y + 250
                 )
                 
-                -- Draw accessory 2 details
-                if char.equipment.accessory2 then
+                -- Draw ring details
+                if char.equipment.ring then
                     love.graphics.setFont(screenManager.fonts.small)
                     love.graphics.setColor(1, 1, 1)
                     
                     love.graphics.print(
-                        char.equipment.accessory2.name,
+                        char.equipment.ring.name,
                         self.x + 150, self.y + 250
                     )
                     
                     -- Print various possible accessory stats
                     local statY = self.y + 270
-                    if char.equipment.accessory2.defense then
+                    if char.equipment.ring.defense then
                         love.graphics.print(
-                            "Defense: " .. char.equipment.accessory2.defense,
+                            "Defense: " .. char.equipment.ring.defense,
                             self.x + 150, statY
                         )
                         statY = statY + 20
                     end
                     
-                    if char.equipment.accessory2.magicDefense then
+                    if char.equipment.ring.magicDefense then
                         love.graphics.print(
-                            "Magic Defense: " .. char.equipment.accessory2.magicDefense,
+                            "Magic Defense: " .. char.equipment.ring.magicDefense,
                             self.x + 150, statY
                         )
                     end

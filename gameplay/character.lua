@@ -115,8 +115,8 @@ function character:new(name, jobName, attributes, profileIndex, portraitId)
             offhand = nil,
             head = nil,
             body = nil,
-            accessory1 = nil,
-            accessory2 = nil
+            amulet = nil,
+            ring = nil
         },
         inventory = {},
         portraitId = finalPortraitId,
