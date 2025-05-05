@@ -143,7 +143,6 @@ end
 function levelUpScreen:getAvailableLevelUpOptions(character)
     local options = {}
     local currentJob = jobSystem:getJob(character.job)
-    -- currentJob = currentJob:gsub("%s+", "")
     
     if not currentJob then
         print("Error: Could not find job definition for " .. (character.job or "nil"))

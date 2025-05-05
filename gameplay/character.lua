@@ -343,6 +343,7 @@ end
 function character:canChangeJob(char, currentJob, newJob)
     if newJob.requirements then
         for reqJob, reqLevel in pairs(newJob.requirements) do
+            reqJob = reqJob:gsub("(%l)(%u)", "%1 %2")
             -- Check if the required job exists in jobLevels and meets the level
             if not char.jobLevels[reqJob] or char.jobLevels[reqJob] < reqLevel then
                 print("Job change failed: Requires " .. reqJob .. " Lv." .. reqLevel .. ", " .. char.name .. " has Lv." .. (char.jobLevels[reqJob] or 0))
