@@ -65,6 +65,15 @@ function combatSystem:createCombat(party, enemy)
             -- Setup characters and enemy stats
             self:setupCombatants()
             
+            -- Initialize minions tracking
+            self.minions = {}
+            
+            -- Initialize minion turn tracking
+            self.minionsTurnTaken = {}
+            
+            -- Import any existing minions from minionManager
+            self:importExistingMinions()
+            
             -- Determine turn order
             self:determineTurnOrder()
             
@@ -196,6 +205,10 @@ function combatSystem:createCombat(party, enemy)
                     -- Add active minions for this character
                     local charMinions = minionManager:getActiveMinions(character)
                     if charMinions and #charMinions > 0 then
+                        if GAME.debug then
+                            print("Found " .. #charMinions .. " active minions for " .. character.name)
+                        end
+                        
                         for j, minion in ipairs(charMinions) do
                             -- Only add minions that take actions (not passive spirits)
                             if minion.takesActions then
@@ -211,6 +224,31 @@ function combatSystem:createCombat(party, enemy)
                                     self.minions[i] = {}
                                 end
                                 self.minions[i][j] = minion
+                                
+                                if GAME.debug then
+                                    print("Added minion to turn order: " .. minion.name)
+                                end
+                            end
+                        end
+                    end
+                    
+                    -- Also check the local combat minions list for this character
+                    if self.minions[i] then
+                        for j, minion in pairs(self.minions[i]) do
+                            -- Skip if already processed from minionManager
+                            if not minion.processed then
+                                if minion.takesActions and minion.active then
+                                    table.insert(self.turnOrder, {
+                                        type = "minion",
+                                        owner = i, -- Reference to the owner's index in party
+                                        index = j, -- Index in combat's minion array
+                                        speed = minion.speed or 8
+                                    })
+                                    
+                                    if GAME.debug then
+                                        print("Added combat-local minion to turn order: " .. minion.name)
+                                    end
+                                end
                             end
                         end
                     end
@@ -230,6 +268,10 @@ function combatSystem:createCombat(party, enemy)
             table.sort(self.turnOrder, function(a, b)
                 return a.speed > b.speed
             end)
+            
+            if GAME.debug then
+                print("Turn order determined with " .. #self.turnOrder .. " entries")
+            end
         end,
         
         -- Create UI elements
@@ -554,6 +596,13 @@ function combatSystem:createCombat(party, enemy)
             if self.turnEndDelay > 0 then
                 self.turnEndDelay = self.turnEndDelay - dt
                 if self.turnEndDelay <= 0 then
+                    -- Check if we have a pending victory (from minion killing last enemy)
+                    if self.pendingVictory then
+                        self:victory()
+                        return
+                    end
+                    
+                    -- Normal turn progression
                     self:nextTurn()
                 end
                 return
@@ -582,11 +631,8 @@ function combatSystem:createCombat(party, enemy)
                     -- Execute current enemy's turn
                     self:executeEnemyTurn()
                     
-                    -- Move to the next enemy
-                    self.activeEnemyIndex = self.activeEnemyIndex + 1
-                    
-                    -- Check if we've gone through all enemies
-                    if self.activeEnemyIndex > #self.enemies then
+                    -- Check if we need to move to the next enemy
+                    if self.activeEnemyIndex >= #self.enemies then
                         -- We've completed a full cycle of enemies
                         self.enemyTurnDelay = nil
                         self:nextTurn() -- Go to player turn
@@ -610,6 +656,11 @@ function combatSystem:createCombat(party, enemy)
                     -- Execute current minion's turn
                     self:executeMinionTurn()
                     
+                    -- Check for pending victory (minion might have killed last enemy)
+                    if self.pendingVictory then
+                        return
+                    end
+                    
                     -- Move to next turn
                     self.minionTurnDelay = nil
                     self:nextTurn()
@@ -627,7 +678,7 @@ function combatSystem:createCombat(party, enemy)
             if self.state == combatSystem.STATE.VICTORY then
                 self:drawVictoryUI()
                 
-                -- Draw continue button if it exists
+                -- Draw continue button - no need to check if it exists since drawVictoryUI ensures it
                 if self.elements.continueButton then
                     self.elements.continueButton:draw()
                 end
@@ -1075,6 +1126,19 @@ function combatSystem:createCombat(party, enemy)
         
         -- Draw UI for victory state
         drawVictoryUI = function(self)
+            -- Ensure rewards are initialized (safety check)
+            if not self.rewards then
+                -- Initialize default empty rewards if missing
+                self.rewards = {
+                    exp = 0,
+                    loot = {}
+                }
+                
+                if GAME.debug then
+                    print("Warning: Victory UI rendered before rewards were initialized")
+                end
+            end
+
             -- Darken background for readability
             love.graphics.setColor(0, 0, 0, 0.7)
             love.graphics.rectangle("fill", 0, 0, GAME.width, GAME.height)
@@ -1180,7 +1244,24 @@ function combatSystem:createCombat(party, enemy)
                 end
             end
             
-            -- Draw "Click Continue to exit" text instead of "Press Enter"
+            -- Ensure the continue button exists
+            if not self.elements.continueButton then
+                self.elements.continueButton = screenManager.UI.Button(
+                    GAME.width / 2 - 125, GAME.height / 3 + 250,
+                    250, 50, "Continue",
+                    function() return true end
+                )
+            end
+            
+            -- Make sure it's visible
+            self.elements.continueButton.visible = true
+            self.elements.continueButton.color = {0.3, 0.7, 0.3}
+            self.elements.continueButton.hoverColor = {0.4, 0.8, 0.4}
+            
+            -- Draw the continue button explicitly
+            self.elements.continueButton:draw()
+            
+            -- Draw "Click Continue to exit" text
             love.graphics.setFont(screenManager.fonts.medium)
             love.graphics.setColor(1, 1, 1, 0.7 + math.sin(love.timer.getTime() * 4) * 0.3)
             love.graphics.printf(
@@ -1783,6 +1864,24 @@ function combatSystem:createCombat(party, enemy)
             -- Add animation delay
             self.animationDelay = 0.5
             
+            -- Handle summon skills specifically
+            if self.selectedSkill.type == "summon" then
+                -- Play summon sound
+                assetManager:playSound("spell")
+                
+                -- Process the summon
+                local success = self:processSummonSkill(currentChar, self.selectedSkill)
+                
+                if success then
+                    -- Recalculate turn order to include new minion
+                    self:determineTurnOrder()
+                end
+                
+                -- End turn after a short delay
+                self.turnEndDelay = 0.7
+                return
+            end
+            
             -- Special case for Steal skill
             if self.selectedSkill.name == "Steal" then
                 self:executeStealSkill(currentChar)
@@ -2000,6 +2099,16 @@ function combatSystem:createCombat(party, enemy)
                     currentChar.name .. " uses " .. self.selectedSkill.name .. 
                     " on the entire party!",
                     {0.2, 0.8, 0.2}
+                )
+            elseif self.selectedSkill.target == "none" then
+                -- Handle target-less skills (like some summons)
+                -- Play appropriate sound
+                assetManager:playSound("spell")
+                
+                -- Add to combat log
+                self:addLog(
+                    currentChar.name .. " uses " .. self.selectedSkill.name .. "!",
+                    {0.5, 0.5, 1}
                 )
             end
             
@@ -2236,7 +2345,6 @@ function combatSystem:createCombat(party, enemy)
         
         -- Move to next character's turn
         nextTurn = function(self)
-            
             -- Mark the current character's turn as taken
             if self.state == combatSystem.STATE.PLAYER_TURN and 
                self.currentCharacter >= 1 and 
@@ -2244,24 +2352,25 @@ function combatSystem:createCombat(party, enemy)
                 self.charactersTurnTaken[self.currentCharacter] = true
             end
             
-            -- Find next character with an untaken turn
-            local checkIndex = self.currentCharacter + 1
-            if checkIndex > #self.party then checkIndex = 1 end
-            
-            local initialCheck = checkIndex
-            local allTaken = true
-            
-            -- Loop through all characters to find the next one with an untaken turn
-            repeat
-                -- Check if this character is active and hasn't had a turn
-                local canTakeTurn = self.party[checkIndex] and 
-                                   self.party[checkIndex].active and 
-                                   not self.charactersTurnTaken[checkIndex]
+            -- If we're in minion turn, mark the current minion's turn as taken
+            if self.state == combatSystem.STATE.MINION_TURN and self.activeMinion then
+                local charIndex = self.activeMinion.charIndex
+                local minionIndex = self.activeMinion.minionIndex
                 
-                if canTakeTurn then
-                    -- Found a valid next character
-                    self.currentCharacter = checkIndex
-                    allTaken = false
+                if not self.minionsTurnTaken[charIndex] then
+                    self.minionsTurnTaken[charIndex] = {}
+                end
+                
+                self.minionsTurnTaken[charIndex][minionIndex] = true
+            end
+            
+            -- Find next character with an untaken turn
+            local foundCharacter = false
+            for i = 1, #self.party do
+                local idx = (self.currentCharacter + i - 1) % #self.party + 1 -- Cycle through characters starting from current+1
+                if self.party[idx].active and not self.charactersTurnTaken[idx] then
+                    self.currentCharacter = idx
+                    foundCharacter = true
                     self.state = combatSystem.STATE.PLAYER_TURN
                     
                     -- Reset selection state for new character turn
@@ -2291,53 +2400,59 @@ function combatSystem:createCombat(party, enemy)
                     
                     break
                 end
-                
-                -- Check next character
-                checkIndex = checkIndex + 1
-                if checkIndex > #self.party then checkIndex = 1 end
-            until checkIndex == initialCheck
-            
-            -- If all characters have taken their turn, check for minion turns, then enemy turn
-            if allTaken then
-                -- Check if any minions should act
-                local minionTurn = false
-                
-                for i, character in ipairs(self.party) do
-                    if character.active then
-                        local charMinions = minionManager:getActiveMinions(character)
-                        if charMinions and #charMinions > 0 then
-                            for j, minion in ipairs(charMinions) do
-                                if minion.active and minion.takesActions then
-                                    -- Set current minion
-                                    self.activeMinion = {charIndex = i, minionIndex = j}
-                                    minionTurn = true
-                    break
-                end
             end
+            
+            -- If no characters have untaken turns, check for minions with untaken turns
+            if not foundCharacter then
+                local foundMinion = false
+                
+                -- Check for any active minions with untaken turns
+                for charIndex, minions in pairs(self.minions) do
+                    if self.party[charIndex] and self.party[charIndex].active then -- Only consider minions of active characters
+                        for minionIndex, minion in pairs(minions) do
+                            -- Check if minion is active, takes actions, and hasn't had its turn yet
+                            if minion.active and minion.takesActions and 
+                              (not self.minionsTurnTaken[charIndex] or not self.minionsTurnTaken[charIndex][minionIndex]) then
+                                
+                                -- Set active minion
+                                self.activeMinion = {
+                                    charIndex = charIndex,
+                                    minionIndex = minionIndex
+                                }
+                                
+                                foundMinion = true
+                                self.state = combatSystem.STATE.MINION_TURN
+                                
+                                -- Initialize minion turn delay
+                                self.minionTurnDelay = 0.8
+                                
+                                -- Add log entry
+                                self:addLog(minion.name .. "'s turn begins", {0.5, 0.7, 1})
+                                
+                                break
+                            end
                         end
-                        if minionTurn then break end
+                        if foundMinion then break end
                     end
                 end
                 
-                if minionTurn then
-                    -- Set state to minion turn
-                    self.state = combatSystem.STATE.MINION_TURN
-                else
+                -- If all characters and minions have taken turns, move to enemy turn
+                if not foundMinion then
                     -- Check if all party members are inactive
                     local allInactive = true
-            for _, character in ipairs(self.party) do
-                if character.active then
+                    for _, character in ipairs(self.party) do
+                        if character.active then
                             allInactive = false
-                    break
-                end
-            end
-            
+                            break
+                        end
+                    end
+                    
                     if allInactive then
                         -- All party members are defeated
                         self:partyDefeated()
-                return
-            end
-            
+                        return
+                    end
+                    
                     -- No minions to act, proceed to enemy turn
                     self.state = combatSystem.STATE.ENEMY_TURN
                     
@@ -2347,13 +2462,20 @@ function combatSystem:createCombat(party, enemy)
                     -- Reset player turns for the next round
                     for i = 1, #self.party do
                         self.charactersTurnTaken[i] = false
+                    end
+                    
+                    -- Reset minion turns for the next round
+                    for charIndex, turnData in pairs(self.minionsTurnTaken) do
+                        for minionIndex, _ in pairs(turnData) do
+                            self.minionsTurnTaken[charIndex][minionIndex] = false
+                        end
+                    end
                 end
-            end
             end
             
             -- Move to the next enemy's turn (if we're in enemy state)
             if self.state == combatSystem.STATE.ENEMY_TURN then
-            self.activeEnemyIndex = (self.activeEnemyIndex % #self.enemies) + 1
+                self.activeEnemyIndex = 1  -- Start with the first enemy
             end
         end,
         
@@ -2445,13 +2567,32 @@ function combatSystem:createCombat(party, enemy)
         mousepressed = function(self, x, y, button)
             -- Check if combat is over
             if self:isOver() then
-                if button == 1 and self.elements.continueButton and
-                   self.elements.continueButton.visible and
-                   x >= self.elements.continueButton.x and
-                   x <= self.elements.continueButton.x + self.elements.continueButton.width and
-                   y >= self.elements.continueButton.y and
-                   y <= self.elements.continueButton.y + self.elements.continueButton.height then
-                    -- Exit combat when continue button is clicked
+                if button == 1 and self.elements.continueButton then
+                    -- Check continue button explicitly
+                    if self.elements.continueButton:clicked(x, y, button) then
+                        if GAME.debug then
+                            print("Continue button clicked, returning true to exit combat")
+                        end
+                        return true
+                    end
+                    
+                    -- Also check if coordinates are within the button bounds
+                    if x >= self.elements.continueButton.x and
+                       x <= self.elements.continueButton.x + self.elements.continueButton.width and
+                       y >= self.elements.continueButton.y and
+                       y <= self.elements.continueButton.y + self.elements.continueButton.height then
+                        if GAME.debug then
+                            print("Clicked in continue button bounds, returning true to exit combat")
+                        end
+                        return true
+                    end
+                end
+                
+                -- TEMPORARY FIX: Exit combat on any click in victory state
+                if self.state == combatSystem.STATE.VICTORY and button == 1 then
+                    if GAME.debug then
+                        print("TEMPORARY FIX: Exiting combat on any click during victory state")
+                    end
                     return true
                 end
                 
@@ -2540,66 +2681,171 @@ function combatSystem:createCombat(party, enemy)
             local slotY = 150
             local slotSpacing = 10
             
+            -- Track how many minions we've drawn
+            local minionsDrawn = 0
+            
             -- Draw each minion slot
             for i, character in ipairs(self.party) do
                 if character.active then
+                    -- Check for minions in the local combat minions list
+                    if self.minions[i] then
+                        for j, minion in pairs(self.minions[i]) do
+                            if minion.active then
+                                minionsDrawn = minionsDrawn + 1
+                                local yPos = slotY + ((minionsDrawn - 1) * (slotHeight + slotSpacing))
+                                
+                                -- Draw background based on minion type
+                                if minion.type == "undead" then
+                                    love.graphics.setColor(0.3, 0.1, 0.3, 0.8) -- Dark purple
+                                elseif minion.type == "elemental" then
+                                    if minion.element == "fire" then
+                                        love.graphics.setColor(0.8, 0.2, 0.1, 0.8) -- Red
+                                    elseif minion.element == "water" then
+                                        love.graphics.setColor(0.1, 0.3, 0.8, 0.8) -- Blue
+                                    elseif minion.element == "earth" then
+                                        love.graphics.setColor(0.5, 0.3, 0.1, 0.8) -- Brown
+                                    elseif minion.element == "air" then
+                                        love.graphics.setColor(0.7, 0.7, 0.9, 0.8) -- Light blue
+                                    else
+                                        love.graphics.setColor(0.2, 0.4, 0.8, 0.8) -- Default blue
+                                    end
+                                elseif minion.type == "spirit" then
+                                    love.graphics.setColor(0.5, 0.8, 0.5, 0.8) -- Green
+                                else
+                                    love.graphics.setColor(0.3, 0.3, 0.3, 0.8) -- Gray default
+                                end
+                                
+                                -- Draw slot background
+                                love.graphics.rectangle("fill", slotX, yPos, slotWidth, slotHeight, 5, 5)
+                                
+                                -- Highlight active minion if it's their turn
+                                if self.state == combatSystem.STATE.MINION_TURN and 
+                                   self.activeMinion and 
+                                   self.activeMinion.charIndex == i and 
+                                   self.activeMinion.minionIndex == j then
+                                    love.graphics.setColor(1, 1, 0.5, 0.4)
+                                    love.graphics.rectangle("fill", slotX - 2, yPos - 2, slotWidth + 4, slotHeight + 4, 5, 5)
+                                end
+                                
+                                -- Draw border
+                                love.graphics.setColor(0.7, 0.7, 0.7)
+                                love.graphics.rectangle("line", slotX, yPos, slotWidth, slotHeight, 5, 5)
+                                
+                                -- Draw name
+                                love.graphics.setFont(screenManager.fonts.small)
+                                love.graphics.setColor(1, 1, 1)
+                                love.graphics.print(minion.name, slotX + 5, yPos + 5)
+                                
+                                -- Draw HP bar
+                                local hpBarWidth = slotWidth - 10
+                                local hpBarHeight = 8
+                                local hpPercent = minion.currentHP / minion.maxHP
+                                
+                                -- HP bar background
+                                love.graphics.setColor(0.2, 0.2, 0.2)
+                                love.graphics.rectangle("fill", slotX + 5, yPos + 22, hpBarWidth, hpBarHeight)
+                                
+                                -- HP bar fill
+                                love.graphics.setColor(0.2, 0.8, 0.2)
+                                love.graphics.rectangle("fill", slotX + 5, yPos + 22, hpBarWidth * hpPercent, hpBarHeight)
+                                
+                                -- Draw stats - use small font instead of tiny
+                                love.graphics.setFont(screenManager.fonts.small)
+                                love.graphics.setColor(1, 1, 1)
+                                love.graphics.print("HP: " .. math.floor(minion.currentHP) .. "/" .. math.floor(minion.maxHP), 
+                                    slotX + 5, yPos + 33)
+                                    
+                                -- Draw attack power or other relevant stat
+                                if minion.attackPower then
+                                    love.graphics.print("ATK: " .. math.floor(minion.attackPower), 
+                                        slotX + 5, yPos + 45)
+                                elseif minion.magicPower then
+                                    love.graphics.print("MAG: " .. math.floor(minion.magicPower), 
+                                        slotX + 5, yPos + 45)
+                                end
+
+                                -- Draw status (active/inactive/buff)
+                                love.graphics.setColor(1, 1, 1)
+                                if minion.takesActions then
+                                    love.graphics.print("Combat", slotX + 5, yPos + 57)
+                                else
+                                    love.graphics.print("Passive", slotX + 5, yPos + 57)
+                                end
+                            end
+                        end
+                    end
+                    
+                    -- Also check minions from the minionManager
                     local charMinions = minionManager:getActiveMinions(character)
                     if charMinions and #charMinions > 0 then
                         for j, minion in ipairs(charMinions) do
-                            local yPos = slotY + ((j - 1) * (slotHeight + slotSpacing))
-                            
-                            -- Draw background based on minion type
-                            if minion.type == "undead" then
-                                love.graphics.setColor(0.3, 0.1, 0.3, 0.8) -- Dark purple
-                            elseif minion.type == "elemental" then
-                                love.graphics.setColor(0.2, 0.4, 0.8, 0.8) -- Blue
-                            elseif minion.type == "spirit" then
-                                love.graphics.setColor(0.5, 0.8, 0.5, 0.8) -- Green
-                            else
-                                love.graphics.setColor(0.3, 0.3, 0.3, 0.8) -- Gray default
-                            end
-                            
-                            -- Draw slot background
-                            love.graphics.rectangle("fill", slotX, yPos, slotWidth, slotHeight, 5, 5)
-                            
-                            -- Draw border
-                            love.graphics.setColor(0.7, 0.7, 0.7)
-                            love.graphics.rectangle("line", slotX, yPos, slotWidth, slotHeight, 5, 5)
-                            
-                            -- Draw name
-                            love.graphics.setFont(screenManager.fonts.small)
-                            love.graphics.setColor(1, 1, 1)
-                            love.graphics.print(minion.name, slotX + 5, yPos + 5)
-                            
-                            -- Draw HP bar
-                            local hpBarWidth = slotWidth - 10
-                            local hpBarHeight = 8
-                            local hpPercent = minion.currentHP / minion.maxHP
-                            
-                            -- HP bar background
-                            love.graphics.setColor(0.2, 0.2, 0.2)
-                            love.graphics.rectangle("fill", slotX + 5, yPos + 22, hpBarWidth, hpBarHeight)
-                            
-                            -- HP bar fill
-                            love.graphics.setColor(0.2, 0.8, 0.2)
-                            love.graphics.rectangle("fill", slotX + 5, yPos + 22, hpBarWidth * hpPercent, hpBarHeight)
-                            
-                            -- Draw stats
-                            love.graphics.setFont(screenManager.fonts.tiny)
-                            love.graphics.setColor(1, 1, 1)
-                            love.graphics.print("HP: " .. math.floor(minion.currentHP) .. "/" .. math.floor(minion.maxHP), 
-                                slotX + 5, yPos + 35)
-
-                            -- Draw status (active/inactive/buff)
-                            love.graphics.setColor(1, 1, 1)
-                            if minion.takesActions then
-                                love.graphics.print("Combat", slotX + 5, yPos + 50)
-                            else
-                                love.graphics.print("Passive", slotX + 5, yPos + 50)
+                            -- Don't draw if already drawn from combat minions
+                            if not self.minions[i] or not self.minions[i][j] then
+                                if minion.active then
+                                    minionsDrawn = minionsDrawn + 1
+                                    local yPos = slotY + ((minionsDrawn - 1) * (slotHeight + slotSpacing))
+                                    
+                                    -- Draw background based on minion type
+                                    if minion.type == "undead" then
+                                        love.graphics.setColor(0.3, 0.1, 0.3, 0.8) -- Dark purple
+                                    elseif minion.type == "elemental" then
+                                        love.graphics.setColor(0.2, 0.4, 0.8, 0.8) -- Blue
+                                    elseif minion.type == "spirit" then
+                                        love.graphics.setColor(0.5, 0.8, 0.5, 0.8) -- Green
+                                    else
+                                        love.graphics.setColor(0.3, 0.3, 0.3, 0.8) -- Gray default
+                                    end
+                                    
+                                    -- Draw slot background
+                                    love.graphics.rectangle("fill", slotX, yPos, slotWidth, slotHeight, 5, 5)
+                                    
+                                    -- Draw border
+                                    love.graphics.setColor(0.7, 0.7, 0.7)
+                                    love.graphics.rectangle("line", slotX, yPos, slotWidth, slotHeight, 5, 5)
+                                    
+                                    -- Draw name
+                                    love.graphics.setFont(screenManager.fonts.small)
+                                    love.graphics.setColor(1, 1, 1)
+                                    love.graphics.print(minion.name, slotX + 5, yPos + 5)
+                                    
+                                    -- Draw HP bar
+                                    local hpBarWidth = slotWidth - 10
+                                    local hpBarHeight = 8
+                                    local hpPercent = minion.currentHP / minion.maxHP
+                                    
+                                    -- HP bar background
+                                    love.graphics.setColor(0.2, 0.2, 0.2)
+                                    love.graphics.rectangle("fill", slotX + 5, yPos + 22, hpBarWidth, hpBarHeight)
+                                    
+                                    -- HP bar fill
+                                    love.graphics.setColor(0.2, 0.8, 0.2)
+                                    love.graphics.rectangle("fill", slotX + 5, yPos + 22, hpBarWidth * hpPercent, hpBarHeight)
+                                    
+                                    -- Draw stats - use small font instead of tiny
+                                    love.graphics.setFont(screenManager.fonts.small)
+                                    love.graphics.setColor(1, 1, 1)
+                                    love.graphics.print("HP: " .. math.floor(minion.currentHP) .. "/" .. math.floor(minion.maxHP), 
+                                        slotX + 5, yPos + 33)
+                                        
+                                    -- Draw status (active/inactive/buff)
+                                    love.graphics.setColor(1, 1, 1)
+                                    if minion.takesActions then
+                                        love.graphics.print("Combat", slotX + 5, yPos + 45)
+                                    else
+                                        love.graphics.print("Passive", slotX + 5, yPos + 45)
+                                    end
+                                end
                             end
                         end
                     end
                 end
+            end
+            
+            -- If there are no minions, draw a message
+            if minionsDrawn == 0 and GAME.debug then
+                love.graphics.setColor(0.7, 0.7, 0.7, 0.5)
+                love.graphics.setFont(screenManager.fonts.small)
+                love.graphics.print("No active minions", slotX, slotY)
             end
         end,
 
@@ -2646,6 +2892,26 @@ function combatSystem:createCombat(party, enemy)
                 end
             end
             
+            -- Add required additional properties for battle
+            summonStats.active = true
+            summonStats.takesActions = true  -- Most summons take actions in battle
+            summonStats.type = skillData.summonType  -- Ensure type is set for UI rendering
+            summonStats.element = skillData.element   -- Set element if applicable
+            
+            -- Make sure currentHP is set to maxHP initially
+            summonStats.currentHP = summonStats.maxHP
+            
+            -- Ensure abilities array exists
+            if not summonStats.abilities then
+                summonStats.abilities = {}
+            end
+            
+            -- Set owner info
+            summonStats.owner = {
+                name = character.name,
+                index = self.currentCharacter  -- Store the character index for reference
+            }
+            
             -- Create the minion
             local minion = minionManager:summonMinion(
                 character,
@@ -2655,33 +2921,75 @@ function combatSystem:createCombat(party, enemy)
                 duration
             )
             
+            if GAME.debug then
+                print("Summoned minion: " .. minion.name)
+                print("  Type: " .. (minion.type or "none"))
+                print("  takesActions: " .. tostring(minion.takesActions))
+                print("  HP: " .. minion.currentHP .. "/" .. minion.maxHP)
+                if minion.abilities and #minion.abilities > 0 then
+                    print("  Abilities: " .. table.concat(minion.abilities, ", "))
+                end
+            end
+            
             -- Add log message
-            self:addLog(character.name .. " summoned " .. minion.name .. "!")
+            self:addLog(character.name .. " summoned " .. minion.name .. "!", {0.5, 0.8, 1})
             
-            -- Play effect animation
-            -- TODO: Add summon effect animations
+            -- Update the current combat's minion list
+            if not self.minions[self.currentCharacter] then
+                self.minions[self.currentCharacter] = {}
+            end
             
+            -- Add to minions list for this combat
+            table.insert(self.minions[self.currentCharacter], minion)
+            local newMinionIndex = #self.minions[self.currentCharacter]
+            
+            -- Initialize turn tracking for this minion
+            if not self.minionsTurnTaken then
+                self.minionsTurnTaken = {}
+            end
+            
+            if not self.minionsTurnTaken[self.currentCharacter] then
+                self.minionsTurnTaken[self.currentCharacter] = {}
+            end
+            
+            -- Mark that the minion hasn't taken a turn yet
+            self.minionsTurnTaken[self.currentCharacter][newMinionIndex] = false
+            
+            -- Recalculate turn order to include the new minion
+            self:determineTurnOrder()
+            
+            -- Return success
             return true
         end,
         
         -- Execute minion turn
         executeMinionTurn = function(self)
-            if not self.activeMinion then return end
+            if not self.activeMinion then
+                if GAME.debug then
+                    print("No active minion for turn execution")
+                end
+                return
+            end
             
             local charIndex = self.activeMinion.charIndex
             local minionIndex = self.activeMinion.minionIndex
             
-            if not self.party[charIndex] or not self.minions[charIndex] or not self.minions[charIndex][minionIndex] then
+            if not self.party[charIndex] or 
+               not self.minions[charIndex] or 
+               not self.minions[charIndex][minionIndex] then
                 -- Invalid minion, skip turn
+                if GAME.debug then
+                    print("Invalid minion references, skipping turn")
+                end
                 return
             end
             
             local minion = self.minions[charIndex][minionIndex]
             
             -- Add log entry
-            self:addLog(minion.name .. " is taking its turn...", {0.5, 0.7, 1})
+            self:addLog(minion.name .. " takes its turn!", {0.5, 0.7, 1})
             
-            -- Simple AI for minion - select a random enemy to attack if active
+            -- Process minion turn if active
             if minion.active and #self.enemies > 0 then
                 -- Find active enemies
                 local activeEnemies = {}
@@ -2696,53 +3004,69 @@ function combatSystem:createCombat(party, enemy)
                     local targetIndex = activeEnemies[math.random(#activeEnemies)]
                     local target = self.enemies[targetIndex]
                     
-                    -- Use minion ability or basic attack
+                    -- Determine if using ability or basic attack
+                    local usingAbility = false
+                    local abilityName = nil
+                    local damage = 0
+                    
                     if minion.abilities and #minion.abilities > 0 and math.random() > 0.4 then
                         -- Use random ability
-                        local ability = minion.abilities[math.random(#minion.abilities)]
-                        local abilityData = skillSystem:getSkill(ability)
+                        abilityName = minion.abilities[math.random(#minion.abilities)]
+                        local abilityData = skillSystem:getSkill(abilityName)
                         
                         if abilityData then
-                            self:addLog(minion.name .. " uses " .. ability .. "!")
+                            usingAbility = true
                             
                             -- Calculate damage based on ability type
-                            local damage = 0
                             if abilityData.type == "physical" then
-                                damage = minion.attackPower * (abilityData.basePower / 100)
+                                damage = (minion.attackPower or 10) * (abilityData.basePower / 100)
                             elseif abilityData.type == "magical" then
-                                damage = minion.magicPower * (abilityData.basePower / 100)
+                                damage = (minion.magicPower or 10) * (abilityData.basePower / 100)
+                            else
+                                damage = minion.attackPower or 10 -- Default to attack power for other types
                             end
                             
-                            -- Apply damage directly to target
-                            target.currentHP = math.max(0, target.currentHP - damage)
-                            
-                            -- Add to combat log
-                            self:addLog(minion.name .. " deals " .. math.floor(damage) .. " damage to " .. target.name .. "!")
-                        else
-                            -- Fallback to basic attack
-                            self:addLog(minion.name .. " attacks " .. target.name .. "!")
-                            local damage = minion.attackPower
-                            
-                            -- Apply damage directly to target
-                            target.currentHP = math.max(0, target.currentHP - damage)
-                            
-                            -- Add to combat log
-                            self:addLog(minion.name .. " deals " .. math.floor(damage) .. " damage to " .. target.name .. "!")
+                            -- Ensure reasonable damage
+                            damage = math.max(1, math.floor(damage))
                         end
-                    else
-                        -- Basic attack
-                        self:addLog(minion.name .. " attacks " .. target.name .. "!")
-                        local damage = minion.attackPower
+                    end
+                    
+                    if usingAbility then
+                        -- Execute ability
+                        self:addLog(minion.name .. " uses " .. abilityName .. " on " .. target.name .. "!", {0.6, 0.6, 1})
                         
-                        -- Apply damage directly to target
+                        -- Apply damage
                         target.currentHP = math.max(0, target.currentHP - damage)
                         
-                        -- Add to combat log
-                        self:addLog(minion.name .. " deals " .. math.floor(damage) .. " damage to " .. target.name .. "!")
+                        -- Log damage
+                        self:addLog(target.name .. " takes " .. damage .. " damage!", {1, 0.6, 0.6})
+                        
+                        -- Play appropriate sound
+                        assetManager:playSound("spell")
+                    else
+                        -- Execute basic attack
+                        self:addLog(minion.name .. " attacks " .. target.name .. "!", {0.7, 0.7, 0.7})
+                        
+                        -- Calculate basic attack damage
+                        damage = minion.attackPower or 10
+                        if target.defense then
+                            damage = math.max(1, damage - (target.defense / 3))
+                        end
+                        damage = math.floor(damage)
+                        
+                        -- Apply damage
+                        target.currentHP = math.max(0, target.currentHP - damage)
+                        
+                        -- Log damage
+                        self:addLog(target.name .. " takes " .. damage .. " damage!", {1, 0.6, 0.6})
+                        
+                        -- Play attack sound
+                        assetManager:playSound("attack")
                     end
                     
                     -- Check if enemy was defeated
                     if target.currentHP <= 0 then
+                        target.currentHP = 0
                         target.active = false
                         self:addLog(target.name .. " was defeated!", {0, 1, 0})
                         
@@ -2756,11 +3080,43 @@ function combatSystem:createCombat(party, enemy)
                         end
                         
                         if allDefeated then
-                            self:victory()
+                            -- Add delay before triggering victory to show final messages
+                            self:addLog("All enemies have been defeated!", {0, 1, 0.2})
+                            
+                            -- Calculate rewards BEFORE setting victory state
+                            self:calculateVictoryRewards()
+                            
+                            -- Set state directly to victory instead of continuing turn processing
+                            self.state = combatSystem.STATE.VICTORY
+                            
+                            -- Use a short delay before showing victory screen
+                            self.animationDelay = 1.0
+                            
+                            -- Trigger victory directly with a delay
+                            self.turnEndDelay = 0.2
+                            
+                            -- We'll need a custom function to handle this delayed victory
+                            self.pendingVictory = true
+                            
+                            -- Important: Return immediately to prevent further turn processing
+                            return
                         end
                     end
+                else
+                    -- No active enemies
+                    self:addLog(minion.name .. " has no targets.", {0.7, 0.7, 0.7})
+                end
+            else
+                -- Minion can't act
+                if not minion.active then
+                    self:addLog(minion.name .. " is inactive and can't take a turn.", {0.5, 0.5, 0.5})
+                elseif #self.enemies == 0 then
+                    self:addLog(minion.name .. " has no enemies to target.", {0.5, 0.5, 0.5})
                 end
             end
+            
+            -- Add delay before next turn
+            self.turnEndDelay = 0.7
         end,
 
         -- Handle victory state
@@ -2768,35 +3124,10 @@ function combatSystem:createCombat(party, enemy)
             -- Set victory state immediately to block any other processing
             self.state = combatSystem.STATE.VICTORY
             
-            -- Flag to track if rewards were already calculated
-            if self.rewardsCalculated then
-                if GAME.debug then
-                    print("Prevented duplicate rewards calculation")
-                end
-                return
-            end
-            
-            self.rewardsCalculated = true
+            -- Calculate rewards (safe to call multiple times due to the rewardsCalculated check)
+            self:calculateVictoryRewards()
             
             self:addLog("All enemies defeated!", {0, 1, 0})
-            
-            -- Calculate total rewards from all enemies
-            self.rewards = {
-                exp = 0,
-                loot = {}
-            }
-            
-            -- Sum up experience and generate loot from all enemies
-            for _, enemy in ipairs(self.enemies) do
-                -- Add experience
-                self.rewards.exp = self.rewards.exp + (enemy.stats.level * 100)
-                
-                -- Generate loot for each enemy and add to the total
-                local enemyLoot = itemSystem:generateRandomLoot(enemy.stats.level)
-                for _, item in ipairs(enemyLoot) do
-                    table.insert(self.rewards.loot, item)
-                end
-            end
             
             -- Grant experience to party members
             for _, character in ipairs(self.party) do
@@ -2839,51 +3170,66 @@ function combatSystem:createCombat(party, enemy)
             local enemy = self.enemies[self.activeEnemyIndex]
             if not enemy or not enemy.active then
                 -- Skip the turn if the enemy is inactive
-                return
-            end
-            
-            -- Check if all party members are inactive, transition to defeat if so
-            local allInactive = true
-            for _, character in ipairs(self.party) do
-                if character.active then
-                    allInactive = false
-                    break
+                if self.activeEnemyIndex < #self.enemies then
+                    -- Try the next enemy
+                    self.activeEnemyIndex = self.activeEnemyIndex + 1
+                    return
+                else
+                    -- No more enemies to act
+                    self:nextTurn()
+                    return
                 end
             end
             
-            if allInactive then
+            -- Check for valid targets (party members and minions)
+            local validTargets = {}
+            
+            -- Add active party members to valid targets
+            for i, character in ipairs(self.party) do
+                if character.active then
+                    table.insert(validTargets, { type = "player", index = i })
+                end
+            end
+            
+            -- Add active minions to valid targets
+            for charIndex, minions in pairs(self.minions) do
+                for minionIndex, minion in pairs(minions) do
+                    if minion.active then
+                        table.insert(validTargets, { 
+                            type = "minion", 
+                            charIndex = charIndex, 
+                            minionIndex = minionIndex 
+                        })
+                    end
+                end
+            end
+            
+            -- If no valid targets, party must be defeated
+            if #validTargets == 0 then
                 self:partyDefeated()
                 return
             end
             
-            -- Find a valid target (any active party member)
-            local validTargets = {}
-            for i, character in ipairs(self.party) do
-                if character.active then
-                    table.insert(validTargets, i)
-                end
-            end
+            -- Select a random target from valid targets
+            local targetInfo = validTargets[math.random(#validTargets)]
+            local targetName = ""
+            local damage = 0
             
-            if #validTargets > 0 then
-                -- Select a random target
-                local targetIndex = validTargets[math.random(#validTargets)]
-                local target = self.party[targetIndex]
+            if targetInfo.type == "player" then
+                -- Target is a player character
+                local target = self.party[targetInfo.index]
+                targetName = target.name
                 
-                -- Calculate damage using explicit values
+                -- Calculate damage
                 local attackPower = enemy.attackPower or enemy.stats.attack or 10
                 local defense = target.defense or 5
                 
-                -- Basic damage calculation with explicit values
-                local damage = math.floor(attackPower - (defense / 2))
-                
-                -- Ensure minimum damage
-                if damage < 1 then damage = 1 end
+                -- Basic damage calculation
+                damage = math.floor(attackPower - (defense / 2))
+                damage = math.max(1, damage) -- Ensure minimum damage
                 
                 -- Apply damage to character
-                target.currentHP = target.currentHP - damage
-                
-                -- Add to combat log
-                self:addLog(enemy.name .. " attacks " .. target.name .. " for " .. damage .. " damage!", {1, 0.5, 0.5})
+                target.currentHP = math.max(0, target.currentHP - damage)
                 
                 -- Check if character is defeated
                 if target.currentHP <= 0 then
@@ -2904,14 +3250,49 @@ function combatSystem:createCombat(party, enemy)
                     
                     if allDefeated then
                         self:partyDefeated()
+                        return
                     end
                 end
-            else
-                -- No valid targets, enemy does nothing
-                self:addLog(enemy.name .. " has no valid target!", {1, 0.5, 0.5})
+            elseif targetInfo.type == "minion" then
+                -- Target is a minion
+                local minion = self.minions[targetInfo.charIndex][targetInfo.minionIndex]
+                targetName = minion.name
                 
-                -- Since there are no valid targets, the party must be defeated
-                self:partyDefeated()
+                -- Calculate damage
+                local attackPower = enemy.attackPower or enemy.stats.attack or 10
+                local defense = minion.defense or 5
+                
+                -- Basic damage calculation
+                damage = math.floor(attackPower - (defense / 2))
+                damage = math.max(1, damage) -- Ensure minimum damage
+                
+                -- Apply damage to minion
+                minion.currentHP = math.max(0, minion.currentHP - damage)
+                
+                -- Check if minion is defeated
+                if minion.currentHP <= 0 then
+                    minion.currentHP = 0
+                    minion.active = false
+                    
+                    -- Add to combat log
+                    self:addLog(minion.name .. " is defeated!", {1, 0.3, 0.3})
+                end
+            end
+            
+            -- Add to combat log
+            self:addLog(enemy.name .. " attacks " .. targetName .. " for " .. damage .. " damage!", {1, 0.5, 0.5})
+            
+            -- Play attack sound
+            assetManager:playSound("attack")
+            
+            -- Increment to next enemy or move to next turn
+            self.activeEnemyIndex = self.activeEnemyIndex + 1
+            if self.activeEnemyIndex > #self.enemies then
+                -- All enemies have acted, move to next turn
+                self.enemyTurnDelay = 0.5
+            else
+                -- More enemies to act, set delay for the next enemy
+                self.enemyTurnDelay = 0.7
             end
         end,
         
@@ -2944,6 +3325,83 @@ function combatSystem:createCombat(party, enemy)
                 self:victory()
             end
         end,
+        
+        -- Import existing minions from minionManager
+        importExistingMinions = function(self)
+            for i, character in ipairs(self.party) do
+                -- Get minions from minionManager
+                local charMinions = minionManager:getActiveMinions(character)
+                
+                if charMinions and #charMinions > 0 then
+                    if GAME.debug then
+                        print("Importing " .. #charMinions .. " existing minions for " .. character.name)
+                    end
+                    
+                    -- Initialize this character's minion tracking
+                    self.minions[i] = {}
+                    self.minionsTurnTaken[i] = {}
+                    
+                    -- Add each minion
+                    for j, minion in ipairs(charMinions) do
+                        -- Ensure minion has required combat properties
+                        minion.active = true
+                        minion.takesActions = (minion.takesActions ~= false) -- Default to true unless explicitly false
+                        
+                        if minion.currentHP == nil then
+                            minion.currentHP = minion.maxHP
+                        end
+                        
+                        -- Store minion reference
+                        self.minions[i][j] = minion
+                        self.minionsTurnTaken[i][j] = false
+                        
+                        if GAME.debug then
+                            print("Imported minion: " .. minion.name)
+                            print("  HP: " .. minion.currentHP .. "/" .. minion.maxHP)
+                            print("  Takes actions: " .. tostring(minion.takesActions))
+                        end
+                    end
+                end
+            end
+        end,
+        
+        -- Calculate victory rewards
+        calculateVictoryRewards = function(self)
+            -- Skip if rewards were already calculated
+            if self.rewardsCalculated then
+                if GAME.debug then
+                    print("Rewards already calculated, skipping")
+                end
+                return
+            end
+            
+            -- Mark that rewards have been calculated
+            self.rewardsCalculated = true
+            
+            -- Initialize rewards structure
+            self.rewards = {
+                exp = 0,
+                loot = {}
+            }
+            
+            -- Sum up experience and generate loot from all enemies
+            for _, enemy in ipairs(self.enemies) do
+                -- Add experience
+                self.rewards.exp = self.rewards.exp + (enemy.stats.level * 100)
+                
+                -- Generate loot for each enemy and add to the total
+                local enemyLoot = itemSystem:generateRandomLoot(enemy.stats.level)
+                for _, item in ipairs(enemyLoot) do
+                    table.insert(self.rewards.loot, item)
+                end
+            end
+            
+            if GAME.debug then
+                print("Victory rewards calculated:")
+                print("  Experience: " .. self.rewards.exp)
+                print("  Loot items: " .. #self.rewards.loot)
+            end
+        end,
     }
     
     -- Initialize combat
@@ -2953,3 +3411,4 @@ function combatSystem:createCombat(party, enemy)
 end
 
 return combatSystem
+
