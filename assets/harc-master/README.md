@@ -1,1 +1,0 @@
-# Hardware Accelerated Raycaster - harc

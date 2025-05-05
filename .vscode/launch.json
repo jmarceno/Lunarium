@@ -1,0 +1,17 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug LÖVE",
+            "type": "lua-local",
+            "request": "launch",
+            "program": {
+                "command": "C:/Program Files/LOVE/love.exe"
+            },
+            "args": [
+                "D:/DC_Lua_Vibe"
+            ],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
