@@ -388,15 +388,7 @@ function dungeon:init()
             love.graphics.setFont(screenManager.fonts.large)
             love.graphics.printf("Quest Log", self.x, self.y + 10, self.width, "center")
             
-            -- Display Current Quest
-            if GAME.debug then
-                print("Drawing Quest Log Panel. dungeon.currentQuest is:", dungeon.currentQuest)
-                if dungeon.currentQuest then
-                    print("  Quest Name:", dungeon.currentQuest.name)
-                    print("  Quest Desc:", dungeon.currentQuest.description)
-                end
-            end
-            
+             
             love.graphics.setFont(screenManager.fonts.medium)
             if dungeon.currentQuest then
                 love.graphics.setColor(1, 1, 0)
@@ -1121,8 +1113,6 @@ function dungeon:checkEntityInteraction()
                 end
                 break
             elseif entity.type == "entrance" then
-                print("Interacting with entrance...")
-                
                 -- Check if this is an EXPLORE quest and the objective was reached
                 if self.currentQuest and self.currentQuest.type == "EXPLORE" and self.objective.reached then
                     -- Show different message for completed objective
@@ -1256,19 +1246,9 @@ function dungeon:draw()
         self.elements.confirmDialog:draw()
     end
     
-    -- Draw debugging information if enabled
-    if GAME.debug then
-        love.graphics.setColor(1, 1, 0)
-        love.graphics.setFont(screenManager.fonts.small)
-        love.graphics.print("State: " .. self.state, 10, GAME.height - 20)
-    end
 end
 
 function dungeon:keypressed(key, scancode, isrepeat)
-    -- Exit to console shortcut (for debugging only)
-    if key == '`' and GAME.debug then
-        return false -- Let base game handle console
-    end
 
     -- Toggle texture rendering for debugging
     if key == 't' and GAME.debug then
@@ -1357,13 +1337,11 @@ function dungeon:keypressed(key, scancode, isrepeat)
                     self.state = STATES.EXPLORING
                     self.combat = nil
                     -- Reset kill quest notification flag AFTER victory if no level up occurs
-                    self.killQuestNotificationShown = false
-                    if GAME.debug then print("Combat over (Victory - Key), no level up, returning to dungeon") end
+                    self.killQuestNotificationShown = false                    
                 end
 
             else
                 -- Handle defeat
-                if GAME.debug then print("Combat over (Defeat - Key), returning to town") end
                 self:failQuest()
             end
             return true -- Indicate keypress was handled and led to state change
@@ -1451,13 +1429,11 @@ function dungeon:mousepressed(x, y, button, istouch, presses)
                     self.state = STATES.EXPLORING
                     self.combat = nil
                     -- Reset kill quest notification flag AFTER victory if no level up occurs
-                    self.killQuestNotificationShown = false
-                    if GAME.debug then print("Combat over (Victory - Mouse), no level up, returning to dungeon") end
+                    self.killQuestNotificationShown = false                    
                 end
 
             else
-                -- Handle defeat
-                 if GAME.debug then print("Combat over (Defeat - Mouse), returning to town") end
+                -- Handle defeat                 
                 self:failQuest()
             end
             return true -- Indicate click was handled and led to state change

@@ -754,7 +754,6 @@ function questSystem:updateProgress(event, data)
         
         -- If objective is met, complete the quest
         if objectiveMet then
-            if GAME.debug then print("Objective met for quest: " .. quest.id) end
             local completedQuest = self:completeQuest(quest.id) -- completeQuest handles removal from activeQuests
             if completedQuest then
                 table.insert(completedQuests, completedQuest)

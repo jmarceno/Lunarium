@@ -815,8 +815,7 @@ function itemSystem:generateRandomLoot(difficulty, count)
     if GAME.activeQuests and #GAME.activeQuests > 0 then
         local quest = GAME.activeQuests[1] -- Assuming first quest
         if quest.type == "COLLECT" and quest.objective then
-            collectQuestItem = quest.objective.itemId 
-            if GAME.debug then print("Collect quest active for item: " .. collectQuestItem) end
+            collectQuestItem = quest.objective.itemId
         end
     end
     
@@ -833,10 +832,8 @@ function itemSystem:generateRandomLoot(difficulty, count)
                     questItemId = collectQuestItem, -- Add quest ID flag
                     value = itemData.value or 0 
                 })
-                if GAME.debug then print("Added quest item to loot: " .. itemData.name) end
             else
-                 print("Warning: Quest item data not found for " .. collectQuestItem)
-                 table.insert(loot, self:getRandomMonsterPart(difficulty)) -- Fallback
+                table.insert(loot, self:getRandomMonsterPart(difficulty)) -- Fallback
             end
         elseif roll <= 5 + (difficulty * 2) then
             -- Regular rare item drop (consumable for now)
@@ -1033,9 +1030,6 @@ function itemSystem:useItem(item, target)
     end
     
     -- Display effect message if needed
-    if GAME.debug and effectMessage ~= "" then
-        print(effectMessage)
-    end
     
     -- Return item use success status and message for UI feedback
     return success, effectMessage

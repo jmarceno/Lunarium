@@ -79,24 +79,6 @@ function combatSystem:createCombat(party, enemy)
                 self.charactersTurnTaken[1] = false  -- Ensure first character gets a turn
             end
             
-            -- Print debug message with current character and active status
-            if GAME.debug then
-                local status = {}
-                for i=1, #self.party do
-                    if self.party[i].active then
-                        status[i] = "active"
-                    else
-                        status[i] = "inactive"
-                    end
-                end
-                
-                print("Combat initialized with " .. #self.party .. " characters")
-                for i=1, #self.party do
-                    print("Character " .. i .. ": " .. self.party[i].name .. " - " .. status[i])
-                end
-                print("Starting with character " .. self.currentCharacter .. ": " .. self.party[self.currentCharacter].name)
-            end
-            
             -- Add combat start message
             self:addLog("Combat started!")
             self:addLog(self.enemy.name .. " appeared!")
@@ -478,69 +460,44 @@ function combatSystem:createCombat(party, enemy)
         
         -- Update combat state
         update = function(self, dt)
-            if GAME.debug then
-                print("Update Start: State=", self.state, "Char=", self.currentCharacter, "TurnTaken=", self.charactersTurnTaken, "TurnDelay=", self.turnEndDelay, "EnemyDelay=", self.enemyTurnDelay)
-            end
-            
-            -- Update UI elements
-            for _, element in pairs(self.elements) do
-                if element.update then
-                    element:update(dt)
-                end
-            end
-            
             -- Handle animation delay
-            if self.animationDelay and self.animationDelay > 0 then
+            if self.animationDelay > 0 then
                 self.animationDelay = self.animationDelay - dt
+                return
             end
             
-            -- Handle turn end delay (used after player AND enemy actions)
-            if self.turnEndDelay and self.turnEndDelay > 0 then
+            -- Handle turn end delay
+            if self.turnEndDelay > 0 then
                 self.turnEndDelay = self.turnEndDelay - dt
-                return -- Wait for delay to complete
-            elseif self.turnEndDelay and self.turnEndDelay <= 0 then
-                self.turnEndDelay = nil
-                if GAME.debug then print("Turn end delay finished, calling nextTurn from update") end
-                self:nextTurn() -- Proceed to the actual next turn logic
-                return -- <<<< ADDED RETURN: Stop processing after nextTurn call
+                if self.turnEndDelay <= 0 then
+                    self:nextTurn()
+                end
+                return
             end
             
-            -- Handle state-specific updates (only if turnEndDelay is not active)
-            if self.state == combatSystem.STATE.PLAYER_TURN then
-                -- Check if the designated current character is inactive
-                local currentChar = self.party[self.currentCharacter]
-                if not currentChar or not currentChar.active then
-                    if GAME.debug then print("Character " .. self.currentCharacter .. " is inactive at start of their turn check, calling nextTurn") end
-                    self:nextTurn() -- Skip their turn
-                    return -- <<<< ADDED RETURN: Stop processing after nextTurn call
-                end
-                
-                -- No actual turn logic here; actions are triggered by UI clicks which set turnEndDelay
-                
-            elseif self.state == combatSystem.STATE.ENEMY_TURN then
-                -- Enemy turn logic
+            -- Check for inactive character on their turn
+            if self.state == combatSystem.STATE.PLAYER_TURN and 
+               (self.currentCharacter < 1 or 
+                self.currentCharacter > #self.party or 
+                not self.party[self.currentCharacter].active) then
+                self:nextTurn()
+                return
+            end
+            
+            -- Enemy turn delay
+            if self.state == combatSystem.STATE.ENEMY_TURN then
                 if self.enemyTurnDelay == nil then
-                    -- Initialize delay if not set
-                    self.enemyTurnDelay = 1.0  -- 1 second delay
-                    if GAME.debug then print("Enemy turn delay initialized to 1.0") end
-                    return -- Wait for next update cycle
+                    self.enemyTurnDelay = 1.0
                 end
                 
-                -- Update delay timer
-                if self.enemyTurnDelay > 0 then
-                    self.enemyTurnDelay = self.enemyTurnDelay - dt
-                    
-                    if self.enemyTurnDelay <= 0 then
-                        -- Delay finished, execute enemy action
-                        if GAME.debug then print("Enemy turn delay complete, executing enemy turn") end
-                        self:executeEnemyTurn() -- This function SHOULD set self.turnEndDelay
-                        self.enemyTurnDelay = nil -- Clear enemy specific delay, now wait for general turnEndDelay
-                        -- No return here, let the frame finish. turnEndDelay handles the next step.
-                    end
+                self.enemyTurnDelay = self.enemyTurnDelay - dt
+                
+                if self.enemyTurnDelay <= 0 then
+                    self:executeEnemyTurn()
+                    self.enemyTurnDelay = nil
+                    self:nextTurn()
                 end
             end
-            
-            if GAME.debug then print("Update End: State=", self.state, "Char=", self.currentCharacter) end
         end,
         
         -- Draw combat UI
@@ -1808,106 +1765,85 @@ function combatSystem:createCombat(party, enemy)
             self.turnEndDelay = 0.5 -- Use a short delay consistent with others or adjust as needed
         end,
         
-        -- Move to next turn
+        -- Move to next character's turn
         nextTurn = function(self)
-            if GAME.debug then print("--- nextTurn called (Current Char: " .. self.currentCharacter .. ", State: " .. self.state .. ") ---") end
             
-            -- Reset selection
-            self.selectedAction = nil
-            self.selectedTarget = nil
-            self.selectedSkill = nil
-            self.selectedItem = nil
-            
-            -- Update status effect durations
-            self:updateStatusEffects()
-            
-            -- Mark current character's turn as taken, only if it was a valid player turn
-            if self.state == combatSystem.STATE.PLAYER_TURN and self.currentCharacter >= 1 and self.currentCharacter <= #self.party then
-                if GAME.debug then print("Marking turn taken for character: " .. self.currentCharacter .. " Name: " .. self.party[self.currentCharacter].name) end
+            -- Mark the current character's turn as taken
+            if self.state == combatSystem.STATE.PLAYER_TURN and 
+               self.currentCharacter >= 1 and 
+               self.currentCharacter <= #self.party then
                 self.charactersTurnTaken[self.currentCharacter] = true
-            else
-                 if GAME.debug then print("Not marking turn taken (State was Enemy or invalid Char Index)") end
             end
             
-            -- Find the next character whose turn hasn't been taken
-            local nextCharacterIndex = -1
-            -- Start checking from the character *after* the current one. Handle case where currentCharacter might be 0 initially or invalid.
-            local currentValidChar = self.currentCharacter
-            if currentValidChar < 1 or currentValidChar > #self.party then 
-                currentValidChar = #self.party -- Wrap around if invalid, effectively starting check from 1
-            end
-            local checkIndex = (currentValidChar % #self.party) + 1 
+            -- Find next character with an untaken turn
+            local checkIndex = self.currentCharacter + 1
+            if checkIndex > #self.party then checkIndex = 1 end
             
-            if GAME.debug then 
-                print("Starting check for next char. Current was: " .. self.currentCharacter .. ". Starting check index: " .. checkIndex)
-                -- Use a temporary table for readable print
-                local takenStatus = {}
-                for k, v in pairs(self.charactersTurnTaken) do table.insert(takenStatus, k .. ":" .. tostring(v)) end
-                print("Current turn taken status: {" .. table.concat(takenStatus, ", ") .. "}")
-            end
+            local initialCheck = checkIndex
+            local allTaken = true
             
-            -- Loop exactly #self.party times to check everyone once
-            for i = 1, #self.party do 
-                if GAME.debug then print("  Checking index: " .. checkIndex) end
+            -- Loop through all characters to find the next one with an untaken turn
+            repeat
+                -- Check if this character is active and hasn't had a turn
+                local canTakeTurn = self.party[checkIndex] and 
+                                   self.party[checkIndex].active and 
+                                   not self.charactersTurnTaken[checkIndex]
                 
-                -- Check if this character is valid, active, and hasn't taken their turn
-                if self.party[checkIndex] and self.party[checkIndex].active and not self.charactersTurnTaken[checkIndex] then
-                    if GAME.debug then print("    Found next character: " .. checkIndex .. " Name: " .. self.party[checkIndex].name) end
-                    nextCharacterIndex = checkIndex
-                    break -- Found the next character
-                else
-                    if GAME.debug then 
-                        local reason = ""
-                        if not self.party[checkIndex] then reason = "invalid index" 
-                        elseif not self.party[checkIndex].active then reason = "inactive" 
-                        elseif self.charactersTurnTaken[checkIndex] then reason = "turn already taken" end
-                        print("    Skipping index " .. checkIndex .. " (" .. reason .. ")")
-                    end
+                if canTakeTurn then
+                    -- Found a valid next character
+                    self.currentCharacter = checkIndex
+                    allTaken = false
+                    self.state = combatSystem.STATE.PLAYER_TURN
+                    break
                 end
                 
-                -- Move to the next index, wrapping around
-                checkIndex = (checkIndex % #self.party) + 1
-            end
+                -- Check next character
+                checkIndex = checkIndex + 1
+                if checkIndex > #self.party then checkIndex = 1 end
+            until checkIndex == initialCheck
             
-            -- If no next character was found, it means all active characters have taken their turn
-            if nextCharacterIndex == -1 then
-                if GAME.debug then print("No valid next character found. Transitioning to Enemy Turn.") end
-                
-                -- Reset turn tracking for the next round
-                if GAME.debug then print("Resetting charactersTurnTaken for next round.") end
-                for j = 1, #self.party do
-                    self.charactersTurnTaken[j] = false
-                end
-                
-                -- Start enemy turn
+            -- If all characters have taken their turn, reset and switch to enemy turn
+            if allTaken then
                 self.state = combatSystem.STATE.ENEMY_TURN
-                self.enemyTurnDelay = nil -- Reset delay for enemy turn
-                self:addLog("Enemy's turn", {1, 0.5, 0.5})
-            else
-                -- Found the next character, switch to their turn
-                if GAME.debug then print("Switching to player turn for character: " .. nextCharacterIndex) end
-                self.currentCharacter = nextCharacterIndex
-                self.state = combatSystem.STATE.PLAYER_TURN
                 
-                -- Ensure action buttons are visible for the new turn
-                self.elements.attackButton.visible = true
-                self.elements.skillButton.visible = true
-                self.elements.itemButton.visible = true
-                self.elements.defendButton.visible = true
+                -- Reset turn tracking for next round
+                for i=1, #self.party do
+                    self.charactersTurnTaken[i] = false
+                end
+            end
+            
+            -- Ensure current character is a valid party member
+            if self.state == combatSystem.STATE.PLAYER_TURN then
+                local nextCharacterIndex = self.currentCharacter
+                if nextCharacterIndex < 1 or nextCharacterIndex > #self.party then
+                    -- Fix invalid character index
+                    nextCharacterIndex = 1
+                    self.currentCharacter = nextCharacterIndex
+                end
                 
-                -- Add log message
+                -- Show character's turn message
                 local currentChar = self.party[self.currentCharacter]
                 if currentChar then
                     self:addLog(currentChar.name .. "'s turn begins", {0.5, 0.5, 1})
-                else
-                    -- This case should ideally not happen if logic is correct
-                    if GAME.debug then print("Error: Current character at index " .. self.currentCharacter .. " is nil after assignment!") end
-                    -- As a fallback, maybe try finding the *first* available character again?
-                    -- Or transition to enemy turn? For now, just log the error.
+                    
+                    -- Reset selection state
+                    self.selectedAction = nil
+                    self.selectedTarget = nil
+                    self.selectedSkill = nil
+                    self.selectedItem = nil
+                    
+                    -- Make action buttons visible
+                    self.elements.attackButton.visible = true
+                    self.elements.skillButton.visible = true
+                    self.elements.itemButton.visible = true
+                    self.elements.defendButton.visible = true
+                    
+                    -- Hide selection UIs
+                    self.elements.skillList.visible = false
+                    self.elements.itemList.visible = false
+                    self.elements.partySelectList.visible = false
                 end
             end
-            
-            if GAME.debug then print("--- nextTurn finished (New Char: " .. self.currentCharacter .. ", New State: " .. self.state .. ") ---") end
         end,
         
         -- Update status effect durations
@@ -1964,14 +1900,6 @@ function combatSystem:createCombat(party, enemy)
             -- Add a combat log entry to show the enemy's turn is starting
             self:addLog(self.enemy.name .. " is taking its turn...", {1, 0.5, 0.5})
             
-            -- Debug enemy stats
-            if GAME.debug then
-                print("Enemy stats:")
-                print("  Name: " .. self.enemy.name)
-                print("  Attack Power: " .. tostring(self.enemy.attackPower))
-                print("  HP: " .. tostring(self.enemy.currentHP) .. "/" .. tostring(self.enemy.maxHP))
-            end
-            
             -- Choose a random active party member to attack
             local targets = {}
             for i, character in ipairs(self.party) do
@@ -1985,19 +1913,10 @@ function combatSystem:createCombat(party, enemy)
                 local targetIndex = targets[math.random(1, #targets)]
                 local target = self.party[targetIndex]
                 
-                if GAME.debug then
-                    print("Enemy targeting " .. target.name)
-                    print("Enemy attack power: " .. tostring(self.enemy.attackPower or "nil"))
-                    print("Target defense: " .. tostring(target.defense or "nil"))
-                end
-                
                 -- Ensure enemy has attack power
                 if not self.enemy.attackPower or type(self.enemy.attackPower) ~= "number" then
                     -- Force set enemy attack power if missing
                     self.enemy.attackPower = 10
-                    if GAME.debug then
-                        print("Fixed missing enemy attack power, set to: " .. self.enemy.attackPower)
-                    end
                 end
                 
                 -- Calculate enemy damage - using direct number values to avoid conversion issues
@@ -2012,40 +1931,19 @@ function combatSystem:createCombat(party, enemy)
                 -- Basic damage calculation with explicit values
                 local damage = math.floor(baseDamage - (targetDefense / 2))
                 
-                -- Debug damage calculation
-                if GAME.debug then
-                    print("Damage calculation:")
-                    print("  Base damage: " .. baseDamage)
-                    print("  Target defense: " .. targetDefense)
-                    print("  Initial damage: " .. damage)
-                end
-                
                 -- Ensure minimum damage
                 if damage < 1 then 
                     damage = 1
-                    if GAME.debug then
-                        print("  Adjusted to minimum damage: " .. damage)
-                    end
                 end
                 
                 -- Apply defending status
                 if target.status and target.status.defending then
                     local defenseMultiplier = target.status.defending.value or 2.0
                     damage = math.floor(damage / defenseMultiplier)
-                    
-                    if GAME.debug then
-                        print("  Target is defending, reducing damage by " .. defenseMultiplier .. "x")
-                        print("  Damage after defense: " .. damage)
-                    end
                 end
                 
                 -- Final minimum damage check
                 damage = math.max(1, damage)
-                
-                if GAME.debug then
-                    print("  Final damage: " .. damage)
-                    print("  Target HP before: " .. target.currentHP)
-                end
                 
                 -- Apply damage to target - ensure current HP is properly calculated
                 if not target.currentHP or type(target.currentHP) ~= "number" then
@@ -2058,10 +1956,6 @@ function combatSystem:createCombat(party, enemy)
                 -- Apply damage and ensure we don't go below 0
                 target.currentHP = target.currentHP - damage
                 if target.currentHP < 0 then target.currentHP = 0 end
-                
-                if GAME.debug then
-                    print("  Target HP after: " .. target.currentHP)
-                end
                 
                 -- Play hit sound
                 assetManager:playSound("hit")
@@ -2271,6 +2165,32 @@ function combatSystem:createCombat(party, enemy)
             
             -- Click was not on any relevant UI element during player turn
             return false
+        end,
+        
+        -- UI handler for clicks on the UI
+        handleUIClick = function(self)
+            -- Selection UI for actions that need targets
+            if self.selectedAction then
+                if self.selectedAction == "skill" then
+                    -- Show skill selection UI if needed
+                    if not self.selectedSkill then
+                        self.elements.skillList.visible = true
+                        self.elements.attackButton.visible = false
+                        self.elements.skillButton.visible = false
+                        self.elements.itemButton.visible = false
+                        self.elements.defendButton.visible = false
+                    end
+                elseif self.selectedAction == "item" then
+                    -- Show item selection UI if needed
+                    if not self.selectedItem then
+                        self.elements.itemList.visible = true
+                        self.elements.attackButton.visible = false
+                        self.elements.skillButton.visible = false
+                        self.elements.itemButton.visible = false
+                        self.elements.defendButton.visible = false
+                    end
+                end
+            end
         end
     }
     

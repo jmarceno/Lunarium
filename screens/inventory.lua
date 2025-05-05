@@ -1258,10 +1258,6 @@ function inventory:enter(params)
     local gameState = require("states/gameState")
     self.openedFrom = params and params.from or gameState:getCurrentStateName()
     
-    if GAME.debug then
-        print("Inventory opened from state: " .. (self.openedFrom or "unknown"))
-    end
-    
     -- Select first character if available
     if GAME.party and #GAME.party > 0 then
         self.selectedCharacter = GAME.party[1]
@@ -1283,6 +1279,32 @@ function inventory:enter(params)
     
     -- Adjust UI layout
     self:adjustLayout()
+    
+    -- Enter the screen
+    enter = function(self, params)
+        -- Store where we came from
+        self.openedFrom = params and params.from or nil
+        
+        -- Load character data from GAME state
+        if GAME and GAME.party then
+            -- Create character tabs
+            self.elements.charTabs = {}
+            
+            for i, character in ipairs(GAME.party) do
+                local tab = self:createCharacterTab(character, i)
+                table.insert(self.elements.charTabs, tab)
+            end
+            
+            -- Set first character as selected if none is already selected
+            if not self.selectedCharacter and #GAME.party > 0 then
+                self.selectedCharacter = GAME.party[1].name
+                self.elements.charTabs[1].active = true
+            end
+        end
+        
+        -- Update inventory list
+        self:updateInventoryList()
+    end
 end
 
 -- Adjust UI panel sizes and positions
@@ -1568,7 +1590,6 @@ function inventory:mousepressed(x, y, button, istouch, presses)
            self.elements.actionButtons.useButton:clicked(x, y, button) then
             -- Play click sound
             assetManager:playSound("click")
-            if GAME.debug then print("Use button clicked") end
             self:useItem()
             clickHandled = true
         -- Check equip button for appropriate item types
@@ -1579,7 +1600,6 @@ function inventory:mousepressed(x, y, button, istouch, presses)
                self.elements.actionButtons.equipButton:clicked(x, y, button) then
             -- Play click sound
             assetManager:playSound("click")
-            if GAME.debug then print("Equip button clicked") end
             self:equipItem()
             clickHandled = true
         -- Check sell button - only available if opened from overworld
@@ -1587,14 +1607,12 @@ function inventory:mousepressed(x, y, button, istouch, presses)
                self.elements.actionButtons.sellButton:clicked(x, y, button) then
             -- Play click sound
             assetManager:playSound("click")
-            if GAME.debug then print("Sell button clicked") end
             self:sellItem()
             clickHandled = true
         -- Check drop button
         elseif self.elements.actionButtons.dropButton:clicked(x, y, button) then
             -- Play click sound
             assetManager:playSound("click")
-            if GAME.debug then print("Drop button clicked") end
             self:confirmDropItem()
             clickHandled = true
         end
@@ -1656,10 +1674,6 @@ function inventory:mousereleased(x, y, button, istouch, presses)
     -- Handle back button
     if self.elements.backButton and self.elements.backButton.released then
         self.elements.backButton:released(x, y, button)
-    end
-    
-    if GAME.debug then
-        print("Inventory mouse released at: " .. x .. "," .. y)
     end
 end
 
