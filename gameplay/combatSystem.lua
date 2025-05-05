@@ -29,6 +29,7 @@ function combatSystem:createCombat(party, enemy)
         selectedTarget = nil,
         turnOrder = {},
         effects = {},
+        rewardsCalculated = false, -- New flag to track reward calculation
         
         -- Combat UI elements
         elements = {},
@@ -510,6 +511,11 @@ function combatSystem:createCombat(party, enemy)
         
         -- Update combat state
         update = function(self, dt)
+            -- Skip all updates if in victory or defeat state - only handle drawing
+            if self.state == combatSystem.STATE.VICTORY or self.state == combatSystem.STATE.DEFEAT then
+                return
+            end
+
             -- Handle animation delay
             if self.animationDelay > 0 then
                 self.animationDelay = self.animationDelay - dt
@@ -1121,11 +1127,11 @@ function combatSystem:createCombat(party, enemy)
                 end
             end
             
-            -- Draw "Press Enter to continue" text
+            -- Draw "Click Continue to exit" text instead of "Press Enter"
             love.graphics.setFont(screenManager.fonts.medium)
             love.graphics.setColor(1, 1, 1, 0.7 + math.sin(love.timer.getTime() * 4) * 0.3)
             love.graphics.printf(
-                "Press Enter to continue",
+                "Click Continue to exit",
                 GAME.width / 2 - 200, GAME.height / 2 + 50,
                 400, "center"
             )
@@ -2289,6 +2295,11 @@ function combatSystem:createCombat(party, enemy)
         
         -- Check if all enemies are defeated, and if so, set victory state
         checkAllEnemiesDefeated = function(self)
+            -- Skip check if already in victory or defeat state
+            if self.state == combatSystem.STATE.VICTORY or self.state == combatSystem.STATE.DEFEAT then
+                return
+            end
+
             local allDefeated = true
             
             -- Check if any enemies are still active
@@ -2318,6 +2329,27 @@ function combatSystem:createCombat(party, enemy)
         
         -- Handle all enemies being defeated
         allEnemiesDefeated = function(self)
+            -- Add extra protection against multiple victory triggers
+            if self.state == combatSystem.STATE.VICTORY then
+                if GAME.debug then
+                    print("Prevented duplicate victory trigger")
+                end
+                return
+            end
+            
+            -- Set victory state immediately to block any other processing
+            self.state = combatSystem.STATE.VICTORY
+            
+            -- Flag to track if rewards were already calculated
+            if self.rewardsCalculated then
+                if GAME.debug then
+                    print("Prevented duplicate rewards calculation")
+                end
+                return
+            end
+            
+            self.rewardsCalculated = true
+            
             self:addLog("All enemies defeated!", {0, 1, 0})
             
             -- Debug log
@@ -2342,14 +2374,8 @@ function combatSystem:createCombat(party, enemy)
                     table.insert(self.rewards.loot, item)
                 end
                 
-                -- Notify quest system about each kill
-                local questSystem = require("gameplay/questSystem")
-                local eventData = { 
-                    monsterId = enemy.id or "unknown",
-                    isBoss = enemy.isBoss or false
-                }
-                local eventName = eventData.isBoss and "boss_kill" or "kill"
-                questSystem:updateProgress(eventName, eventData)
+                -- NOTE: Quest notifications removed from here to prevent double counting
+                -- Each enemy already triggered quest updates when they were defeated during combat
             end
             
             -- Grant experience to party members
@@ -2360,20 +2386,19 @@ function combatSystem:createCombat(party, enemy)
                 end
             end
             
-            -- Set victory state
-            self.state = combatSystem.STATE.VICTORY
-            
             if GAME.debug then
-                print("Combat state changed to VICTORY: " .. self.state)
+                print("Combat state is now VICTORY: " .. self.state)
             end
             
-            -- Create continue button
+            -- Create continue button with improved styling
             self.elements.continueButton = screenManager.UI.Button(
-                GAME.width / 2 - 100, GAME.height / 3 + 250,
-                200, 40, "Continue",
+                GAME.width / 2 - 125, GAME.height / 3 + 250,
+                250, 50, "Continue",
                 function() return true end
             )
             self.elements.continueButton.visible = true
+            self.elements.continueButton.color = {0.3, 0.7, 0.3}
+            self.elements.continueButton.hoverColor = {0.4, 0.8, 0.4}
             
             -- Hide combat UI elements
             self.elements.attackButton.visible = false
@@ -2618,31 +2643,28 @@ function combatSystem:createCombat(party, enemy)
         -- Handle keypresses
         keypressed = function(self, key)
             if self:isOver() then
-                -- In victory or defeat, pressing space/enter will exit combat
-                if key == "return" or key == "space" then
-                    return true
-                end
+                -- Remove keyboard shortcut for exiting combat
+                return false
             end
             return false
         end,
         
         -- Handle mouse clicks
         mousepressed = function(self, x, y, button)
-            -- Check if combat is over FIRST
+            -- Check if combat is over
             if self:isOver() then
-                if button == 1 and self.elements.continueButton and 
-                   self.elements.continueButton.visible and 
-                   self.elements.continueButton:clicked(x, y, button) then
-                    -- If the continue button is clicked in victory/defeat state,
-                    -- execute its callback and return the result (which should be true).
-                    if self.elements.continueButton.callback then
-                        return self.elements.continueButton.callback() -- This callback returns true
-                    else
-                        return true -- Default to true if no callback
-                    end
+                if button == 1 and self.elements.continueButton and
+                   self.elements.continueButton.visible and
+                   x >= self.elements.continueButton.x and
+                   x <= self.elements.continueButton.x + self.elements.continueButton.width and
+                   y >= self.elements.continueButton.y and
+                   y <= self.elements.continueButton.y + self.elements.continueButton.height then
+                    -- Exit combat when continue button is clicked
+                    return true
                 end
-                -- If combat is over but click wasn't on continue button, do nothing more
-                return false 
+                
+                -- In victory/defeat state, any click should do nothing else
+                return false
             end
 
             -- If combat is NOT over, proceed with player turn logic
@@ -2654,29 +2676,21 @@ function combatSystem:createCombat(party, enemy)
             if button == 1 then
                 -- Check skill list clicks
                 if self.elements.skillList and self.elements.skillList.visible and self.elements.skillList:clicked(x, y) then
-                    -- Click was handled by the list, but combat is not over
-                    print("Skill list click detected")
                     return false 
                 end
                 
                 -- Check item list clicks
                 if self.elements.itemList and self.elements.itemList.visible and self.elements.itemList:clicked(x, y) then
-                    -- Click was handled by the list, but combat is not over
-                    print("Item list click detected")
                     return false 
                 end
                 
                 -- Check party selection list clicks
                 if self.elements.partySelectList and self.elements.partySelectList.visible and self.elements.partySelectList:clicked(x, y) then
-                    -- Click was handled by the list, but combat is not over
-                    print("Party selection click detected")
                     return false
                 end
                 
                 -- Check enemy selection list clicks
                 if self.elements.enemySelectList and self.elements.enemySelectList.visible and self.elements.enemySelectList:clicked(x, y) then
-                    -- Click was handled by the list, but combat is not over
-                    print("Enemy selection list click detected")
                     return false
                 end
                 
@@ -2690,17 +2704,12 @@ function combatSystem:createCombat(party, enemy)
                        element ~= self.elements.continueButton then
                         
                         if element.visible ~= false and element:clicked(x, y, button) then
-                            -- Debug output for button clicks
-                            print("Button clicked: " .. name)
-                            
-                            -- Button callback was executed, click handled, but combat continues.
-                            return false -- Return FALSE here!
+                            return false
                         end
                     end
                 end
             end
             
-            -- Click was not on any relevant UI element during player turn
             return false
         end,
         
