@@ -67,7 +67,8 @@ function combatSystem:createCombat(party, enemy)
             -- Initialize timing variables
             self.animationDelay = 0
             self.turnEndDelay = 0
-            self.enemyTurnDelay = nil  -- Set to nil to force initialization
+            self.enemyTurnDelay = nil  -- Set to nil to force initialization on first enemy turn
+            self.activeEnemyIndex = 1  -- Start with the first enemy
             
             -- Set initial state and find the first active character
             self.state = combatSystem.STATE.PLAYER_TURN
@@ -533,18 +534,31 @@ function combatSystem:createCombat(party, enemy)
                 return
             end
             
-            -- Enemy turn delay
+            -- Enemy turn processing
             if self.state == combatSystem.STATE.ENEMY_TURN then
                 if self.enemyTurnDelay == nil then
-                    self.enemyTurnDelay = 1.0
+                    -- Initialize enemy turns - set the active enemy index to the first enemy
+                    self.activeEnemyIndex = 1
+                    self.enemyTurnDelay = 1.0  -- Initial delay before first enemy acts
                 end
                 
                 self.enemyTurnDelay = self.enemyTurnDelay - dt
                 
                 if self.enemyTurnDelay <= 0 then
+                    -- Execute current enemy's turn
                     self:executeEnemyTurn()
-                    self.enemyTurnDelay = nil
-                    self:nextTurn()
+                    
+                    -- Check if we've gone through all enemies or no active enemies remain
+                    local allEnemiesProcessed = self.activeEnemyIndex == 1
+                    
+                    if allEnemiesProcessed then
+                        -- We've completed a full cycle of enemies
+                        self.enemyTurnDelay = nil
+                        self:nextTurn() -- Go to player turn
+                    else
+                        -- More enemies to process, set a delay before next enemy acts
+                        self.enemyTurnDelay = 0.7 -- Delay between enemy actions
+                    end
                 end
             end
         end,
@@ -2440,7 +2454,7 @@ function combatSystem:createCombat(party, enemy)
             
             -- If no active enemy found, end enemy turn phase
             if not activeEnemyFound then
-                self.turnEndDelay = 0.5
+                -- Don't set turnEndDelay here, let update function handle it
                 return
             end
             
@@ -2451,9 +2465,8 @@ function combatSystem:createCombat(party, enemy)
             -- Check if enemy is stunned
             if enemy.status.stun then
                 self:addLog(enemy.name .. " is stunned and cannot act!")
-                -- Move to next enemy
+                -- Move to next enemy 
                 self.activeEnemyIndex = (self.activeEnemyIndex % #self.enemies) + 1
-                self.turnEndDelay = 0.5 
                 return
             end
             
@@ -2554,14 +2567,7 @@ function combatSystem:createCombat(party, enemy)
             -- Move to the next enemy's turn
             self.activeEnemyIndex = (self.activeEnemyIndex % #self.enemies) + 1
             
-            -- Check if we've processed all enemies
-            if self.activeEnemyIndex == 1 then
-                -- All enemies had their turn, end enemy phase
-                self.turnEndDelay = 0.5
-            else
-                -- More enemies to process, wait briefly before next enemy acts
-                self.turnEndDelay = 0.3
-            end
+            -- REMOVED: We no longer set turnEndDelay here to let the update function handle enemy turn progression
         end,
         
         -- Handle party defeat
