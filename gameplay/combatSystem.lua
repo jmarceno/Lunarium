@@ -19,7 +19,8 @@ local combatSystem = {
 function combatSystem:createCombat(party, enemy)
     local combat = {
         party = party,
-        enemy = enemy,
+        enemies = {}, -- Array to hold multiple enemies
+        activeEnemyIndex = 1, -- Current enemy in turn
         state = self.STATE.INIT,
         currentTurn = 1,
         currentCharacter = 1,
@@ -32,8 +33,28 @@ function combatSystem:createCombat(party, enemy)
         -- Combat UI elements
         elements = {},
         
+        -- Settings
+        settings = {
+            autoConfirmSelection = true -- Enable auto-confirm by default
+        },
+        
         -- Initialize combat
         init = function(self)
+            -- Handle backward compatibility - convert single enemy to enemies array
+            if enemy then
+                if type(enemy) == "table" and enemy[1] then
+                    -- Already an array of enemies
+                    self.enemies = enemy
+                else
+                    -- Single enemy, add to array
+                    table.insert(self.enemies, enemy)
+                end
+            end
+            
+            -- Create enemy property for backward compatibility
+            -- Points to the first enemy in the array
+            self.enemy = self.enemies[1]
+            
             -- Setup characters and enemy stats
             self:setupCombatants()
             
@@ -81,7 +102,23 @@ function combatSystem:createCombat(party, enemy)
             
             -- Add combat start message
             self:addLog("Combat started!")
-            self:addLog(self.enemy.name .. " appeared!")
+            -- Show enemies that appeared
+            if #self.enemies > 1 then
+                local enemyNames = ""
+                for i, enemy in ipairs(self.enemies) do
+                    if i > 1 then
+                        if i == #self.enemies then
+                            enemyNames = enemyNames .. " and "
+                        else
+                            enemyNames = enemyNames .. ", "
+                        end
+                    end
+                    enemyNames = enemyNames .. enemy.name
+                end
+                self:addLog(enemyNames .. " appeared!")
+            else
+                self:addLog(self.enemy.name .. " appeared!")
+            end
             self:addLog(self.party[self.currentCharacter].name .. "'s turn begins", {0.5, 0.5, 1})
             
             -- Make sure action buttons are visible for first player turn
@@ -111,26 +148,28 @@ function combatSystem:createCombat(party, enemy)
                 character.active = character.currentHP > 0
             end
             
-            -- Setup enemy
-            if not self.enemy.name then
-                self.enemy.name = "Monster #" .. self.enemy.id
+            -- Setup all enemies
+            for i, enemy in ipairs(self.enemies) do
+                if not enemy.name then
+                    enemy.name = "Monster #" .. enemy.id
+                end
+                
+                if not enemy.maxHP then
+                    enemy.maxHP = enemy.stats.hp
+                    enemy.currentHP = enemy.maxHP
+                end
+                
+                if not enemy.attackPower then
+                    enemy.attackPower = enemy.stats.attack
+                    enemy.defense = enemy.stats.defense
+                end
+                
+                -- Setup enemy status effects
+                enemy.status = {}
+                
+                -- Set enemy as active
+                enemy.active = true
             end
-            
-            if not self.enemy.maxHP then
-                self.enemy.maxHP = self.enemy.stats.hp
-                self.enemy.currentHP = self.enemy.maxHP
-            end
-            
-            if not self.enemy.attackPower then
-                self.enemy.attackPower = self.enemy.stats.attack
-                self.enemy.defense = self.enemy.stats.defense
-            end
-            
-            -- Setup enemy status effects
-            self.enemy.status = {}
-            
-            -- Set enemy as active
-            self.enemy.active = true
         end,
         
         -- Determine turn order
@@ -148,12 +187,14 @@ function combatSystem:createCombat(party, enemy)
                 end
             end
             
-            -- Add enemy to turn order
-            table.insert(self.turnOrder, {
-                type = "enemy",
-                index = 1,
-                speed = self.enemy.stats.speed or 10
-            })
+            -- Add all enemies to turn order
+            for i, enemy in ipairs(self.enemies) do
+                table.insert(self.turnOrder, {
+                    type = "enemy",
+                    index = i,
+                    speed = enemy.stats.speed or 10
+                })
+            end
             
             -- Sort by speed
             table.sort(self.turnOrder, function(a, b)
@@ -429,6 +470,14 @@ function combatSystem:createCombat(party, enemy)
                                 if y >= memberY - 2 and y <= memberY + 20 then
                                     -- Select this party member
                                     self.selectedIndex = i
+                                    print("Selected party member: " .. party[i].name .. " (index: " .. i .. ")")
+                                    
+                                    -- Auto-confirm the selection if needed
+                                    if self.combatRef.settings and self.combatRef.settings.autoConfirmSelection then
+                                        -- Auto-confirm after a short delay
+                                        self.combatRef:confirmPartySelection()
+                                    end
+                                    
                                     return true
                                 end
                             end
@@ -455,7 +504,7 @@ function combatSystem:createCombat(party, enemy)
                 120, 40, "Back", 
                 function() self:cancelSelection() end
             )
-            self.elements.backButton.visible = false
+            self.elements.backButton.visible = true
         end,
         
         -- Update combat state
@@ -549,6 +598,10 @@ function combatSystem:createCombat(party, enemy)
                 if self.elements.partySelectList then
                     self.elements.partySelectList:draw()
                 end
+                
+                if self.elements.enemySelectList then
+                    self.elements.enemySelectList:draw()
+                end
             end
             
             -- Always draw combat log
@@ -557,24 +610,70 @@ function combatSystem:createCombat(party, enemy)
         
         -- Draw enemy information
         drawEnemy = function(self)
+            -- For multiple enemies, arrange them in a grid
+            if #self.enemies > 1 then
+                self:drawMultipleEnemies()
+            else
+                -- Original single enemy display
+                self:drawSingleEnemy(self.enemy, GAME.width / 2 - 100, 50)
+            end
+        end,
+        
+        -- Draw multiple enemies in a grid layout
+        drawMultipleEnemies = function(self)
+            -- Calculate grid layout based on number of enemies
+            local columns = math.min(3, #self.enemies)  -- Max 3 enemies per row
+            local rows = math.ceil(#self.enemies / columns)
+            
+            -- Calculate dimensions for each enemy display area
+            local enemyWidth = GAME.width / columns
+            local enemyHeight = 300  -- Fixed height for enemy section
+            
+            -- Draw each enemy in grid
+            for i, enemy in ipairs(self.enemies) do
+                -- Calculate position in grid
+                local col = (i - 1) % columns
+                local row = math.floor((i - 1) / columns)
+                local x = col * enemyWidth + (enemyWidth / 2) - 100  -- Center in column
+                local y = 30 + row * enemyHeight * 0.7  -- Reduce vertical spacing to fit all rows
+                
+                -- Highlight currently active enemy 
+                if self.state == combatSystem.STATE.ENEMY_TURN and i == self.activeEnemyIndex then
+                    love.graphics.setColor(0.5, 0.1, 0.1, 0.3)
+                    love.graphics.rectangle("fill", x - 10, y - 10, 220, enemyHeight - 20, 5, 5)
+                end
+                
+                -- Highlight selected enemy for targeting
+                if self.selectedTarget == enemy then
+                    love.graphics.setColor(0.1, 0.5, 0.1, 0.3)
+                    love.graphics.rectangle("fill", x - 10, y - 10, 220, enemyHeight - 20, 5, 5)
+                end
+                
+                -- Draw individual enemy
+                self:drawSingleEnemy(enemy, x, y)
+            end
+        end,
+        
+        -- Draw a single enemy at specified position
+        drawSingleEnemy = function(self, enemy, x, y)
             -- Draw enemy name
             love.graphics.setFont(screenManager.fonts.large)
             love.graphics.setColor(1, 0.5, 0.5)
-            love.graphics.print(self.enemy.name, GAME.width / 2 - 100, 50)
+            love.graphics.print(enemy.name, x, y)
             
             -- Draw enemy health bar
-            local healthWidth = 200 * (self.enemy.currentHP / self.enemy.maxHP)
+            local healthWidth = 200 * (enemy.currentHP / enemy.maxHP)
             love.graphics.setColor(0.2, 0.2, 0.2)
-            love.graphics.rectangle("fill", GAME.width / 2 - 100, 90, 200, 20)
+            love.graphics.rectangle("fill", x, y + 40, 200, 20)
             love.graphics.setColor(0.8, 0.2, 0.2)
-            love.graphics.rectangle("fill", GAME.width / 2 - 100, 90, healthWidth, 20)
+            love.graphics.rectangle("fill", x, y + 40, healthWidth, 20)
             
             -- Draw HP text
             love.graphics.setFont(screenManager.fonts.small)
             love.graphics.setColor(1, 1, 1)
             love.graphics.print(
-                self.enemy.currentHP .. " / " .. self.enemy.maxHP,
-                GAME.width / 2 - 30, 92
+                enemy.currentHP .. " / " .. enemy.maxHP,
+                x + 70, y + 42
             )
             
             -- Draw enemy sprite below the health bar
@@ -582,14 +681,14 @@ function combatSystem:createCombat(party, enemy)
             
             -- Try to load and draw the enemy sprite
             local sprite = nil
-            if self.enemy.id then
+            if enemy.id then
                 -- Use enemy ID to get sprite
-                sprite = assetManager:getImage("monster", self.enemy.id)
+                sprite = assetManager:getImage("monster", enemy.id)
             end
             
             if sprite then
-                -- Calculate size for sprite (max 200px width/height while maintaining aspect ratio)
-                local maxSize = 200
+                -- Calculate size for sprite (max 150px width/height for multiple enemies)
+                local maxSize = #self.enemies > 1 and 120 or 200
                 local width = sprite:getWidth()
                 local height = sprite:getHeight()
                 local scale = math.min(maxSize / width, maxSize / height)
@@ -597,8 +696,8 @@ function combatSystem:createCombat(party, enemy)
                 -- Draw centered below the health bar
                 love.graphics.draw(
                     sprite, 
-                    GAME.width / 2 - (width * scale / 2), 
-                    120, -- Position below the health bar
+                    x + 100 - (width * scale / 2), 
+                    y + 70, -- Position below the health bar
                     0, -- rotation
                     scale, -- scale x
                     scale  -- scale y
@@ -606,17 +705,17 @@ function combatSystem:createCombat(party, enemy)
             else
                 -- Draw placeholder if sprite not found
                 love.graphics.setColor(0.6, 0.6, 0.6)
-                love.graphics.rectangle("fill", GAME.width / 2 - 60, 120, 120, 120)
+                love.graphics.rectangle("fill", x + 40, y + 70, 120, 120)
                 love.graphics.setColor(0.8, 0.4, 0.4)
                 love.graphics.setFont(screenManager.fonts.medium)
-                love.graphics.printf(self.enemy.name or "Monster", GAME.width / 2 - 60, 170, 120, "center")
+                love.graphics.printf(enemy.name or "Monster", x + 40, y + 120, 120, "center")
             end
             
             -- Draw status effects
-            local statusX = GAME.width / 2 - 100
-            local statusY = 330 -- Move status effects below the sprite
+            local statusX = x
+            local statusY = y + 200 -- Move status effects below the sprite
             
-            for status, info in pairs(self.enemy.status) do
+            for status, info in pairs(enemy.status) do
                 love.graphics.setColor(0.8, 0.8, 0.2)
                 love.graphics.print(status, statusX, statusY)
                 statusY = statusY + 15
@@ -850,13 +949,24 @@ function combatSystem:createCombat(party, enemy)
                     print("  Skill list visible: " .. tostring(self.elements.skillList.visible))
                     print("  Item list visible: " .. tostring(self.elements.itemList.visible))
                     print("  Party list visible: " .. tostring(self.elements.partySelectList.visible))
+                    if self.elements.enemySelectList then
+                        print("  Enemy list visible: " .. tostring(self.elements.enemySelectList.visible))
+                    end
                 end
                 
-                -- Draw confirm and back buttons for skill/item/party selection
-                if self.elements.skillList.visible or self.elements.itemList.visible or self.elements.partySelectList.visible then
+                -- Draw confirm and back buttons for skill/item selection only
+                if self.elements.skillList.visible or 
+                   self.elements.itemList.visible then
+                    -- Only show confirm/back buttons for skill and item selection
                     self.elements.confirmButton.visible = true
                     self.elements.backButton.visible = true
                     self.elements.confirmButton:draw()
+                    self.elements.backButton:draw()
+                elseif (self.elements.enemySelectList and self.elements.enemySelectList.visible) or
+                        self.elements.partySelectList.visible then
+                    -- For target selection (enemy or party), show only back button
+                    self.elements.confirmButton.visible = false
+                    self.elements.backButton.visible = true
                     self.elements.backButton:draw()
                 end
             end
@@ -908,11 +1018,21 @@ function combatSystem:createCombat(party, enemy)
             -- Draw battle summary
             love.graphics.setFont(screenManager.fonts.medium)
             love.graphics.setColor(1, 1, 1)
-            love.graphics.printf(
-                "You defeated " .. self.enemy.name,
-                GAME.width / 2 - 200, GAME.height / 3 - 50,
-                400, "center"
-            )
+            
+            -- Different text based on number of enemies
+            if #self.enemies > 1 then
+                love.graphics.printf(
+                    "You defeated " .. #self.enemies .. " enemies!",
+                    GAME.width / 2 - 200, GAME.height / 3 - 50,
+                    400, "center"
+                )
+            else
+                love.graphics.printf(
+                    "You defeated " .. self.enemy.name,
+                    GAME.width / 2 - 200, GAME.height / 3 - 50,
+                    400, "center"
+                )
+            end
             
             -- Draw reward info
             love.graphics.setColor(1, 1, 0.5)
@@ -931,8 +1051,37 @@ function combatSystem:createCombat(party, enemy)
                     400, "center"
                 )
                 
+                -- First, consolidate identical items
+                local consolidatedLoot = {}
+                for _, item in ipairs(self.rewards.loot) do
+                    local found = false
+                    for i, existingItem in ipairs(consolidatedLoot) do
+                        if existingItem.name == item.name then
+                            -- Increment count for existing item
+                            existingItem.count = (existingItem.count or 1) + (item.count or 1)
+                            found = true
+                            break
+                        end
+                    end
+                    if not found then
+                        -- Add new item to consolidated list
+                        local newEntry = {}
+                        for k, v in pairs(item) do
+                            newEntry[k] = v
+                        end
+                        -- Ensure count exists
+                        newEntry.count = item.count or 1
+                        table.insert(consolidatedLoot, newEntry)
+                    end
+                end
+                
+                -- Draw consolidated loot
                 love.graphics.setFont(screenManager.fonts.small)
-                for i, item in ipairs(self.rewards.loot) do
+                local maxItemsToShow = 8 -- Limit displayed items if many
+                local shownItems = math.min(#consolidatedLoot, maxItemsToShow)
+                
+                for i = 1, shownItems do
+                    local item = consolidatedLoot[i]
                     -- Ensure item and item.name exist before trying to print
                     local itemName = (item and item.name) or "Unknown Item"
                     local text = itemName
@@ -947,6 +1096,15 @@ function combatSystem:createCombat(party, enemy)
                         400, "center"
                     )
                 end
+                
+                -- If there are more items than we can show
+                if #consolidatedLoot > maxItemsToShow then
+                    love.graphics.printf(
+                        "... and " .. (#consolidatedLoot - maxItemsToShow) .. " more items",
+                        GAME.width / 2 - 200, GAME.height / 3 + 80 + shownItems * 20,
+                        400, "center"
+                    )
+                end
             end
             
             -- Draw "Press Enter to continue" text
@@ -954,7 +1112,7 @@ function combatSystem:createCombat(party, enemy)
             love.graphics.setColor(1, 1, 1, 0.7 + math.sin(love.timer.getTime() * 4) * 0.3)
             love.graphics.printf(
                 "Press Enter to continue",
-                GAME.width / 2 - 200, GAME.height / 3 + 200,
+                GAME.width / 2 - 200, GAME.height / 2 + 50,
                 400, "center"
             )
         end,
@@ -1001,9 +1159,14 @@ function combatSystem:createCombat(party, enemy)
             self.elements.itemList.visible = false
             
             if action == "attack" then
-                -- Select enemy as target for attack
-                self.selectedTarget = self.enemy
-                self:executePlayerAction()
+                if #self.enemies > 1 then
+                    -- For multiple enemies, show enemy selection UI
+                    self:showEnemySelectionUI("attack")
+                else
+                    -- For single enemy, select it directly
+                    self.selectedTarget = self.enemy
+                    self:executePlayerAction()
+                end
             elseif action == "skill" then
                 -- Show skill list
                 self:showSkillList()
@@ -1014,6 +1177,148 @@ function combatSystem:createCombat(party, enemy)
                 -- Execute defend action
                 self:executeDefend()
             end
+        end,
+        
+        -- Show enemy selection UI for targeting
+        showEnemySelectionUI = function(self, actionType)
+            -- Create enemy selection UI if it doesn't exist
+            if not self.elements.enemySelectList then
+                self.elements.enemySelectList = {
+                    visible = false,
+                    x = GAME.width - 300, -- Position on right side of screen
+                    y = 100, -- Higher on screen
+                    width = 250,
+                    height = 200,
+                    selectedIndex = nil,
+                    combatRef = self, -- Store reference to the combat instance
+                    
+                    draw = function(self)
+                        if not self.visible then return end
+                        
+                        -- Draw background
+                        love.graphics.setColor(0, 0, 0, 0.8)
+                        love.graphics.rectangle("fill", self.x, self.y, self.width, self.height)
+                        
+                        -- Draw border
+                        love.graphics.setColor(0.8, 0.5, 0.5)
+                        love.graphics.rectangle("line", self.x, self.y, self.width, self.height)
+                        
+                        -- Draw title
+                        love.graphics.setFont(screenManager.fonts.medium)
+                        love.graphics.setColor(1, 1, 1)
+                        love.graphics.print("Select Target", self.x + 10, self.y + 5)
+                        
+                        -- Draw enemy list
+                        love.graphics.setFont(screenManager.fonts.small)
+                        
+                        -- Use the stored combat reference
+                        local enemies = self.combatRef.enemies
+                        
+                        -- Draw each active enemy
+                        for i, enemy in ipairs(enemies) do
+                            if enemy.active then
+                                local y = self.y + 30 + (i - 1) * 25
+                                
+                                -- Highlight selected enemy
+                                if self.selectedIndex == i then
+                                    love.graphics.setColor(0.7, 0.3, 0.3)
+                                    love.graphics.rectangle("fill", self.x + 5, y - 2, self.width - 10, 22)
+                                end
+                                
+                                -- Draw enemy name
+                                love.graphics.setColor(1, 1, 1)
+                                love.graphics.print(enemy.name, self.x + 10, y)
+                                
+                                -- Draw HP info
+                                love.graphics.setColor(0.8, 0.3, 0.3)
+                                love.graphics.print("HP: " .. enemy.currentHP .. "/" .. enemy.maxHP, self.x + 120, y)
+                            end
+                        end
+                    end,
+                    
+                    clicked = function(self, x, y)
+                        if not self.visible then return false end
+                        
+                        -- Check if click is within bounds
+                        if x >= self.x and x <= self.x + self.width and
+                           y >= self.y and y <= self.y + self.height then
+                           
+                            -- Use the stored combat reference
+                            local enemies = self.combatRef.enemies
+                            
+                            for i, enemy in ipairs(enemies) do
+                                if enemy.active then
+                                    local enemyY = self.y + 30 + (i - 1) * 25
+                                    
+                                    if y >= enemyY - 2 and y <= enemyY + 20 then
+                                        -- Select this enemy
+                                        self.selectedIndex = i
+                                        print("Selected enemy: " .. enemies[i].name .. " (index: " .. i .. ")")
+                                        
+                                        -- Auto-confirm the selection if needed
+                                        if self.combatRef.settings and self.combatRef.settings.autoConfirmSelection then
+                                            -- Auto-confirm after a short delay
+                                            self.combatRef:confirmEnemySelection()
+                                        end
+                                        
+                                        return true
+                                    end
+                                end
+                            end
+                            
+                            return true
+                        end
+                        
+                        return false
+                    end
+                }
+            end
+            
+            -- Reset selection
+            self.elements.enemySelectList.selectedIndex = nil
+            
+            -- Show enemy selection list
+            self.elements.enemySelectList.visible = true
+            
+            -- Store the action type for later reference
+            self.enemySelectionActionType = actionType
+            
+            -- Since we're using auto-confirm, we only need the back button
+            self.elements.confirmButton.visible = false
+            self.elements.backButton.visible = true
+        end,
+        
+        -- Confirm enemy selection
+        confirmEnemySelection = function(self)
+            -- Make sure enemy selection list exists and has a selectedIndex
+            if not self.elements.enemySelectList then
+                print("Warning: Enemy selection list is missing")
+                return
+            end
+            
+            local selectedIndex = self.elements.enemySelectList.selectedIndex
+            
+            -- Check if an enemy was selected
+            if not selectedIndex then
+                self:addLog("No target selected.", {1, 0.5, 0})
+                return
+            end
+            
+            -- Set the selected enemy as the target
+            self.selectedTarget = self.enemies[selectedIndex]
+            
+            -- Hide enemy selection UI
+            self.elements.enemySelectList.visible = false
+            
+            -- Execute the action based on type
+            if self.enemySelectionActionType == "attack" then
+                self:executePlayerAction()
+            elseif self.enemySelectionActionType == "skill" then
+                self:executeSkill()
+            end
+            
+            -- Reset enemy selection tracking
+            self.enemySelectionActionType = nil
         end,
         
         -- Show skill list for current character
@@ -1113,10 +1418,19 @@ function combatSystem:createCombat(party, enemy)
                     self.selectedSkill = selectedSkill.skill
                     
                     -- Determine target based on skill target type
-                    if selectedSkill.skill.target == "single_enemy" or
-                       selectedSkill.skill.target == "all_enemies" then
-                        self.selectedTarget = self.enemy
-                        -- Execute skill immediately
+                    if selectedSkill.skill.target == "single_enemy" then
+                        if #self.enemies > 1 then
+                            -- Show enemy selection UI
+                            self:showEnemySelectionUI("skill")
+                            return -- Wait for enemy selection
+                        else
+                            -- If only one enemy, target it directly
+                            self.selectedTarget = self.enemy
+                            self:executeSkill()
+                        end
+                    elseif selectedSkill.skill.target == "all_enemies" then
+                        -- Target all enemies (handled in execution)
+                        self.selectedTarget = nil -- Special case for all enemies
                         self:executeSkill()
                     elseif selectedSkill.skill.target == "single_ally" then
                         -- Show party selection UI instead of auto-targeting
@@ -1177,6 +1491,9 @@ function combatSystem:createCombat(party, enemy)
             self.elements.skillList.visible = false
             self.elements.itemList.visible = false
             self.elements.partySelectList.visible = false
+            if self.elements.enemySelectList then
+                self.elements.enemySelectList.visible = false
+            end
         end,
         
         -- Show party selection UI
@@ -1194,18 +1511,19 @@ function combatSystem:createCombat(party, enemy)
             -- Store the action type for later reference
             self.partySelectionActionType = actionType
             
-            -- Update confirm button callback
-            self.elements.confirmButton.callback = function()
-                self:confirmPartySelection()
-            end
-            
-            -- Make sure buttons are visible
-            self.elements.confirmButton.visible = true
+            -- Since we're using auto-confirm, we only need the back button
+            self.elements.confirmButton.visible = false
             self.elements.backButton.visible = true
         end,
         
         -- Confirm party member selection
         confirmPartySelection = function(self)
+            -- Make sure party selection list exists and has a selectedIndex
+            if not self.elements.partySelectList then
+                print("Warning: Party selection list is missing")
+                return
+            end
+            
             local selectedIndex = self.elements.partySelectList.selectedIndex
             
             -- Check if a party member was selected
@@ -1239,11 +1557,15 @@ function combatSystem:createCombat(party, enemy)
             self.selectedSkill = nil
             self.selectedItem = nil
             self.partySelectionActionType = nil
+            self.enemySelectionActionType = nil
             
             -- Hide lists
             self.elements.skillList.visible = false
             self.elements.itemList.visible = false
             self.elements.partySelectList.visible = false
+            if self.elements.enemySelectList then
+                self.elements.enemySelectList.visible = false
+            end
             
             -- Make sure action buttons are visible again
             self.elements.attackButton.visible = true
@@ -1270,17 +1592,20 @@ function combatSystem:createCombat(party, enemy)
                     end
                 end
                 
+                -- Get the target enemy (for backward compatibility, default to self.enemy if no specific target)
+                local targetEnemy = self.selectedTarget or self.enemy
+                
                 -- Ensure enemy has defense
-                if not self.enemy.defense or type(self.enemy.defense) ~= "number" then
-                    self.enemy.defense = 0
+                if not targetEnemy.defense or type(targetEnemy.defense) ~= "number" then
+                    targetEnemy.defense = 0
                     if GAME.debug then
-                        print("Fixed missing enemy defense, set to: " .. self.enemy.defense)
+                        print("Fixed missing enemy defense, set to: " .. targetEnemy.defense)
                     end
                 end
                 
                 -- Calculate damage using explicit values
                 local attackPower = currentChar.attackPower or 10  -- Default if missing
-                local enemyDefense = self.enemy.defense or 0       -- Default if missing
+                local enemyDefense = targetEnemy.defense or 0       -- Default if missing
                 
                 -- Debug attack values
                 if GAME.debug then
@@ -1302,16 +1627,16 @@ function combatSystem:createCombat(party, enemy)
                 end
                 
                 -- Apply damage to enemy
-                if not self.enemy.currentHP or type(self.enemy.currentHP) ~= "number" then
-                    self.enemy.currentHP = self.enemy.maxHP or 20
+                if not targetEnemy.currentHP or type(targetEnemy.currentHP) ~= "number" then
+                    targetEnemy.currentHP = targetEnemy.maxHP or 20
                 end
                 
                 -- Apply damage and ensure we don't go below 0
-                self.enemy.currentHP = self.enemy.currentHP - damage
-                if self.enemy.currentHP < 0 then self.enemy.currentHP = 0 end
+                targetEnemy.currentHP = targetEnemy.currentHP - damage
+                if targetEnemy.currentHP < 0 then targetEnemy.currentHP = 0 end
                 
                 if GAME.debug then
-                    print("  Enemy HP after attack: " .. self.enemy.currentHP)
+                    print("  Enemy HP after attack: " .. targetEnemy.currentHP)
                 end
                 
                 -- Add animation delay
@@ -1321,12 +1646,18 @@ function combatSystem:createCombat(party, enemy)
                 assetManager:playSound("attack")
                 
                 -- Add to combat log
-                self:addLog(currentChar.name .. " attacks for " .. damage .. " damage!")
+                self:addLog(currentChar.name .. " attacks " .. targetEnemy.name .. " for " .. damage .. " damage!")
                 
                 -- Check for enemy defeat
-                if self.enemy.currentHP <= 0 then
-                    self:enemyDefeated()
-                    return
+                if targetEnemy.currentHP <= 0 then
+                    -- Make sure to mark as inactive
+                    targetEnemy.active = false
+                    
+                    if GAME.debug then
+                        print("  Enemy defeated in executePlayerAction: " .. targetEnemy.name)
+                    end
+                    
+                    self:enemyDefeated(targetEnemy)
                 end
             end
             
@@ -1355,11 +1686,11 @@ function combatSystem:createCombat(party, enemy)
             if GAME.debug then
                 print("Executing skill: " .. self.selectedSkill.name)
                 print("  Target type: " .. (self.selectedSkill.target or "unknown"))
-                print("  Selected target: " .. (self.selectedTarget and self.selectedTarget.name or "none"))
+                print("  Selected target: " .. (self.selectedTarget and self.selectedTarget.name or "none/all"))
             end
             
-            -- Check if we have a valid target
-            if not self.selectedTarget and self.selectedSkill.target ~= "all_allies" then
+            -- Check target for single-enemy skills
+            if self.selectedSkill.target == "single_enemy" and not self.selectedTarget then
                 self:addLog("No valid target for skill.", {1, 0.5, 0})
                 if GAME.debug then print("Missing target for skill " .. self.selectedSkill.name) end
                 return
@@ -1384,9 +1715,8 @@ function combatSystem:createCombat(party, enemy)
             end
             
             -- Handle different skill targets
-            if self.selectedSkill.target == "single_enemy" or 
-               self.selectedSkill.target == "all_enemies" then
-                -- Apply damage to enemy
+            if self.selectedSkill.target == "single_enemy" then
+                -- Apply damage to the selected enemy
                 local damage, isCritical = 0, false
                 
                 -- Make sure character has this skill before calculating damage
@@ -1394,7 +1724,7 @@ function combatSystem:createCombat(party, enemy)
                     damage, isCritical = skillSystem:calculateDamage(
                         self.selectedSkill,
                         currentChar,
-                        self.enemy,
+                        self.selectedTarget,
                         currentChar.skills[self.selectedSkill.name].level
                     )
                 else
@@ -1402,12 +1732,12 @@ function combatSystem:createCombat(party, enemy)
                     damage, isCritical = skillSystem:calculateDamage(
                         self.selectedSkill,
                         currentChar,
-                        self.enemy,
+                        self.selectedTarget,
                         1
                     )
                 end
                 
-                self.enemy.currentHP = math.max(0, self.enemy.currentHP - damage)
+                self.selectedTarget.currentHP = math.max(0, self.selectedTarget.currentHP - damage)
                 
                 -- Play appropriate sound
                 if self.selectedSkill.type == "magical" then
@@ -1418,6 +1748,7 @@ function combatSystem:createCombat(party, enemy)
                 
                 -- Add to combat log
                 local logText = currentChar.name .. " uses " .. self.selectedSkill.name
+                logText = logText .. " on " .. self.selectedTarget.name
                 logText = logText .. " for " .. damage .. " damage!"
                 
                 if isCritical then
@@ -1428,13 +1759,76 @@ function combatSystem:createCombat(party, enemy)
                 
                 -- Apply skill effects
                 if self.selectedSkill.effect then
-                    self:applySkillEffect(self.selectedSkill, currentChar, self.enemy)
+                    self:applySkillEffect(self.selectedSkill, currentChar, self.selectedTarget)
                 end
                 
                 -- Check for enemy defeat
-                if self.enemy.currentHP <= 0 then
-                    self:enemyDefeated()
-                    return
+                if self.selectedTarget.currentHP <= 0 then
+                    self:enemyDefeated(self.selectedTarget)
+                end
+            elseif self.selectedSkill.target == "all_enemies" then
+                -- Apply to all enemies
+                local totalDamage = 0
+                local defeatedCount = 0
+                
+                for _, enemy in ipairs(self.enemies) do
+                    if enemy.active then
+                        local damage, isCritical = 0, false
+                        
+                        -- Calculate damage for each enemy
+                        if currentChar.skills and currentChar.skills[self.selectedSkill.name] then
+                            damage, isCritical = skillSystem:calculateDamage(
+                                self.selectedSkill,
+                                currentChar,
+                                enemy,
+                                currentChar.skills[self.selectedSkill.name].level
+                            )
+                        else
+                            damage, isCritical = skillSystem:calculateDamage(
+                                self.selectedSkill,
+                                currentChar,
+                                enemy,
+                                1
+                            )
+                        end
+                        
+                        -- Apply damage with AOE reduction
+                        local aoeReduction = 0.8 -- Reduce damage for AOE attacks
+                        damage = math.floor(damage * aoeReduction)
+                        enemy.currentHP = math.max(0, enemy.currentHP - damage)
+                        totalDamage = totalDamage + damage
+                        
+                        -- Apply skill effects
+                        if self.selectedSkill.effect then
+                            self:applySkillEffect(self.selectedSkill, currentChar, enemy)
+                        end
+                        
+                        -- Check for enemy defeat
+                        if enemy.currentHP <= 0 and enemy.active then
+                            enemy.active = false
+                            defeatedCount = defeatedCount + 1
+                        end
+                    end
+                end
+                
+                -- Play appropriate sound
+                if self.selectedSkill.type == "magical" then
+                    assetManager:playSound("spell")
+                else
+                    assetManager:playSound("attack")
+                end
+                
+                -- Add to combat log
+                local logText = currentChar.name .. " uses " .. self.selectedSkill.name
+                logText = logText .. " on all enemies for " .. totalDamage .. " total damage!"
+                self:addLog(logText)
+                
+                -- Log defeated enemies if any
+                if defeatedCount > 0 then
+                    self:addLog(defeatedCount .. " enemies were defeated!", {0, 1, 0})
+                    
+                    -- Check if all enemies are defeated
+                    self:checkAllEnemiesDefeated()
                 end
             elseif self.selectedSkill.target == "single_ally" or 
                    self.selectedSkill.target == "self" then
@@ -1846,6 +2240,145 @@ function combatSystem:createCombat(party, enemy)
             end
         end,
         
+        -- Handle enemy defeat
+        enemyDefeated = function(self, enemy)
+            -- Mark enemy as inactive
+            enemy.active = false
+            enemy.currentHP = 0  -- Ensure HP is zero
+            
+            -- Add log message
+            self:addLog(enemy.name .. " is defeated!", {0, 1, 0})
+            
+            -- Debug logging
+            if GAME.debug then
+                print("Enemy defeated: " .. enemy.name)
+                print("Checking all enemies status:")
+                for i, e in ipairs(self.enemies) do
+                    print("  " .. e.name .. ": " .. (e.active and "active" or "inactive"))
+                end
+            end
+            
+            -- Notify quest system about the kill
+            local questSystem = require("gameplay/questSystem")
+            -- Pass relevant data: monster ID and potentially boss flag
+            local eventData = { 
+                monsterId = enemy.id or "unknown", -- Pass the actual monster ID
+                isBoss = enemy.isBoss or false -- Check for the boss flag
+            }
+            -- If it's a boss, trigger the boss kill event specifically
+            local eventName = eventData.isBoss and "boss_kill" or "kill"
+            questSystem:updateProgress(eventName, eventData) 
+            
+            -- Check if all enemies are defeated
+            self:checkAllEnemiesDefeated()
+        end,
+        
+        -- Check if all enemies are defeated, and if so, set victory state
+        checkAllEnemiesDefeated = function(self)
+            local allDefeated = true
+            
+            -- Check if any enemies are still active
+            for i, enemy in ipairs(self.enemies) do
+                -- Double check HP and active status
+                if enemy.currentHP <= 0 then
+                    enemy.active = false  -- Force inactive if HP is zero
+                end
+                
+                if enemy.active then
+                    allDefeated = false
+                    if GAME.debug then
+                        print("Enemy still active: " .. enemy.name)
+                    end
+                    break
+                end
+            end
+            
+            -- If all enemies are defeated, set victory state
+            if allDefeated then
+                if GAME.debug then
+                    print("All enemies defeated, transitioning to victory state")
+                end
+                self:allEnemiesDefeated()
+            end
+        end,
+        
+        -- Handle all enemies being defeated
+        allEnemiesDefeated = function(self)
+            self:addLog("All enemies defeated!", {0, 1, 0})
+            
+            -- Debug log
+            if GAME.debug then
+                print("Victory state transition started")
+            end
+            
+            -- Calculate total rewards from all enemies
+            self.rewards = {
+                exp = 0,
+                loot = {}
+            }
+            
+            -- Sum up experience and generate loot from all enemies
+            for _, enemy in ipairs(self.enemies) do
+                -- Add experience
+                self.rewards.exp = self.rewards.exp + (enemy.stats.level * 100)
+                
+                -- Generate loot for each enemy and add to the total
+                local enemyLoot = itemSystem:generateRandomLoot(enemy.stats.level)
+                for _, item in ipairs(enemyLoot) do
+                    table.insert(self.rewards.loot, item)
+                end
+                
+                -- Notify quest system about each kill
+                local questSystem = require("gameplay/questSystem")
+                local eventData = { 
+                    monsterId = enemy.id or "unknown",
+                    isBoss = enemy.isBoss or false
+                }
+                local eventName = eventData.isBoss and "boss_kill" or "kill"
+                questSystem:updateProgress(eventName, eventData)
+            end
+            
+            -- Grant experience to party members
+            for _, character in ipairs(self.party) do
+                if character.active then
+                    local charSystem = require("gameplay/character")
+                    charSystem:addExperience(character, self.rewards.exp)
+                end
+            end
+            
+            -- Set victory state
+            self.state = combatSystem.STATE.VICTORY
+            
+            if GAME.debug then
+                print("Combat state changed to VICTORY: " .. self.state)
+            end
+            
+            -- Create continue button
+            self.elements.continueButton = screenManager.UI.Button(
+                GAME.width / 2 - 100, GAME.height / 3 + 250,
+                200, 40, "Continue",
+                function() return true end
+            )
+            self.elements.continueButton.visible = true
+            
+            -- Hide combat UI elements
+            self.elements.attackButton.visible = false
+            self.elements.skillButton.visible = false
+            self.elements.itemButton.visible = false
+            self.elements.defendButton.visible = false
+            self.elements.skillList.visible = false
+            self.elements.itemList.visible = false
+            self.elements.confirmButton.visible = false
+            self.elements.backButton.visible = false
+            if self.elements.enemySelectList then
+                self.elements.enemySelectList.visible = false
+            end
+            
+            if GAME.debug then
+                print("Victory UI setup complete")
+            end
+        end,
+        
         -- Update status effect durations
         updateStatusEffects = function(self)
             -- Update party status effects
@@ -1865,17 +2398,19 @@ function combatSystem:createCombat(party, enemy)
                 end
             end
             
-            -- Update enemy status effects
-            for status, info in pairs(self.enemy.status) do
-                if info.duration then
-                    info.duration = info.duration - 1
-                    
-                    if info.duration <= 0 then
-                        self.enemy.status[status] = nil
-                        self:addLog(
-                            self.enemy.name .. "'s " .. status .. " effect wore off!",
-                            {0.8, 0.8, 0.2}
-                        )
+            -- Update all enemies' status effects
+            for _, enemy in ipairs(self.enemies) do
+                for status, info in pairs(enemy.status) do
+                    if info.duration then
+                        info.duration = info.duration - 1
+                        
+                        if info.duration <= 0 then
+                            enemy.status[status] = nil
+                            self:addLog(
+                                enemy.name .. "'s " .. status .. " effect wore off!",
+                                {0.8, 0.8, 0.2}
+                            )
+                        end
                     end
                 end
             end
@@ -1889,16 +2424,41 @@ function combatSystem:createCombat(party, enemy)
                 return
             end
 
+            -- Find next active enemy
+            local activeEnemyIndex = self.activeEnemyIndex
+            local activeEnemyFound = false
+            
+            -- Search starting from the current index
+            for i = 1, #self.enemies do
+                local enemyIndex = (activeEnemyIndex + i - 1) % #self.enemies + 1
+                if self.enemies[enemyIndex].active then
+                    activeEnemyIndex = enemyIndex
+                    activeEnemyFound = true
+                    break
+                end
+            end
+            
+            -- If no active enemy found, end enemy turn phase
+            if not activeEnemyFound then
+                self.turnEndDelay = 0.5
+                return
+            end
+            
+            -- Set active enemy index
+            self.activeEnemyIndex = activeEnemyIndex
+            local enemy = self.enemies[self.activeEnemyIndex]
+            
             -- Check if enemy is stunned
-            if self.enemy.status.stun then
-                self:addLog(self.enemy.name .. " is stunned and cannot act!")
-                -- Need to end the enemy's turn properly
+            if enemy.status.stun then
+                self:addLog(enemy.name .. " is stunned and cannot act!")
+                -- Move to next enemy
+                self.activeEnemyIndex = (self.activeEnemyIndex % #self.enemies) + 1
                 self.turnEndDelay = 0.5 
                 return
             end
             
             -- Add a combat log entry to show the enemy's turn is starting
-            self:addLog(self.enemy.name .. " is taking its turn...", {1, 0.5, 0.5})
+            self:addLog(enemy.name .. " is taking its turn...", {1, 0.5, 0.5})
             
             -- Choose a random active party member to attack
             local targets = {}
@@ -1914,13 +2474,13 @@ function combatSystem:createCombat(party, enemy)
                 local target = self.party[targetIndex]
                 
                 -- Ensure enemy has attack power
-                if not self.enemy.attackPower or type(self.enemy.attackPower) ~= "number" then
+                if not enemy.attackPower or type(enemy.attackPower) ~= "number" then
                     -- Force set enemy attack power if missing
-                    self.enemy.attackPower = 10
+                    enemy.attackPower = 10
                 end
                 
                 -- Calculate enemy damage - using direct number values to avoid conversion issues
-                local baseDamage = self.enemy.attackPower or 10  -- Default if missing
+                local baseDamage = enemy.attackPower or 10  -- Default if missing
                 if type(baseDamage) ~= "number" then baseDamage = 10 end
                 
                 local targetDefense = 0
@@ -1962,7 +2522,7 @@ function combatSystem:createCombat(party, enemy)
                 
                 -- Add to combat log
                 self:addLog(
-                    self.enemy.name .. " attacks " .. target.name .. 
+                    enemy.name .. " attacks " .. target.name .. 
                     " for " .. damage .. " damage!",
                     {1, 0.5, 0.5}
                 )
@@ -1988,63 +2548,20 @@ function combatSystem:createCombat(party, enemy)
                 end
             else
                 -- No valid targets, enemy does nothing
-                self:addLog(self.enemy.name .. " has no valid target!", {1, 0.5, 0.5})
+                self:addLog(enemy.name .. " has no valid target!", {1, 0.5, 0.5})
             end
             
-            -- Add a short delay before moving to the next turn
-            self.turnEndDelay = 0.5
-        end,
-        
-        -- Handle enemy defeat
-        enemyDefeated = function(self)
-            self:addLog(self.enemy.name .. " is defeated!", {0, 1, 0})
+            -- Move to the next enemy's turn
+            self.activeEnemyIndex = (self.activeEnemyIndex % #self.enemies) + 1
             
-            -- Notify quest system about the kill
-            local questSystem = require("gameplay/questSystem")
-            -- Pass relevant data: monster ID and potentially boss flag
-            local eventData = { 
-                monsterId = self.enemy.id or "unknown", -- Pass the actual monster ID
-                isBoss = self.enemy.isBoss or false -- Check for the boss flag
-            }
-            -- If it's a boss, trigger the boss kill event specifically
-            local eventName = eventData.isBoss and "boss_kill" or "kill"
-            questSystem:updateProgress(eventName, eventData) 
-            -- TODO: Check return value from updateProgress if needed for immediate completion logic
-            
-            -- Calculate rewards
-            self.rewards = {
-                exp = self.enemy.stats.level * 100,
-                loot = itemSystem:generateRandomLoot(self.enemy.stats.level)
-            }
-            
-            -- Grant experience to party members
-            for _, character in ipairs(self.party) do
-                if character.active then
-                    local charSystem = require("gameplay/character")
-                    charSystem:addExperience(character, self.rewards.exp)
-                end
+            -- Check if we've processed all enemies
+            if self.activeEnemyIndex == 1 then
+                -- All enemies had their turn, end enemy phase
+                self.turnEndDelay = 0.5
+            else
+                -- More enemies to process, wait briefly before next enemy acts
+                self.turnEndDelay = 0.3
             end
-            
-            -- Set victory state
-            self.state = combatSystem.STATE.VICTORY
-            
-            -- Create continue button
-            self.elements.continueButton = screenManager.UI.Button(
-                GAME.width / 2 - 100, GAME.height / 3 + 250,
-                200, 40, "Continue",
-                function() return true end
-            )
-            self.elements.continueButton.visible = true
-            
-            -- Hide combat UI elements
-            self.elements.attackButton.visible = false
-            self.elements.skillButton.visible = false
-            self.elements.itemButton.visible = false
-            self.elements.defendButton.visible = false
-            self.elements.skillList.visible = false
-            self.elements.itemList.visible = false
-            self.elements.confirmButton.visible = false
-            self.elements.backButton.visible = false
         end,
         
         -- Handle party defeat
@@ -2132,18 +2649,28 @@ function combatSystem:createCombat(party, enemy)
                 -- Check skill list clicks
                 if self.elements.skillList and self.elements.skillList.visible and self.elements.skillList:clicked(x, y) then
                     -- Click was handled by the list, but combat is not over
+                    print("Skill list click detected")
                     return false 
                 end
                 
                 -- Check item list clicks
                 if self.elements.itemList and self.elements.itemList.visible and self.elements.itemList:clicked(x, y) then
                     -- Click was handled by the list, but combat is not over
+                    print("Item list click detected")
                     return false 
                 end
                 
                 -- Check party selection list clicks
                 if self.elements.partySelectList and self.elements.partySelectList.visible and self.elements.partySelectList:clicked(x, y) then
                     -- Click was handled by the list, but combat is not over
+                    print("Party selection click detected")
+                    return false
+                end
+                
+                -- Check enemy selection list clicks
+                if self.elements.enemySelectList and self.elements.enemySelectList.visible and self.elements.enemySelectList:clicked(x, y) then
+                    -- Click was handled by the list, but combat is not over
+                    print("Enemy selection list click detected")
                     return false
                 end
                 
@@ -2153,9 +2680,13 @@ function combatSystem:createCombat(party, enemy)
                     if element.clicked and element ~= self.elements.skillList and 
                        element ~= self.elements.itemList and 
                        element ~= self.elements.partySelectList and
+                       element ~= self.elements.enemySelectList and
                        element ~= self.elements.continueButton then
                         
                         if element.visible ~= false and element:clicked(x, y, button) then
+                            -- Debug output for button clicks
+                            print("Button clicked: " .. name)
+                            
                             -- Button callback was executed, click handled, but combat continues.
                             return false -- Return FALSE here!
                         end

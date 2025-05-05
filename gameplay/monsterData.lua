@@ -395,4 +395,156 @@ function monsterData:countTableElements(t)
     return count
 end
 
+-- Get a random monster of a specific category 
+function monsterData:getRandomMonsterByCategory(category, difficulty)
+    local monsters = self:getMonstersByCategory(category, false)
+    local validMonsters = {}
+    
+    -- Filter by difficulty/level
+    local maxLevel = difficulty * 2 -- Simple heuristic
+    for _, id in ipairs(monsters) do
+        local monster = self.monsters[id]
+        if monster.stats.level <= maxLevel then
+            table.insert(validMonsters, id)
+        end
+    end
+    
+    -- Return a random valid monster
+    if #validMonsters > 0 then
+        return validMonsters[math.random(1, #validMonsters)]
+    end
+    
+    -- Fallback to first monster in the category regardless of level
+    if #monsters > 0 then
+        return monsters[1]
+    end
+    
+    -- Ultimate fallback
+    return "fungal_fighter"
+end
+
+-- Generate a group of monsters of the same category based on difficulty
+function monsterData:generateMonsterGroup(difficulty)
+    -- Print debug info about the difficulty
+    print("Generating monster group for difficulty level: " .. tostring(difficulty))
+    
+    -- Load quest system difficulty constants if needed
+    local questSystem = require("gameplay/questSystem")
+    local DIFFICULTY = questSystem.DIFFICULTY
+    
+    -- Determine number of monsters based on difficulty
+    local monsterCount
+    
+    -- Check against enum values if possible
+    if DIFFICULTY then
+        if difficulty == DIFFICULTY.EASY then
+            monsterCount = 1 -- Easy - 1 monster
+        elseif difficulty == DIFFICULTY.MEDIUM then
+            monsterCount = math.random(1, 3) -- Medium - 1-3 monsters
+        elseif difficulty == DIFFICULTY.HARD then
+            monsterCount = math.random(2, 4) -- Hard - 2-4 monsters
+        elseif difficulty >= DIFFICULTY.VERY_HARD then
+            monsterCount = math.random(3, 5) -- Very hard/legendary - 3-5 monsters
+        else
+            -- Numeric fallback if difficulty doesn't match enum
+            if difficulty <= 1 then
+                monsterCount = 1
+            elseif difficulty <= 3 then
+                monsterCount = math.random(1, 3)
+            elseif difficulty <= 5 then
+                monsterCount = math.random(2, 4)
+            else
+                monsterCount = math.random(3, 5)
+            end
+        end
+    else
+        -- Direct numeric fallback (original logic)
+        if difficulty <= 1 then
+            monsterCount = 1
+        elseif difficulty <= 3 then
+            monsterCount = math.random(1, 3)
+        elseif difficulty <= 5 then
+            monsterCount = math.random(2, 4)
+        else
+            monsterCount = math.random(3, 5)
+        end
+    end
+    
+    print("Will generate " .. monsterCount .. " monsters")
+    
+    -- Choose a random category from available monsters
+    local categories = {}
+    for _, data in pairs(self.monsters) do
+        if not data.isBoss and not self:contains(categories, data.category) then
+            table.insert(categories, data.category)
+        end
+    end
+    
+    -- Randomly select a category
+    local selectedCategory = categories[math.random(1, #categories)]
+    print("Selected monster category: " .. tostring(selectedCategory))
+    
+    -- Generate the monster group
+    local monsters = {}
+    for i = 1, monsterCount do
+        local monsterId = self:getRandomMonsterByCategory(selectedCategory, difficulty)
+        local monsterData = self:getMonsterData(monsterId)
+        
+        if monsterData then
+            -- Clone monster data to avoid reference issues
+            local monster = {
+                id = monsterData.id,
+                name = monsterData.name,
+                stats = table.copy(monsterData.stats),
+                color = monsterData.color,
+                sprite = monsterData.sprite,
+                category = monsterData.category
+            }
+            
+            table.insert(monsters, monster)
+            print("Added monster: " .. monster.name)
+        else
+            print("Warning: Failed to get monster data for ID: " .. tostring(monsterId))
+        end
+    end
+    
+    -- Ensure we return at least one monster
+    if #monsters == 0 then
+        local fallbackMonster = self:getMonsterData("fungal_fighter")
+        table.insert(monsters, {
+            id = fallbackMonster.id,
+            name = fallbackMonster.name,
+            stats = table.copy(fallbackMonster.stats),
+            color = fallbackMonster.color,
+            sprite = fallbackMonster.sprite,
+            category = fallbackMonster.category
+        })
+        print("Warning: Monster group generation failed, using fallback monster")
+    end
+    
+    print("Final monster group size: " .. #monsters)
+    return monsters
+end
+
+-- Helper function to check if a table contains a value (moved to a method for scope safety)
+function monsterData:contains(tbl, value)
+    if not tbl or type(tbl) ~= "table" then return false end
+    
+    for _, v in ipairs(tbl) do
+        if v == value then
+            return true
+        end
+    end
+    return false
+end
+
+-- Helper function to copy a table
+function table.copy(t)
+    local u = {}
+    for k, v in pairs(t) do
+        u[k] = v
+    end
+    return u
+end
+
 return monsterData 

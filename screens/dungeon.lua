@@ -715,16 +715,89 @@ function dungeon:populateDungeon(difficulty)
     elseif questType == "ESCORT" then
         -- TODO: Add NPC entity to follow player
         print("ESCORT quest population not fully implemented.")
-        self:addFillerEntities(difficulty, 5)
+        -- Scale monster count based on difficulty
+        local monsterCount = 5 + (difficulty * 3) -- 8 for medium, 11 for hard, 14 for very hard
+        
+        -- For ESCORT quests, place some monsters near the entrance and exit
+        -- This ensures the player encounters monsters at critical points
+        local entranceX, entranceY = self.map.start.x, self.map.start.y
+        local exitX, exitY = self.map.end_.x, self.map.end_.y
+        
+        -- Place monsters near entrance (but not too close)
+        for i = 1, math.min(3, difficulty) do
+            local x = entranceX + math.random(-5, 5)
+            local y = entranceY + math.random(-5, 5)
+            
+            -- Ensure position is valid
+            if x > 1 and y > 1 and x < self.map.width and y < self.map.height and
+               self.map:getCell(x, y) == 0 and
+               (math.abs(x - entranceX) > 2 or math.abs(y - entranceY) > 2) then
+                
+                -- Get a slightly tougher monster for escorts
+                local scaledDifficulty = math.min(5, difficulty + 1) -- Scale up difficulty by 1
+                local randomMonsterId = monsterDataModule:getRandomMonsterId(scaledDifficulty)
+                local fetchedMonsterData = monsterDataModule:getMonsterData(randomMonsterId)
+                
+                if fetchedMonsterData then
+                    table.insert(self.entities, {
+                        x = x + 0.5,
+                        y = y + 0.5,
+                        type = "monster",
+                        id = randomMonsterId,
+                        name = fetchedMonsterData.name,
+                        color = fetchedMonsterData.color,
+                        stats = fetchedMonsterData.stats,
+                        sprite = fetchedMonsterData.sprite,
+                        category = fetchedMonsterData.category
+                    })
+                end
+            end
+        end
+        
+        -- Place monsters near exit (but not too close)
+        for i = 1, math.min(3, difficulty) do
+            local x = exitX + math.random(-5, 5)
+            local y = exitY + math.random(-5, 5)
+            
+            -- Ensure position is valid
+            if x > 1 and y > 1 and x < self.map.width and y < self.map.height and
+               self.map:getCell(x, y) == 0 and
+               (math.abs(x - exitX) > 2 or math.abs(y - exitY) > 2) then
+                
+                -- Get a tougher monster for exit area
+                local scaledDifficulty = math.min(5, difficulty + 2) -- Scale up difficulty by 2
+                local randomMonsterId = monsterDataModule:getRandomMonsterId(scaledDifficulty)
+                local fetchedMonsterData = monsterDataModule:getMonsterData(randomMonsterId)
+                
+                if fetchedMonsterData then
+                    table.insert(self.entities, {
+                        x = x + 0.5,
+                        y = y + 0.5,
+                        type = "monster",
+                        id = randomMonsterId,
+                        name = fetchedMonsterData.name,
+                        color = fetchedMonsterData.color,
+                        stats = fetchedMonsterData.stats,
+                        sprite = fetchedMonsterData.sprite,
+                        category = fetchedMonsterData.category
+                    })
+                end
+            end
+        end
+        
+        -- Add random monsters throughout the dungeon
+        self:addFillerEntities(difficulty, monsterCount)
         
     elseif questType == "EXPLORE" then
         -- No specific entities needed, objective is reaching the end
         -- Add filler monsters/items
-        self:addFillerEntities(difficulty, 5)
+        local monsterCount = 5 + (difficulty * 3)
+        self:addFillerEntities(difficulty, monsterCount)
         
     else 
         -- Fallback for unknown quest types
-        self:addFillerEntities(difficulty, 5)
+        local monsterCount = 5 + (difficulty * 3)
+        self:addFillerEntities(difficulty, monsterCount)
     end
 
 end
@@ -761,7 +834,10 @@ end
 
 -- Helper function to add some random filler monsters and chests
 function dungeon:addFillerEntities(difficulty, count, avoidEnd)
-    local monsterCount = math.floor(count / 2)
+    -- Calculate monster count - increase monster ratio for higher difficulties
+    local monsterRatio = 0.5 + (difficulty * 0.1) -- 50% for easy, 60% for medium, 70% for hard, etc.
+    monsterRatio = math.min(monsterRatio, 0.9) -- Cap at 90% monsters
+    local monsterCount = math.floor(count * monsterRatio)
     local itemCount = count - monsterCount
     
     local usedMonsterData = require("gameplay/monsterData") -- Require inside helper
@@ -1031,7 +1107,44 @@ function dungeon:checkEntityInteraction()
             if entity.type == "monster" then
                 -- Start combat
                 self.state = STATES.COMBAT
-                self.combat = combatSystem:createCombat(GAME.party, entity)
+                
+                -- For boss monsters, always use single-enemy combat
+                if entity.isBoss then
+                    self.combat = combatSystem:createCombat(GAME.party, entity)
+                else
+                    -- For regular monsters, check mission difficulty
+                    local difficulty = self.currentQuest and self.currentQuest.difficulty or 1
+                    
+                    -- For higher difficulty missions, create multi-enemy combats
+                    if difficulty > 1 then
+                        -- Save the monster's category
+                        local monsterCategory = entity.category
+                        
+                        -- Debug print to track difficulty value
+                        print("Creating monster group with difficulty: " .. tostring(difficulty))
+                        
+                        -- Generate a monster group of same category (including the encountered monster)
+                        local monsterDataModule = require("gameplay/monsterData")
+                        local monsters = monsterDataModule:generateMonsterGroup(difficulty)
+                        
+                        -- Show monster count in debug log
+                        print("Generated " .. #monsters .. " monsters for combat")
+                        
+                        -- Make sure first monster is the one we encountered (optional)
+                        if #monsters > 0 then
+                            monsters[1] = entity
+                        else
+                            monsters = {entity} -- Fallback
+                        end
+                        
+                        -- Start combat with multiple enemies
+                        self.combat = combatSystem:createCombat(GAME.party, monsters)
+                    else
+                        -- Easy missions still have single enemies
+                        self.combat = combatSystem:createCombat(GAME.party, entity)
+                    end
+                end
+                
                 break
             elseif entity.type == "chest" then
                 -- Open chest/collect item
@@ -1389,20 +1502,63 @@ function dungeon:mousepressed(x, y, button, istouch, presses)
         if self.combat:mousepressed(x, y, button) then
             -- If combat system signals completion via mouse click (on Continue button)
             if self.combat:isVictory() then
-                -- Get loot and enemy info before potential state change
+                -- Get loot before potential state change
                 local loot = self.combat:getLoot()
-                local enemyToRemove = self.combat.enemy
-
-                -- Handle victory rewards (loot, remove enemy)
+                
+                -- Handle victory rewards (loot, remove enemies)
                 if GAME.inventory and loot then
                     for _, item in ipairs(loot) do 
                         itemSystem:addToInventory(item)
                     end
                 end
-                for i = #self.entities, 1, -1 do
-                    if self.entities[i] == enemyToRemove then
-                        table.remove(self.entities, i)
-                        break
+                
+                -- Remove all defeated enemies from the entities list
+                -- With multiple enemies, we need to handle all enemies that were in combat
+                if self.combat.enemies and #self.combat.enemies > 0 then
+                    -- Create a table to track which entities to remove
+                    local entitiesToRemove = {}
+                    
+                    -- Find all of the combat enemies in the dungeon entities
+                    for _, combatEnemy in ipairs(self.combat.enemies) do
+                        for i, entity in ipairs(self.entities) do
+                            -- Match by ID and position if possible
+                            if entity.type == "monster" and entity.id == combatEnemy.id then
+                                -- Check if position values exist before calculating distance
+                                if combatEnemy.x ~= nil and combatEnemy.y ~= nil and entity.x ~= nil and entity.y ~= nil then
+                                    -- If entity positions approximately match the combat enemy
+                                    -- (Using a small tolerance for floating point comparison)
+                                    local distX = entity.x - combatEnemy.x
+                                    local distY = entity.y - combatEnemy.y
+                                    local dist = math.sqrt(distX*distX + distY*distY)
+                                    
+                                    -- Match by position with small tolerance
+                                    if dist < 2.0 then
+                                        table.insert(entitiesToRemove, i)
+                                        break
+                                    end
+                                else
+                                    -- If positions aren't available, match by ID only
+                                    table.insert(entitiesToRemove, i)
+                                    break
+                                end
+                            end
+                        end
+                    end
+                    
+                    -- Remove the entities in reverse order to avoid index shifting issues
+                    table.sort(entitiesToRemove, function(a, b) return a > b end)
+                    for _, index in ipairs(entitiesToRemove) do
+                        table.remove(self.entities, index)
+                    end
+                    
+                elseif self.combat.enemy then
+                    -- Backward compatibility for single enemy combat
+                    local enemyToRemove = self.combat.enemy
+                    for i = #self.entities, 1, -1 do
+                        if self.entities[i] == enemyToRemove then
+                            table.remove(self.entities, i)
+                            break
+                        end
                     end
                 end
 
