@@ -53,6 +53,15 @@ function overworld:init()
             width = 120,
             height = 100,
             state = "dungeon"
+        },
+        {
+            name = "Inn",
+            description = "Rest, recover, and enjoy special services at the adventurer's inn.",
+            x = 400,
+            y = 150,
+            width = 120,
+            height = 100,
+            state = "inn"
         }
     }
     

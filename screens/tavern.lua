@@ -3,6 +3,7 @@
 local screenManager = require("screens/screenManager")
 local assetManager = require("assets/assetManager")
 local questSystem = require("gameplay/questSystem")
+local reputationSystem = require("gameplay/reputationSystem")
 
 local tavern = screenManager:createScreen("Tavern")
 
@@ -317,6 +318,8 @@ function tavern:createUI()
         width = 500,
         height = 300,
         visible = false,
+        haggleChance = 0,
+        haggleResult = nil,
         
         draw = function(self)
             if not self.visible then
@@ -337,52 +340,71 @@ function tavern:createUI()
             )
             
             love.graphics.printf(
-                "Haggle attempts: " .. tavern.haggleAttempts .. "/" .. tavern.maxHaggleAttempts,
+                "Haggle attempts: " .. tavern.selectedQuest.haggleAttempts .. "/3",
                 self.x + 20, self.y + 90,
                 self.width - 40, "center"
             )
             
-            -- Draw success message if successful
-            if tavern.haggleSuccess then
-                love.graphics.setColor(0.2, 0.8, 0.2)
-                
+            -- Draw character's CHA stat
+            if GAME.party and GAME.party[1] then
+                local charisma = GAME.party[1].attributes.CHA or 5
+                love.graphics.setColor(0.8, 0.9, 1)
                 love.graphics.printf(
-                    "Success! The reward has been increased by " .. 
-                    tavern.hagglePercentage .. "%!",
-                    self.x + 20, self.y + 130,
-                    self.width - 40, "center"
-                )
-            elseif tavern.haggleAttempts > 0 then
-                -- Draw failure message
-                love.graphics.setColor(0.8, 0.2, 0.2)
-                
-                love.graphics.printf(
-                    "Failed! Try again or accept the current reward.",
-                    self.x + 20, self.y + 130,
+                    "Your Charisma: " .. charisma,
+                    self.x + 20, self.y + 120,
                     self.width - 40, "center"
                 )
             end
             
-            -- Draw haggle instructions
-            if not tavern.haggleSuccess and tavern.haggleAttempts < tavern.maxHaggleAttempts then
+            -- Draw haggle result if available
+            if self.haggleResult then
+                if self.haggleResult.success then
+                    love.graphics.setColor(0.2, 0.8, 0.2)
+                    love.graphics.printf(
+                        self.haggleResult.message,
+                        self.x + 20, self.y + 150,
+                        self.width - 40, "center"
+                    )
+                else
+                    love.graphics.setColor(0.8, 0.2, 0.2)
+                    love.graphics.printf(
+                        self.haggleResult.message,
+                        self.x + 20, self.y + 150,
+                        self.width - 40, "center"
+                    )
+                end
+            elseif tavern.selectedQuest.haggleAttempts < 3 then
+                -- Draw haggle instructions and success chance
                 love.graphics.setColor(0.8, 0.8, 0.2)
-                
                 love.graphics.printf(
-                    "Choose how much extra to ask for:",
-                    self.x + 20, self.y + 160,
+                    "Try to negotiate for better rewards:",
+                    self.x + 20, self.y + 150,
+                    self.width - 40, "center"
+                )
+                
+                love.graphics.setColor(1, 1, 1)
+                love.graphics.printf(
+                    "Success chance: " .. math.floor(self.haggleChance) .. "%",
+                    self.x + 20, self.y + 175,
+                    self.width - 40, "center"
+                )
+            else
+                -- Maximum attempts reached
+                love.graphics.setColor(0.8, 0.2, 0.2)
+                love.graphics.printf(
+                    "The quest giver refuses to haggle further.",
+                    self.x + 20, self.y + 150,
                     self.width - 40, "center"
                 )
             end
             
             -- Draw buttons
-            if tavern.haggleSuccess or tavern.haggleAttempts >= tavern.maxHaggleAttempts then
-                -- Show accept button
+            if self.haggleResult or tavern.selectedQuest.haggleAttempts >= 3 then
+                -- Show accept/close button
                 self.acceptButton:draw()
             else
-                -- Show haggle option buttons
-                self.lowHaggleButton:draw()
-                self.mediumHaggleButton:draw()
-                self.highHaggleButton:draw()
+                -- Show haggle button
+                self.haggleButton:draw()
             end
             
             -- Draw cancel button
@@ -392,26 +414,25 @@ function tavern:createUI()
         clicked = function(self, x, y, button)
             if not self.visible then return false end
             
-            -- Check button clicks
-            if tavern.haggleSuccess or tavern.haggleAttempts >= tavern.maxHaggleAttempts then
-                if self.acceptButton:clicked(x, y, button) then
+            -- Check if we should show haggle button or accept button
+            local showHaggleButton = not self.haggleResult and tavern.selectedQuest.haggleAttempts < 3
+            
+            -- Use proper button.clicked method
+            if showHaggleButton then
+                if self.haggleButton:clicked(x, y, button) then
+                    -- Call the function directly instead of relying on the button callback
+                    tavern:tryHaggle()
                     return true
                 end
             else
-                if self.lowHaggleButton:clicked(x, y, button) then
-                    return true
-                end
-                
-                if self.mediumHaggleButton:clicked(x, y, button) then
-                    return true
-                end
-                
-                if self.highHaggleButton:clicked(x, y, button) then
+                if self.acceptButton:clicked(x, y, button) then
+                    tavern:acceptHaggle()
                     return true
                 end
             end
             
             if self.cancelButton:clicked(x, y, button) then
+                tavern:cancelHaggle()
                 return true
             end
             
@@ -419,36 +440,43 @@ function tavern:createUI()
         end,
         
         init = function(self)
-            -- Create buttons
-            self.lowHaggleButton = screenManager.UI.Button(
-                self.x + 50, self.y + 200, 
-                100, 40, "10% More", 
-                function() tavern:tryHaggle(10) end
-            )
-            
-            self.mediumHaggleButton = screenManager.UI.Button(
+            -- Create buttons with empty callbacks since we're directly calling functions in clicked
+            self.haggleButton = screenManager.UI.Button(
                 self.x + self.width / 2 - 50, self.y + 200, 
-                100, 40, "25% More", 
-                function() tavern:tryHaggle(25) end
-            )
-            
-            self.highHaggleButton = screenManager.UI.Button(
-                self.x + self.width - 150, self.y + 200, 
-                100, 40, "50% More", 
-                function() tavern:tryHaggle(50) end
+                100, 40, "Haggle", 
+                nil  -- No callback, we'll handle it in clicked method
             )
             
             self.acceptButton = screenManager.UI.Button(
                 self.x + self.width / 2 - 50, self.y + 200, 
                 100, 40, "Accept", 
-                function() tavern:acceptHaggle() end
+                nil  -- No callback, we'll handle it in clicked method
             )
             
             self.cancelButton = screenManager.UI.Button(
                 self.x + self.width / 2 - 50, self.y + 250, 
                 100, 40, "Cancel", 
-                function() tavern:cancelHaggle() end
+                nil  -- No callback, we'll handle it in clicked method
             )
+        end,
+        
+        -- Calculate haggle success chance based on character's CHA
+        calculateHaggleChance = function(self)
+            if not GAME.party or not GAME.party[1] then
+                return 30 -- Default chance
+            end
+            
+            local character = GAME.party[1]
+            local charisma = character.attributes.CHA or 5
+            local baseChance = 30 + charisma * 3
+            
+            -- Reduce chance based on previous attempts
+            local attempts = tavern.selectedQuest.haggleAttempts or 0
+            local attemptsReduction = attempts * 15
+            local finalChance = math.max(5, math.min(95, baseChance - attemptsReduction))
+            
+            self.haggleChance = finalChance
+            return finalChance
         end
     }
     
@@ -604,14 +632,25 @@ function tavern:mousepressed(x, y, button, istouch, presses)
     -- Flag to track if a click was handled
     local clickHandled = false
     
+    -- Debug click coordinates
+    if GAME.debug then
+        print("Tavern clicked at: " .. x .. "," .. y .. " - Current state: " .. self.state)
+    end
+    
     -- Pass to UI elements based on current state
     if self.state == "haggle" then
         -- Check haggle panel first
         if self.elements.hagglePanel.visible then
+            if GAME.debug then
+                print("Checking haggle panel clicks")
+            end
             clickHandled = self.elements.hagglePanel:clicked(x, y, button)
             if clickHandled then
                 -- Play click sound
                 assetManager:playSound("click")
+                if GAME.debug then
+                    print("Haggle panel click handled")
+                end
                 return true
             end
         end
@@ -687,6 +726,22 @@ function tavern:selectQuest(quest)
     -- Select quest
     self.selectedQuest = quest
     
+    -- Initialize haggleAttempts if not exists
+    if not self.selectedQuest.haggleAttempts then
+        self.selectedQuest.haggleAttempts = 0
+    end
+    
+    -- Initialize canHaggle if not exists (Tavern quests can be haggled)
+    if self.selectedQuest.canHaggle == nil then
+        self.selectedQuest.canHaggle = (self.selectedQuest.giver == "Tavern")
+    end
+    
+    -- Reset haggle result
+    if self.elements.hagglePanel then
+        self.elements.hagglePanel.haggleResult = nil
+        self.elements.hagglePanel:calculateHaggleChance()
+    end
+    
     -- Show quest details
     self.state = "quest_details"
     self.elements.questDetailsPanel.visible = true
@@ -728,12 +783,21 @@ function tavern:startHaggle()
         return
     end
     
+    -- Check if quest supports haggling
+    if not self.selectedQuest.canHaggle then
+        -- Play error sound
+        assetManager:playSound("error")
+        return
+    end
+    
+    -- Calculate haggle chance
+    self.elements.hagglePanel:calculateHaggleChance()
+    
+    -- Reset haggle result
+    self.elements.hagglePanel.haggleResult = nil
+    
     -- Store original reward
     self.originalReward = self.selectedQuest.rewards.gold
-    
-    -- Reset haggle state
-    self.haggleAttempts = 0
-    self.haggleSuccess = false
     
     -- Show haggle panel
     self.state = "haggle"
@@ -743,78 +807,57 @@ function tavern:startHaggle()
     self:updateElementVisibility()
 end
 
-function tavern:tryHaggle(percentage)
-    -- Increment haggle attempts
-    self.haggleAttempts = self.haggleAttempts + 1
-    
-    -- Calculate success chance based on difficulty and percentage
-    local baseChance = 0
-    
-    if percentage == 10 then
-        baseChance = 70  -- 70% chance for small increase
-    elseif percentage == 25 then
-        baseChance = 40  -- 40% chance for medium increase
-    elseif percentage == 50 then
-        baseChance = 20  -- 20% chance for large increase
+function tavern:tryHaggle()
+    if not self.selectedQuest then
+        return
     end
     
-    -- Adjust chance based on difficulty
-    local difficultyModifier = 0
-    
-    if self.selectedQuest.difficulty == questSystem.DIFFICULTY.EASY then
-        difficultyModifier = 10  -- +10% for easy quests
-    elseif self.selectedQuest.difficulty == questSystem.DIFFICULTY.MEDIUM then
-        difficultyModifier = 0   -- No modifier for medium
-    elseif self.selectedQuest.difficulty == questSystem.DIFFICULTY.HARD then
-        difficultyModifier = -10 -- -10% for hard
-    elseif self.selectedQuest.difficulty == questSystem.DIFFICULTY.VERY_HARD then
-        difficultyModifier = -20 -- -20% for very hard
-    elseif self.selectedQuest.difficulty == questSystem.DIFFICULTY.LEGENDARY then
-        difficultyModifier = -30 -- -30% for legendary
+    -- Find first party member to use for haggling
+    local character = GAME.party[1]
+    if not character then
+        return
     end
     
-    -- Calculate final chance
-    local successChance = baseChance + difficultyModifier
+    -- Make sure haggleAttempts is initialized
+    if not self.selectedQuest.haggleAttempts then
+        self.selectedQuest.haggleAttempts = 0
+    end
     
-    -- Check for success
-    local roll = math.random(1, 100)
+    -- Attempt to haggle with the questgiver
+    local success, message, successChance = questSystem:haggle(self.selectedQuest.id, character)
     
-    if roll <= successChance then
-        -- Success!
-        self.haggleSuccess = true
-        self.hagglePercentage = percentage
-        
-        -- Increase reward
-        local increase = math.floor(self.originalReward * percentage / 100)
-        self.selectedQuest.rewards.gold = self.originalReward + increase
-        
-        -- Play success sound
+    -- Store haggle result
+    self.elements.hagglePanel.haggleResult = {
+        success = success,
+        message = message,
+        successChance = successChance
+    }
+    
+    -- Play sound based on result
+    if success then
         assetManager:playSound("pickup")
     else
-        -- Failure
-        -- Play failure sound
         assetManager:playSound("hit")
     end
+    
+    -- Update haggle chance for UI display
+    self.elements.hagglePanel:calculateHaggleChance()
 end
 
 function tavern:acceptHaggle()
-    -- Close haggle panel
-    self.elements.hagglePanel.visible = false
+    -- Close haggle panel and go back to quest details
     self.state = "quest_details"
+    self.elements.hagglePanel.visible = false
     
     -- Update element visibility
     self:updateElementVisibility()
 end
 
 function tavern:cancelHaggle()
-    -- Reset reward
-    if self.selectedQuest then
-        self.selectedQuest.rewards.gold = self.originalReward
-    end
-    
-    -- Close haggle panel
-    self.elements.hagglePanel.visible = false
+    -- Close haggle panel and go back to quest details
     self.state = "quest_details"
+    self.elements.hagglePanel.visible = false
+    self.elements.hagglePanel.haggleResult = nil
     
     -- Update element visibility
     self:updateElementVisibility()

@@ -298,6 +298,58 @@ function characterInfo:createUI()
                 love.graphics.setColor(1, 1, 1)
                 love.graphics.print("Total Level: " .. characterSystem:_calculateTotalLevel(char), self.x + 280, jobHistoryY)
                 jobHistoryY = jobHistoryY + 30
+                
+                -- Display Faction Reputation
+                local reputationSystem = require("gameplay/reputationSystem")
+                reputationSystem:init() -- Ensure reputation system is initialized
+                
+                love.graphics.setFont(screenManager.fonts.medium)
+                love.graphics.setColor(1, 1, 1)
+                love.graphics.print("Faction Reputation", self.x + 30, jobHistoryY)
+                jobHistoryY = jobHistoryY + 30
+                
+                -- Display Guild reputation
+                local guildRepLevel = reputationSystem:getReputationLevel(reputationSystem.factions.GUILD)
+                local guildRepName = reputationSystem:getReputationLevelName(guildRepLevel)
+                love.graphics.setFont(screenManager.fonts.small)
+                love.graphics.setColor(0.8, 0.8, 1)
+                love.graphics.print("Guild:", self.x + 50, jobHistoryY)
+                
+                -- Display with color based on reputation level
+                if guildRepLevel >= reputationSystem.levels.FRIENDLY then
+                    love.graphics.setColor(0.2, 1, 0.2) -- Green for good rep
+                elseif guildRepLevel < reputationSystem.levels.NEUTRAL then
+                    love.graphics.setColor(1, 0.2, 0.2) -- Red for bad rep
+                else
+                    love.graphics.setColor(1, 1, 1) -- White for neutral
+                end
+                love.graphics.print(guildRepName .. " (" .. reputationSystem:getReputation(reputationSystem.factions.GUILD) .. ")", self.x + 150, jobHistoryY)
+                jobHistoryY = jobHistoryY + 25
+                
+                -- Display Tavern reputation
+                local tavernRepLevel = reputationSystem:getReputationLevel(reputationSystem.factions.TAVERN)
+                local tavernRepName = reputationSystem:getReputationLevelName(tavernRepLevel)
+                love.graphics.setColor(0.8, 0.8, 1)
+                love.graphics.print("Tavern:", self.x + 50, jobHistoryY)
+                
+                -- Display with color based on reputation level
+                if tavernRepLevel >= reputationSystem.levels.FRIENDLY then
+                    love.graphics.setColor(0.2, 1, 0.2) -- Green for good rep
+                elseif tavernRepLevel < reputationSystem.levels.NEUTRAL then
+                    love.graphics.setColor(1, 0.2, 0.2) -- Red for bad rep
+                else
+                    love.graphics.setColor(1, 1, 1) -- White for neutral
+                end
+                love.graphics.print(tavernRepName .. " (" .. reputationSystem:getReputation(reputationSystem.factions.TAVERN) .. ")", self.x + 150, jobHistoryY)
+                jobHistoryY = jobHistoryY + 25
+                
+                -- Add reputation benefits explanation
+                if guildRepLevel > reputationSystem.levels.NEUTRAL or tavernRepLevel > reputationSystem.levels.NEUTRAL then
+                    love.graphics.setFont(screenManager.fonts.small)
+                    love.graphics.setColor(0.8, 0.9, 0.8)
+                    love.graphics.print("* Higher reputation provides special benefits and discounts", self.x + 50, jobHistoryY)
+                    jobHistoryY = jobHistoryY + 25
+                end
 
                 contentHeight = jobHistoryY - (panelContentY - characterInfo.scrollOffsetY) -- Total height of content
                 

@@ -548,13 +548,8 @@ function mainMenu:loadSelectedGame()
     local gameData = saveLoad:loadProfile(self.selectedProfile.name)
     
     if gameData then
-        -- Set game data
-        GAME.party = gameData.party
-        GAME.inventory = gameData.inventory
-        GAME.gold = gameData.gold
-        GAME.activeQuests = gameData.quests
-        GAME.completedQuests = gameData.completedQuests
-        GAME.flags = gameData.flags
+        -- Apply loaded game data using the new function
+        saveLoad:applyLoadedData(gameData)
         
         -- Move to overworld screen
         local gameState = require("states/gameState")

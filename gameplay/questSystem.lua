@@ -1,6 +1,7 @@
 -- Quest System
 -- Manages quest generation, tracking, and completion
 local itemSystem = require("gameplay/item")
+local reputationSystem = require("gameplay/reputationSystem")
 
 local questSystem = {
     quests = {},
@@ -49,11 +50,29 @@ questSystem.questTypes = {
             end
             return false
         end,
-        generateRewards = function(difficulty, level)
-            return {
-                gold = 50 * difficulty * level,
-                items = {}
+        generateRewards = function(difficulty, level, giver)
+            local rewards = {
+                gold = 0,
+                items = {},
+                reputation = 0
             }
+            
+            -- Different reward structures based on quest giver
+            if giver == "Guild" then
+                -- Guild quests have higher gold rewards
+                rewards.gold = 70 * difficulty * level
+                rewards.reputation = 10 * difficulty
+            else -- Tavern
+                -- Tavern quests have lower gold but better item rewards
+                rewards.gold = 40 * difficulty * level
+                rewards.reputation = 15 * difficulty
+                
+                -- Add a random item with higher quality for tavern quests
+                local itemLevel = level + math.floor(difficulty * 0.5)
+                table.insert(rewards.items, itemSystem:getRandomItem("consumable", itemLevel))
+            end
+            
+            return rewards
         end
     },
     
@@ -80,11 +99,29 @@ questSystem.questTypes = {
             end
             return false
         end,
-        generateRewards = function(difficulty, level)
-            return {
-                gold = 40 * difficulty * level,
-                items = {}
+        generateRewards = function(difficulty, level, giver)
+            local rewards = {
+                gold = 0,
+                items = {},
+                reputation = 0
             }
+            
+            if giver == "Guild" then
+                -- Guild quests have higher gold rewards
+                rewards.gold = 60 * difficulty * level
+                rewards.reputation = 15 * difficulty
+            else -- Tavern
+                -- Tavern quests have lower gold but better item rewards
+                rewards.gold = 35 * difficulty * level
+                rewards.reputation = 20 * difficulty
+                
+                -- Add a random weapon or armor for tavern collect quests
+                local itemType = math.random() < 0.5 and "weapon" or "armor"
+                local itemLevel = level + math.floor(difficulty * 0.5)
+                table.insert(rewards.items, itemSystem:getRandomItem(itemType, itemLevel))
+            end
+            
+            return rewards
         end
     },
     
@@ -110,11 +147,39 @@ questSystem.questTypes = {
             end
             return false
         end,
-        generateRewards = function(difficulty, level)
-            return {
-                gold = 30 * difficulty * level,
-                items = {}
+        generateRewards = function(difficulty, level, giver)
+            local rewards = {
+                gold = 0,
+                items = {},
+                reputation = 0
             }
+            
+            if giver == "Guild" then
+                -- Guild exploration quests have map rewards
+                rewards.gold = 50 * difficulty * level
+                rewards.reputation = 15 * difficulty
+                
+                -- Add map item for high difficulty guild quests
+                if difficulty >= questSystem.DIFFICULTY.HARD then
+                    table.insert(rewards.items, {
+                        type = "consumable",
+                        name = "Detailed Map",
+                        description = "Reveals more of the dungeon map"
+                    })
+                end
+            else -- Tavern
+                -- Tavern exploration has treasure rewards
+                rewards.gold = 25 * difficulty * level
+                rewards.reputation = 25 * difficulty
+                
+                -- Always add a random item for tavern explore quests
+                local itemTypes = {"weapon", "armor", "accessory", "consumable"}
+                local itemType = itemTypes[math.random(1, #itemTypes)]
+                local itemLevel = level + difficulty
+                table.insert(rewards.items, itemSystem:getRandomItem(itemType, itemLevel))
+            end
+            
+            return rewards
         end
     },
     
@@ -146,11 +211,41 @@ questSystem.questTypes = {
             end
             return false
         end,
-        generateRewards = function(difficulty, level)
-            return {
-                gold = 70 * difficulty * level,
-                items = {}
+        generateRewards = function(difficulty, level, giver)
+            local rewards = {
+                gold = 0,
+                items = {},
+                reputation = 0
             }
+            
+            if giver == "Guild" then
+                -- Guild escort missions are formal and have good gold
+                rewards.gold = 100 * difficulty * level
+                rewards.reputation = 30 * difficulty
+                
+                -- Add faction-specific equipment for guild escort
+                if difficulty >= questSystem.DIFFICULTY.MEDIUM then
+                    table.insert(rewards.items, {
+                        type = "accessory",
+                        name = "Guild Insignia",
+                        description = "Marks you as a trusted guild escort"
+                    })
+                end
+            else -- Tavern
+                -- Tavern escort missions are risky but rewarding
+                rewards.gold = 60 * difficulty * level
+                rewards.reputation = 40 * difficulty
+                
+                -- Add multiple random items for tavern escort quests
+                for i = 1, math.min(difficulty, 3) do
+                    local itemTypes = {"weapon", "armor", "accessory"}
+                    local itemType = itemTypes[math.random(1, #itemTypes)]
+                    local itemLevel = level + difficulty
+                    table.insert(rewards.items, itemSystem:getRandomItem(itemType, itemLevel))
+                end
+            end
+            
+            return rewards
         end
     },
     
@@ -178,15 +273,47 @@ questSystem.questTypes = {
             end
             return false
         end,
-        generateRewards = function(difficulty, level)
-            -- Boss quests have better rewards
+        generateRewards = function(difficulty, level, giver)
             local rewards = {
-                gold = 100 * difficulty * level,
-                items = {}
+                gold = 0,
+                items = {},
+                reputation = 0
             }
             
-            -- Add rare item reward
-            table.insert(rewards.items, itemSystem:getRandomItem("consumable", difficulty * level))
+            if giver == "Guild" then
+                -- Guild boss quests have excellent gold and reputation
+                rewards.gold = 150 * difficulty * level
+                rewards.reputation = 50 * difficulty
+                
+                -- Add high-quality guild equipment
+                table.insert(rewards.items, itemSystem:getRandomItem("weapon", level + difficulty))
+                
+                -- Add guild-specific reward for high difficulty
+                if difficulty >= questSystem.DIFFICULTY.HARD then
+                    table.insert(rewards.items, {
+                        type = "accessory",
+                        name = "Guild Champion Badge",
+                        description = "Marks you as a guild champion who has defeated powerful foes"
+                    })
+                end
+            else -- Tavern
+                -- Tavern boss quests have moderate gold but excellent items
+                rewards.gold = 80 * difficulty * level
+                rewards.reputation = 75 * difficulty
+                
+                -- Add multiple high-quality items
+                table.insert(rewards.items, itemSystem:getRandomItem("weapon", level + difficulty + 1))
+                table.insert(rewards.items, itemSystem:getRandomItem("armor", level + difficulty + 1))
+                
+                -- Add rare unique item for tavern boss quests
+                if difficulty >= questSystem.DIFFICULTY.MEDIUM then
+                    table.insert(rewards.items, {
+                        type = "accessory",
+                        name = "Trophy: " .. objective.bossName,
+                        description = "A trophy from your defeat of " .. objective.bossName
+                    })
+                end
+            end
             
             return rewards
         end
@@ -598,11 +725,29 @@ function questSystem:generateRandomQuest(giver, level, difficulty)
     local description = questTemplate.generateDescription(params)
     
     -- Generate rewards
-    local rewards = questTemplate.generateRewards(difficulty, level)
+    local rewards = questTemplate.generateRewards(difficulty, level, giver)
     
-    -- Add special items for higher difficulty
-    if difficulty >= self.DIFFICULTY.HARD then
-        table.insert(rewards.items, itemSystem:getRandomItem(math.random() < 0.5 and "weapon" or "armor", level))
+    -- Add time limit for Guild quests
+    local timeLimit = nil
+    if giver == "Guild" then
+        -- Guild quests have time limits based on difficulty
+        timeLimit = {
+            days = math.max(1, 5 - difficulty), -- Harder quests have shorter deadlines
+            inGameTime = true -- Uses in-game time rather than real time
+        }
+    end
+    
+    -- Add hidden objectives for Tavern quests
+    local hiddenObjectives = nil
+    if giver == "Tavern" and math.random() < 0.3 then
+        hiddenObjectives = {
+            {
+                description = "Find a secret item in the dungeon",
+                type = "item_find",
+                itemId = "hidden_item_" .. math.random(1, 5),
+                completed = false
+            }
+        }
     end
     
     -- Create quest
@@ -617,7 +762,14 @@ function questSystem:generateRandomQuest(giver, level, difficulty)
         objective = objective,
         rewards = rewards,
         status = self.STATUS.AVAILABLE,
-        seed = seed
+        seed = seed,
+        timeLimit = timeLimit, -- Only set for Guild quests
+        hiddenObjectives = hiddenObjectives, -- Only set for some Tavern quests
+        -- Additional fields for quest differentiation
+        isReliable = giver == "Guild", -- Guild info is reliable, Tavern info may not be
+        hasPenalty = giver == "Guild", -- Guild quests have reputation penalties for failure
+        canHaggle = giver == "Tavern", -- Only Tavern quests can be haggled
+        haggleAttempts = 0 -- Track haggle attempts for Tavern quests
     }
     
     return quest
@@ -690,6 +842,15 @@ function questSystem:completeQuest(questId)
             end
         end
         
+        -- Add reputation reward
+        if completedQuest.rewards.reputation and completedQuest.rewards.reputation > 0 then
+            -- Initialize reputation system
+            reputationSystem:init()
+            
+            -- Add reputation with the quest giver faction
+            reputationSystem:changeReputation(completedQuest.giver, completedQuest.rewards.reputation)
+        end
+        
         return completedQuest
     end
     
@@ -699,10 +860,13 @@ end
 -- Fail a quest
 function questSystem:failQuest(questId)
     -- Find quest
+    local failedQuest = nil
+    
     if GAME.activeQuests then
         for i, quest in ipairs(GAME.activeQuests) do
             if quest.id == questId and quest.status == self.STATUS.ACTIVE then
                 quest.status = self.STATUS.FAILED
+                failedQuest = quest
                 
                 -- Remove from active quests
                 table.remove(GAME.activeQuests, i)
@@ -710,6 +874,8 @@ function questSystem:failQuest(questId)
                 -- Add to failed quests if tracking
                 if GAME.failedQuests then
                     table.insert(GAME.failedQuests, quest)
+                else
+                    GAME.failedQuests = {quest}
                 end
                 
                 break
@@ -724,6 +890,18 @@ function questSystem:failQuest(questId)
             break
         end
     end
+    
+    -- Apply reputation penalty for Guild quests
+    if failedQuest and failedQuest.hasPenalty then
+        -- Initialize reputation system
+        reputationSystem:init()
+        
+        -- Reduce reputation with the Guild (penalty is scaled by difficulty)
+        local repPenalty = -10 * failedQuest.difficulty
+        reputationSystem:changeReputation(failedQuest.giver, repPenalty)
+    end
+    
+    return failedQuest
 end
 
 -- Update quest progress
@@ -801,6 +979,96 @@ end
 function questSystem:getCompletedQuests()
     -- Return the completed quests list or empty table if none
     return GAME.completedQuests or {}
+end
+
+-- Attempt to haggle for a Tavern quest
+function questSystem:haggle(questId, character)
+    -- Find quest
+    local quest = nil
+    
+    for _, q in ipairs(self.quests) do
+        if q.id == questId then
+            quest = q
+            break
+        end
+    end
+    
+    if not quest or not quest.canHaggle then
+        return false, "This quest cannot be haggled"
+    end
+    
+    -- Check if quest is from Tavern
+    if quest.giver ~= "Tavern" then
+        return false, "You can only haggle with tavern questgivers"
+    end
+    
+    -- Check if haggle attempts exceeded
+    if quest.haggleAttempts >= 3 then
+        return false, "The questgiver refuses to haggle further"
+    end
+    
+    -- Calculate success chance based on character's CHA attribute
+    local charisma = character.attributes.CHA or 5
+    local baseChance = 30 + charisma * 3
+    
+    -- Reduce chance based on previous attempts
+    local successChance = baseChance - (quest.haggleAttempts * 15)
+    successChance = math.max(5, math.min(95, successChance)) -- Clamp between 5% and 95%
+    
+    -- Roll for haggle result
+    local roll = math.random(1, 100)
+    local result = ""
+    local repChange = 0
+    
+    -- Increment haggle attempts
+    quest.haggleAttempts = quest.haggleAttempts + 1
+    
+    -- Process haggle result
+    if roll <= successChance / 3 then
+        -- Great success - increase gold by 25-40%
+        local goldIncrease = math.random(25, 40) / 100
+        quest.rewards.gold = math.floor(quest.rewards.gold * (1 + goldIncrease))
+        
+        -- Maybe add an extra item
+        if math.random() < 0.3 then
+            local itemLevel = quest.level + quest.difficulty
+            table.insert(quest.rewards.items, itemSystem:getRandomItem("consumable", itemLevel))
+        end
+        
+        result = "Great success! Gold reward increased by " .. math.floor(goldIncrease * 100) .. "%"
+        repChange = 5
+    elseif roll <= successChance then
+        -- Success - increase gold by 10-20%
+        local goldIncrease = math.random(10, 20) / 100
+        quest.rewards.gold = math.floor(quest.rewards.gold * (1 + goldIncrease))
+        result = "Success! Gold reward increased by " .. math.floor(goldIncrease * 100) .. "%"
+        repChange = 2
+    elseif roll <= successChance + 20 then
+        -- Partial success - small increase
+        local goldIncrease = math.random(5, 10) / 100
+        quest.rewards.gold = math.floor(quest.rewards.gold * (1 + goldIncrease))
+        result = "Partial success. Gold reward increased slightly"
+        repChange = 0
+    else
+        -- Failure - chance to decrease reward
+        if math.random() < 0.4 then  -- 40% chance to decrease reward
+            local goldDecrease = math.random(10, 20) / 100
+            quest.rewards.gold = math.floor(quest.rewards.gold * (1 - goldDecrease))
+            result = "Haggle failed badly! The questgiver reduced the reward by " .. math.floor(goldDecrease * 100) .. "%"
+        else
+            result = "Haggle failed. The questgiver seems annoyed"
+        end
+        
+        repChange = -5
+    end
+    
+    -- Apply reputation change
+    if repChange ~= 0 then
+        reputationSystem:init()
+        reputationSystem:changeReputation("Tavern", repChange)
+    end
+    
+    return true, result, successChance
 end
 
 return questSystem

@@ -140,7 +140,16 @@ function saveLoad:createProfile(name)
         completedQuests = {},
         dungeonSeeds = {},
         gameTime = 0,
-        flags = {}
+        flags = {},
+        reputation = {} -- Initialize reputation data
+    }
+    
+    -- Set default reputation values
+    local reputationSystem = require("gameplay/reputationSystem")
+    reputationSystem:init()
+    profile.reputation = {
+        [reputationSystem.factions.GUILD] = 0,
+        [reputationSystem.factions.TAVERN] = 0
     }
     
     -- Create info data
@@ -249,21 +258,21 @@ function saveLoad:saveGame(gameData)
     -- Ensure save directory exists
     love.filesystem.createDirectory(self.saveDir)
     
-    -- Save files with error handling
-    local success1, err1 = pcall(function()
-        bitser.dumpLoveFile(self.saveDir .. self.currentProfile .. ".sav", gameData)
+    -- Save data to file
+    local filename = self.saveDir .. self.currentProfile .. ".sav"
+    
+    local success, err = pcall(function()
+        bitser.dumpLoveFile(filename, gameData)
     end)
     
-    local success2, err2 = pcall(function()
+    if success then
+        -- Save info file
         bitser.dumpLoveFile(infoFile, info)
-    end)
-    
-    if not success1 or not success2 then
-        print("Error saving game: " .. (err1 or "") .. " " .. (err2 or ""))
+        return true
+    else
+        print("Error saving game: " .. (err or "Unknown error"))
         return false
     end
-    
-    return true
 end
 
 -- Delete a save profile
@@ -282,6 +291,43 @@ function saveLoad:deleteProfile(name)
     if self.currentProfile == name then
         self.currentProfile = nil
     end
+    
+    return true
+end
+
+-- Apply loaded game data
+function saveLoad:applyLoadedData(gameData)
+    -- Ensure gameData is valid
+    if not gameData then return false end
+    
+    -- Load game state
+    GAME.party = gameData.party or {}
+    GAME.inventory = gameData.inventory or {}
+    GAME.gold = gameData.gold or 0
+    GAME.activeQuests = gameData.activeQuests or {}
+    GAME.completedQuests = gameData.completedQuests or {}
+    GAME.failedQuests = gameData.failedQuests or {}
+    GAME.dungeonSeeds = gameData.dungeonSeeds or {}
+    GAME.gameTime = gameData.gameTime or 0
+    GAME.flags = gameData.flags or {}
+    
+    -- Load reputation data
+    GAME.reputation = gameData.reputation or {}
+    
+    -- Initialize required systems
+    local reputationSystem = require("gameplay/reputationSystem")
+    reputationSystem:init()
+    
+    -- Initialize empty reputation data if missing
+    if not GAME.reputation[reputationSystem.factions.GUILD] then
+        GAME.reputation[reputationSystem.factions.GUILD] = 0
+    end
+    if not GAME.reputation[reputationSystem.factions.TAVERN] then
+        GAME.reputation[reputationSystem.factions.TAVERN] = 0
+    end
+    
+    -- Initialize reputation notifications
+    GAME.reputationNotifications = GAME.reputationNotifications or {}
     
     return true
 end
