@@ -532,6 +532,8 @@ function inn:createUI()
             end
         end
     )
+    -- Add onClick method to support keyboard selection
+    self.elements.rentRoomButton.onClick = self.elements.rentRoomButton.callback
     
     -- Buy food button
     self.elements.buyFoodButton = screenManager.UI.Button(
@@ -552,6 +554,8 @@ function inn:createUI()
             end
         end
     )
+    -- Add onClick method to support keyboard selection
+    self.elements.buyFoodButton.onClick = self.elements.buyFoodButton.callback
     
     -- Buy drink button
     self.elements.buyDrinkButton = screenManager.UI.Button(
@@ -572,6 +576,8 @@ function inn:createUI()
             end
         end
     )
+    -- Add onClick method to support keyboard selection
+    self.elements.buyDrinkButton.onClick = self.elements.buyDrinkButton.callback
     
     -- Popup message element
     self.elements.popupMessage = {
@@ -701,12 +707,12 @@ function inn:enter()
     self:updatePanelVisibility()
     
     -- Play ambient sound
-    assetManager:playMusic("tavern")
+    assetManager:playMusic("town")
 end
 
 function inn:exit()
-    -- Stop tavern sounds
-    assetManager:stopSound("tavern_ambient")
+    -- The music will be stopped by the next screen's playMusic call
+    -- No need to explicitly stop it
 end
 
 function inn:draw()
@@ -731,50 +737,13 @@ function inn:draw()
     
     -- Always draw popup message if visible
     self.elements.popupMessage:draw()
-end
-
-function inn:mousepressed(x, y, button)
-    -- Check popup message first
-    if self.elements.popupMessage.visible then
-        if self.elements.popupMessage:clicked(x, y, button) then
-            return
-        end
-    end
     
-    -- Check panel clicks
-    if self.currentSection == "rooms" and self.elements.roomsPanel.visible then
-        if self.elements.roomsPanel:clicked(x, y, button) then
-            return
-        end
-    elseif self.currentSection == "food" and self.elements.foodPanel.visible then
-        if self.elements.foodPanel:clicked(x, y, button) then
-            return
-        end
-    elseif self.currentSection == "drinks" and self.elements.drinksPanel.visible then
-        if self.elements.drinksPanel:clicked(x, y, button) then
-            return
-        end
-    elseif self.currentSection == "event" and self.elements.eventPanel.visible then
-        if self.elements.eventPanel:clicked(x, y, button) then
-            return
-        end
-    end
-    
-    -- Check buttons
-    for _, element in pairs(self.elements) do
-        if element.visible and element.clicked and element:clicked(x, y, button) then
-            -- Play click sound
-            assetManager:playSound("click")
-            return
-        end
-    end
-end
-
-function inn:mousereleased(x, y, button)
-    for _, element in pairs(self.elements) do
-        if element.visible and element.released then
-            element:released(x, y, button)
-        end
+    -- Draw selection helper text if in a selection panel
+    if self.currentSection == "rooms" or self.currentSection == "food" or self.currentSection == "drinks" then
+        love.graphics.setColor(1, 1, 0.8, 0.8)
+        love.graphics.setFont(screenManager.fonts.small)
+        love.graphics.printf("Use W/S keys or click to select options", 
+            GAME.width/2 - 200, GAME.height - 40, 400, "center")
     end
 end
 
@@ -792,6 +761,137 @@ function inn:keypressed(key)
             -- Return to overworld
             local gameState = require("states/gameState")
             gameState:changeState("overworld")
+        end
+    elseif key == "w" or key == "s" then
+        -- Handle option navigation with WASD keys
+        if self.currentSection == "rooms" then
+            local rooms = innSystem:getAvailableRoomTypes()
+            if key == "w" then
+                self.selectedRoomIndex = self.selectedRoomIndex > 1 and self.selectedRoomIndex - 1 or #rooms
+            else -- s
+                self.selectedRoomIndex = self.selectedRoomIndex < #rooms and self.selectedRoomIndex + 1 or 1
+            end
+            -- Play selection sound
+            assetManager:playSound("hover", 0.3)
+        elseif self.currentSection == "food" then
+            local foods = innSystem.foodItems
+            if key == "w" then
+                self.selectedFoodIndex = self.selectedFoodIndex > 1 and self.selectedFoodIndex - 1 or #foods
+            else -- s
+                self.selectedFoodIndex = self.selectedFoodIndex < #foods and self.selectedFoodIndex + 1 or 1
+            end
+            -- Play selection sound
+            assetManager:playSound("hover", 0.3)
+        elseif self.currentSection == "drinks" then
+            local drinks = innSystem.drinkItems
+            if key == "w" then
+                self.selectedDrinkIndex = self.selectedDrinkIndex > 1 and self.selectedDrinkIndex - 1 or #drinks
+            else -- s
+                self.selectedDrinkIndex = self.selectedDrinkIndex < #drinks and self.selectedDrinkIndex + 1 or 1
+            end
+            -- Play selection sound
+            assetManager:playSound("hover", 0.3)
+        end
+    elseif key == "return" or key == "space" or key == "e" then
+        -- Handle selection confirmation with Enter/Space/E
+        if self.currentSection == "rooms" then
+            self.elements.rentRoomButton:onClick()
+        elseif self.currentSection == "food" then
+            self.elements.buyFoodButton:onClick()
+        elseif self.currentSection == "drinks" then
+            self.elements.buyDrinkButton:onClick()
+        end
+    end
+end
+
+function inn:mousepressed(x, y, button)
+    -- Check popup message first
+    if self.elements.popupMessage.visible then
+        if self.elements.popupMessage:clicked(x, y, button) then
+            return
+        end
+    end
+    
+    -- Check panel clicks for selection
+    if button == 1 then
+        if self.currentSection == "rooms" and self.elements.roomsPanel.visible then
+            local rooms = innSystem:getAvailableRoomTypes()
+            for i, _ in ipairs(rooms) do
+                local roomY = 180 + (i-1) * 90
+                if x >= 150 and x <= GAME.width - 150 and
+                   y >= roomY and y <= roomY + 80 then
+                    -- Set selection
+                    self.selectedRoomIndex = i
+                    assetManager:playSound("click")
+                    return
+                end
+            end
+            
+            -- Check if we clicked the purchase button
+            if x >= GAME.width - 250 and x <= GAME.width - 100 and
+               y >= GAME.height - 80 and y <= GAME.height - 40 then
+                self.elements.rentRoomButton:onClick()
+                return
+            end
+        elseif self.currentSection == "food" and self.elements.foodPanel.visible then
+            local foods = innSystem.foodItems
+            for i, _ in ipairs(foods) do
+                local foodY = 180 + (i-1) * 90
+                if x >= 150 and x <= GAME.width - 150 and
+                   y >= foodY and y <= foodY + 80 then
+                    -- Set selection
+                    self.selectedFoodIndex = i
+                    assetManager:playSound("click")
+                    return
+                end
+            end
+            
+            -- Check if we clicked the purchase button
+            if x >= GAME.width - 250 and x <= GAME.width - 100 and
+               y >= GAME.height - 80 and y <= GAME.height - 40 then
+                self.elements.buyFoodButton:onClick()
+                return
+            end
+        elseif self.currentSection == "drinks" and self.elements.drinksPanel.visible then
+            local drinks = innSystem.drinkItems
+            for i, _ in ipairs(drinks) do
+                local drinkY = 180 + (i-1) * 90
+                if x >= 150 and x <= GAME.width - 150 and
+                   y >= drinkY and y <= drinkY + 80 then
+                    -- Set selection
+                    self.selectedDrinkIndex = i
+                    assetManager:playSound("click")
+                    return
+                end
+            end
+            
+            -- Check if we clicked the purchase button
+            if x >= GAME.width - 250 and x <= GAME.width - 100 and
+               y >= GAME.height - 80 and y <= GAME.height - 40 then
+                self.elements.buyDrinkButton:onClick()
+                return
+            end
+        elseif self.currentSection == "event" and self.elements.eventPanel.visible then
+            if self.elements.eventPanel:clicked(x, y, button) then
+                return
+            end
+        end
+    end
+    
+    -- Check buttons
+    for _, element in pairs(self.elements) do
+        if element.visible and element.clicked and element:clicked(x, y, button) then
+            -- Play click sound
+            assetManager:playSound("click")
+            return
+        end
+    end
+end
+
+function inn:mousereleased(x, y, button)
+    for _, element in pairs(self.elements) do
+        if element.visible and element.released then
+            element:released(x, y, button)
         end
     end
 end
