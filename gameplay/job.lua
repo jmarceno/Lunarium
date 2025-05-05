@@ -7,7 +7,7 @@ local jobSystem = {
 
 -- Job definitions
 jobSystem.jobs = {
-    -- Base jobs
+    -- Base jobs (tier 1)
     Fighter = {
         name = "Fighter",
         description = "A strong physical combatant skilled with weapons and armor.",
@@ -155,7 +155,7 @@ jobSystem.jobs = {
             body = "ChainMail"
         },
         requirements = {
-            Fighter = 10
+            Fighter = 2
         }
     },
     
@@ -345,6 +345,93 @@ jobSystem.jobs = {
         }
     },
     
+    DarkMage = {
+        name = "Dark Mage",
+        description = "A mage who delves into necromancy and dark magics.",
+        tier = 2,
+        attributeModifiers = {
+            INT = 3,
+            WIL = 3,
+            WIS = 1
+        },
+        startingSkills = {
+            "ShadowBolt",
+            "DrainLife"
+        },
+        availableSkills = {
+            "ShadowBolt",
+            "DrainLife",
+            "CurseOfWeakness",
+            "SoulDrain",
+            "DarkPact"
+        },
+        startingEquipment = {
+            weapon = "DarkStaff",
+            body = "DarkRobe"
+        },
+        requirements = {
+            Mage = 3
+        }
+    },
+  
+    ElementalMage = {
+        name = "Elemental Mage",
+        description = "A mage who specializes in commanding the raw elemental forces.",
+        tier = 2,
+        attributeModifiers = {
+            INT = 4,
+            WIS = 2,
+            DEX = 1
+        },
+        startingSkills = {
+            "ElementalBurst",
+            "ElementalAffinity"
+        },
+        availableSkills = {
+            "ElementalBurst",
+            "ElementalAffinity",
+            "ElementalShield",
+            "ElementalConversion",
+            "ElementalFocus"
+        },
+        startingEquipment = {
+            weapon = "ElementalOrb",
+            body = "ElementalistRobe"
+        },
+        requirements = {
+            Mage = 3
+        }
+    },
+    
+    SpiritSpeaker = {
+        name = "Spirit Speaker",
+        description = "A cleric who can commune with and channel spirits from beyond.",
+        tier = 2,
+        attributeModifiers = {
+            WIS = 3,
+            CHA = 3,
+            WIL = 2
+        },
+        startingSkills = {
+            "SpiritSight",
+            "AncestralGuidance"
+        },
+        availableSkills = {
+            "SpiritSight",
+            "AncestralGuidance",
+            "SpiritShield",
+            "VoiceOfTheAncestors",
+            "SoulResonance"
+        },
+        startingEquipment = {
+            weapon = "SpiritCharm",
+            body = "CeremonyRobes"
+        },
+        requirements = {
+            Cleric = 10
+        }
+    },
+    
     -- Master jobs (tier 3)
     HolyKnight = {
         name = "Holy Knight",
@@ -439,6 +526,99 @@ jobSystem.jobs = {
             Assassin = 15,
             BlackMage = 5
         }
+    },
+
+    Necromancer = {
+        name = "Necromancer",
+        description = "Master of death who commands undead minions to do their bidding.",
+        tier = 3,
+        attributeModifiers = {
+            INT = 4,
+            WIL = 3,
+            WIS = 2
+        },
+        startingSkills = {
+            "RaiseSkeleton",
+            "DarkCommand"
+        },
+        availableSkills = {
+            "RaiseSkeleton",
+            "RaiseZombie",
+            "RaiseWraith",
+            "DarkCommand",
+            "DeathPact",
+            "UnholyAura",
+            "BoneArmor"
+        },
+        startingEquipment = {
+            weapon = "NecromanticStaff",
+            body = "NecromancerRobes"
+        },
+        requirements = {
+            DarkMage = 2
+        }
+    },
+    
+    Conjurer = {
+        name = "Conjurer",
+        description = "Elementalist who summons powerful elemental beings to fight alongside them.",
+        tier = 3,
+        attributeModifiers = {
+            INT = 5,
+            WIS = 2,
+            DEX = 2 
+        },
+        startingSkills = {
+            "SummonFireElemental",
+            "ElementalMastery"
+        },
+        availableSkills = {
+            "SummonFireElemental",
+            "SummonWaterElemental",
+            "SummonEarthElemental",
+            "SummonAirElemental",
+            "ElementalMastery",
+            "ElementalFusion",
+            "ElementalSurge"
+        },
+        startingEquipment = {
+            weapon = "ElementalTome",
+            body = "ConjurerVestments"
+        },
+        requirements = {
+            ElementalMage = 15
+        }
+    },
+    
+    Shaman = {
+        name = "Shaman",
+        description = "Spiritual leader who communes with ancestral and nature spirits for guidance and power.",
+        tier = 3,
+        attributeModifiers = {
+            WIS = 4,
+            CHA = 3,
+            CON = 2
+        },
+        startingSkills = {
+            "SummonAncestorSpirit",
+            "SpiritCommunion"
+        },
+        availableSkills = {
+            "SummonAncestorSpirit",
+            "SummonNatureSpirit",
+            "SummonGuardianSpirit",
+            "SpiritCommunion",
+            "SpiritVision",
+            "SpiritualHealing",
+            "TotemicBond"
+        },
+        startingEquipment = {
+            weapon = "ShamanTotem",
+            body = "SpiritualRegalia"
+        },
+        requirements = {
+            SpiritSpeaker = 15
+        }
     }
 }
 
@@ -451,6 +631,18 @@ end
 function jobSystem:getAvailableJobs(character)
     local available = {}
     
+    -- Ensure character has required fields
+    if not character then
+        print("Warning: Called getAvailableJobs with nil character")
+        return available
+    end
+    
+    -- Ensure jobLevels exists
+    if not character.jobLevels then
+        print("Warning: Character " .. character.name .. " missing jobLevels table")
+        character.jobLevels = {}
+    end
+    
     for name, job in pairs(self.jobs) do
         local canAccess = true
         
@@ -458,7 +650,7 @@ function jobSystem:getAvailableJobs(character)
         if job.requirements then
             for reqJob, reqLevel in pairs(job.requirements) do
                 -- Check jobLevels table instead of jobHistory
-                local jobLevel = character.jobLevels and character.jobLevels[reqJob] or 0
+                local jobLevel = character.jobLevels[reqJob] or 0
                 
                 if jobLevel < reqLevel then
                     canAccess = false

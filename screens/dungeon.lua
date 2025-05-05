@@ -10,6 +10,7 @@ local monsterDataModule = require("gameplay/monsterData")
 local layoutHelper = screenManager.layoutHelper
 local characterSystem = require("gameplay/character")
 local gameState = require("states/gameState")
+local minionManager = require("gameplay/minionManager")
 
 local dungeon = screenManager:createScreen("Dungeon")
 
@@ -440,6 +441,11 @@ function dungeon:init()
             return false -- Click was inside but not on the button
         end
     }
+    
+    -- Initialize the minion manager
+    minionManager:init()
+    
+    return self
 end
 
 function dungeon:enter(params)
@@ -894,6 +900,9 @@ function dungeon:update(dt)
             self.elements.statusBar.visible = false
         end
     end
+
+    -- Update minion durations
+    minionManager:updateDurations(dt)
 
     -- Update based on current state
     if self.state == STATES.EXPLORING then
@@ -1750,6 +1759,12 @@ function dungeon:toggleFloorTextures()
     raycaster.floorTexturesEnabled = not raycaster.floorTexturesEnabled
     self.textureSettings.floorTexturesEnabled = raycaster.floorTexturesEnabled
     print("Floor textures " .. (raycaster.floorTexturesEnabled and "enabled" or "disabled"))
+end
+
+-- When exiting dungeon
+function dungeon:exitDungeon()
+    -- Clear all minions when exiting dungeon
+    minionManager:onDungeonExit()
 end
 
 return dungeon

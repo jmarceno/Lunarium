@@ -56,6 +56,19 @@ function love.load()
     assets:setButtonSoundVolume(0.1) 
     -- Set the initial game state to main menu
     gameState:changeState("mainMenu")
+    
+    -- Initialize minion system
+    local minionManager = require("gameplay/minionManager")
+    minionManager:init()
+    
+    -- Save/load system
+    if love.filesystem.getInfo("savefile.dat") then
+        print("Loading save data...")
+        GAME:loadGame()
+        
+        -- Load minion data
+        minionManager:load()
+    end
 end
 
 function love.update(dt)
@@ -162,6 +175,14 @@ end
 function love.quit()
     -- Handle game cleanup
     saveLoad:saveGameSettings()
+    
+    -- Save game data
+    --GAME:saveGame()
+    
+    -- Save minion data
+    --local minionManager = require("gameplay/minionManager")
+    --minionManager:save()
+    
     return false
 end
 

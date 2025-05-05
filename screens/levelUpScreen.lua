@@ -113,6 +113,24 @@ end
 
 function levelUpScreen:setupCharacter(character)
     print("Setting up level up for:", character.name)
+    
+    -- Ensure character has required fields
+    if not character.jobLevels then
+        print("Warning: Initializing jobLevels for", character.name)
+        character.jobLevels = {}
+    end
+    
+    if not character.jobHistory then
+        print("Warning: Initializing jobHistory for", character.name)
+        character.jobHistory = {character.job} -- Assume current job is in history
+    end
+    
+    -- Ensure character's current job is in jobLevels
+    if not character.jobLevels[character.job] then
+        print("Warning: Initializing job level for current job", character.job)
+        character.jobLevels[character.job] = 1 -- Assume at least level 1
+    end
+    
     self.state = STATES.SELECT_OPTION
     self.selectedOption = nil
     self.potentialGains = { attributes = {}, newSkills = {} }
@@ -125,64 +143,34 @@ end
 function levelUpScreen:getAvailableLevelUpOptions(character)
     local options = {}
     local currentJob = jobSystem:getJob(character.job)
+    
+    if not currentJob then
+        print("Error: Could not find job definition for " .. (character.job or "nil"))
+        return options -- Return empty options list
+    end
 
     -- Option 1: Continue current job
     table.insert(options, {
         jobName = character.job,
         displayName = "Continue as " .. character.job,
         isNewJob = false,
-        jobData = currentJob
+        jobData = currentJob -- Pass jobData here too
     })
 
     -- Option 2+: Change job (if possible)
-    local availableJobs = jobSystem:getAvailableJobs(character)
-    for _, job in ipairs(availableJobs) do
-        -- Only show jobs of higher tier or the same tier if requirements met
-        -- And prevent re-listing the current job if it shows up here
-        if job.tier >= currentJob.tier and job.name ~= character.job then
-            -- Check if the character *just* meets the level requirement for this job
-            -- (This prevents showing jobs they could have taken levels ago)
-            local meetsReqNow = false
-            if job.requirements then
-                 for reqJob, reqLevel in pairs(job.requirements) do
-                     -- This logic assumes job level = character level for now
-                     if characterSystem:_calculateTotalLevel(character) + 1 == reqLevel then -- They reach the requirement *with this level up*
-                        -- Check if they have the required job in history
-                        local hasReqJob = false
-                        for _, histJob in ipairs(character.jobHistory) do
-                            if histJob == reqJob then hasReqJob = true break end
-                        end
-                        if hasReqJob then meetsReqNow = true break end
-                     end
-                 end
-            end
-
-            -- Also allow changing to same-tier jobs they qualify for
-            local meetsReqAlready = true
-             if job.requirements then
-                 for reqJob, reqLevel in pairs(job.requirements) do
-                     if characterSystem:_calculateTotalLevel(character) + 1 < reqLevel then -- Check current level + 1
-                         meetsReqAlready = false break
-                     else
-                        -- Check if they have the required job in history
-                        local hasReqJob = false
-                        for _, histJob in ipairs(character.jobHistory) do
-                            if histJob == reqJob then hasReqJob = true break end
-                        end
-                        if not hasReqJob then meetsReqAlready = false break end
-                     end
-                 end
-             end
-
-
-            if job.tier > currentJob.tier or (job.tier == currentJob.tier and meetsReqAlready) then
-                 table.insert(options, {
-                     jobName = job.name,
-                     displayName = "Change to " .. job.name .. " (Tier " .. job.tier .. ")",
-                     isNewJob = true,
-                     jobData = job
-                 })
-            end
+    local availableJobs = jobSystem:getAvailableJobs(character) or {}
+    print("Available jobs from jobSystem for", character.name, ":")
+    for i, job in ipairs(availableJobs) do
+        print("  - ", job.name, "(Tier", job.tier, ")")
+        -- Add any available job that isn't the character's current job as an option
+        if job.name ~= character.job then
+            print("    Adding as option:", job.name)
+            table.insert(options, {
+                jobName = job.name,
+                displayName = "Change to " .. job.name .. " (Tier " .. job.tier .. ")",
+                isNewJob = true,
+                jobData = job -- Pass the full job data
+            })
         end
     end
 
@@ -227,8 +215,23 @@ end
 
 function levelUpScreen:calculateGains(character, chosenJobName, isNewJob)
     local gains = { attributes = {}, newSkills = {} }
-    local job = jobSystem:getJob(chosenJobName)
-    if not job then return gains end
+    
+    -- Directly use the jobData passed in the selectedOption
+    local job = self.selectedOption and self.selectedOption.jobData
+
+--[[     -- Debugging Print - Check if we got the jobData directly
+    print("[LevelUpScreen] Calculating gains for job:", (job and job.name or chosenJobName), "IsNewJob:", isNewJob)
+    if job then
+        if job.attributeModifiers then
+           local count = 0
+           for _ in pairs(job.attributeModifiers) do count = count + 1 end
+        end        
+    else
+        print("  Error: Could not get jobData from self.selectedOption for", chosenJobName)
+        -- This should not happen if selectOption worked correctly
+        return gains
+    end
+    -- End Debugging Print ]]
 
     -- Attribute gains
     if job.attributeModifiers then
@@ -245,10 +248,13 @@ function levelUpScreen:calculateGains(character, chosenJobName, isNewJob)
     if isNewJob and job.startingSkills then
         for _, skillName in ipairs(job.startingSkills) do
             -- Check if character already knows the skill (from a previous job perhaps)
-            if not character.skills[skillName] then
+            -- Ensure character.skills exists before accessing it
+            if not (character.skills and character.skills[skillName]) then
                 local skill = skillSystem:getSkill(skillName)
                 if skill then
                     table.insert(gains.newSkills, skill)
+                else 
+                    print("Warning: Could not find skill data for starting skill:", skillName, "in job:", job.name)
                 end
             end
         end
@@ -258,7 +264,6 @@ function levelUpScreen:calculateGains(character, chosenJobName, isNewJob)
 end
 
 function levelUpScreen:changeChoice()
-    print("Changing choice...")
     self.state = STATES.SELECT_OPTION
     self.selectedOption = nil
     self.potentialGains = { attributes = {}, newSkills = {} }
@@ -283,9 +288,11 @@ function levelUpScreen:confirmLevelUp()
     -- Check if continuing existing job or changing to a new/different job
     if isNewJob then
         -- Change job (which also handles adding it to jobLevels if new)
-        local jobChanged = characterSystem:changeJob(character, chosenJobName)
+        local actualJobKey = self.selectedOption.jobData.name
+        actualJobKey = actualJobKey:gsub("%s+", "")
+        local jobChanged = characterSystem:changeJob(character, actualJobKey)
         if not jobChanged then
-            print("Error: Failed to change job for", character.name, "to", chosenJobName)
+            print("Error: Failed to change job for", character.name, "to", actualJobKey)
             -- Might need to revert level up? Complex state. For now, proceed.
         end
     else
@@ -297,8 +304,8 @@ function levelUpScreen:confirmLevelUp()
         end
     end
 
-    -- Apply attribute gains, recalculate stats (HP/MP), and heal
-    characterSystem:applyLevelUpChanges(character, chosenJobName)
+    -- Apply attribute gains, recalculate stats
+    characterSystem:applyLevelUpChanges(character, self.selectedOption.jobData)
 
     -- Play confirmation sound
     assetManager:playSound("confirm") -- Or 'level_up_complete'
@@ -310,14 +317,12 @@ end
 function levelUpScreen:nextCharacter()
     self.currentCharacterIndex = self.currentCharacterIndex + 1
     if self.currentCharacterIndex > #self.charactersToLevel then
-        print("All characters leveled up.")
         self.state = STATES.FINISHED
         self.elements.confirmButton.visible = false
         self.elements.backButton.visible = false
         self.elements.finishButton.visible = true
          for _, btn in ipairs(self.elements.optionButtons) do btn.visible = false end -- Hide old buttons
     else
-        print("Moving to next character...")
         self:setupCharacter(self.charactersToLevel[self.currentCharacterIndex])
     end
 end
@@ -569,9 +574,10 @@ function levelUpScreen:finishCharacterLevelUp()
         -- Check if continuing existing job or changing to a new/different job
         if isNewJob then
             -- Change job (which also handles adding it to jobLevels if new)
-            local jobChanged = characterSystem:changeJob(currentChar, chosenJobName)
+            local actualJobKey = self.selectedOption.jobData.name
+            local jobChanged = characterSystem:changeJob(currentChar, actualJobKey)
             if not jobChanged then
-                print("Error: Failed to change job for", currentChar.name, "to", chosenJobName)
+                print("Error: Failed to change job for", currentChar.name, "to", actualJobKey)
                 -- Might need to revert level up? Complex state. For now, proceed.
             end
         else
@@ -584,7 +590,7 @@ function levelUpScreen:finishCharacterLevelUp()
         end
         
         -- Apply attribute gains, recalculate stats
-        characterSystem:applyLevelUpChanges(currentChar, chosenJobName)
+        characterSystem:applyLevelUpChanges(currentChar, self.selectedOption.jobData)
         
         -- Clear the level up flag now that it's been processed
         currentChar.needsLevelUpScreen = nil

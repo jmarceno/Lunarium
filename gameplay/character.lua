@@ -544,17 +544,17 @@ function character:calculateMagicDefense(char)
 end
 
 -- Apply attribute gains, recalculate stats, and heal after level up or job change
-function character:applyLevelUpChanges(char, chosenJobName)
-    local job = jobSystem:getJob(chosenJobName) -- chosenJobName is the job that JUST leveled up
-    if not job then
-        print("Error applying level up changes: Job '" .. chosenJobName .. "' not found.")
+function character:applyLevelUpChanges(char, jobData)
+    -- jobData is now the actual job table passed from levelUpScreen
+    if not jobData then
+        print("Error applying level up changes: Invalid jobData received.")
         return
     end
 
     -- Apply attribute modifiers ONLY from the job that leveled up
-    if job.attributeModifiers then
-        print("Applying attribute modifiers for leveling up " .. chosenJobName .. " on " .. char.name)
-        for attr, mod in pairs(job.attributeModifiers) do
+    if jobData.attributeModifiers then
+        print("Applying attribute modifiers for leveling up " .. jobData.name .. " on " .. char.name)
+        for attr, mod in pairs(jobData.attributeModifiers) do
             local currentVal = char.attributes[attr] or 0
             char.attributes[attr] = math.min(self.BASE_ATTRIBUTE_CAP, currentVal + mod)
              print("  " .. attr .. ": " .. currentVal .. " + " .. mod .. " -> " .. char.attributes[attr])
