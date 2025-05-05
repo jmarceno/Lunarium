@@ -582,10 +582,11 @@ function combatSystem:createCombat(party, enemy)
                     -- Execute current enemy's turn
                     self:executeEnemyTurn()
                     
-                    -- Check if we've gone through all enemies or no active enemies remain
-                    local allEnemiesProcessed = self.activeEnemyIndex == 1
+                    -- Move to the next enemy
+                    self.activeEnemyIndex = self.activeEnemyIndex + 1
                     
-                    if allEnemiesProcessed then
+                    -- Check if we've gone through all enemies
+                    if self.activeEnemyIndex > #self.enemies then
                         -- We've completed a full cycle of enemies
                         self.enemyTurnDelay = nil
                         self:nextTurn() -- Go to player turn

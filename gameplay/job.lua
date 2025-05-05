@@ -1,6 +1,10 @@
 -- Job System
 -- Defines character jobs, progressions, and abilities
 
+-- Important:
+-- All jobs that have name formed by two or more words, need to have those words Capitalized.
+-- Example: "Black Mage" instead of "Blackmage", "White Mage" instead of "Whitemage"
+
 local jobSystem = {
     jobs = {}
 }
@@ -37,7 +41,7 @@ jobSystem.jobs = {
         },
         requirements = nil -- No requirements for base jobs
     },
-    
+
     Mage = {
         name = "Mage",
         description = "A spellcaster who harnesses the power of the elements.",
@@ -54,7 +58,7 @@ jobSystem.jobs = {
         },
         availableSkills = {
             "Attack",
-            "FireBolt", 
+            "FireBolt",
             "ManaShield",
             "IceShard",
             "ThunderBolt",
@@ -66,7 +70,7 @@ jobSystem.jobs = {
         },
         requirements = nil
     },
-    
+
     Rogue = {
         name = "Rogue",
         description = "A nimble combatant who excels at stealth and precision strikes.",
@@ -96,7 +100,38 @@ jobSystem.jobs = {
         },
         requirements = nil
     },
-    
+
+    Necromancer = {
+        name = "Necromancer",
+        description = "Master of death who commands undead minions to do their bidding.",
+        tier = 3,
+        attributeModifiers = {
+            INT = 4,
+            WIL = 3,
+            WIS = 2
+        },
+        startingSkills = {
+            "RaiseSkeleton",
+            "DarkCommand"
+        },
+        availableSkills = {
+            "RaiseSkeleton",
+            "RaiseZombie",
+            "RaiseWraith",
+            "DarkCommand",
+            "DeathPact",
+            "UnholyAura",
+            "BoneArmor"
+        },
+        startingEquipment = {
+            weapon = "NecromanticStaff",
+            body = "NecromancerRobes"
+        },
+        requirements = {
+            DarkMage = 2
+        }
+    },
+
     Cleric = {
         name = "Cleric",
         description = "A holy servant who can heal allies and smite enemies.",
@@ -112,7 +147,7 @@ jobSystem.jobs = {
             "DivineFavor"
         },
         availableSkills = {
-            "Attack", 
+            "Attack",
             "Heal",
             "DivineFavor",
             "Purify",
@@ -126,7 +161,7 @@ jobSystem.jobs = {
         },
         requirements = nil
     },
-    
+
     -- Advanced jobs (tier 2)
     Knight = {
         name = "Knight",
@@ -144,7 +179,7 @@ jobSystem.jobs = {
         availableSkills = {
             "ShieldWall",
             "Provoke",
-            "GuardianStance", 
+            "GuardianStance",
             "HolyStrike",
             "Bulwark",
             "ChivalricOath"
@@ -158,7 +193,7 @@ jobSystem.jobs = {
             Fighter = 2
         }
     },
-    
+
     Berserker = {
         name = "Berserker",
         description = "A wild warrior who sacrifices defense for pure offensive power.",
@@ -188,7 +223,7 @@ jobSystem.jobs = {
             Fighter = 10
         }
     },
-    
+
     BlackMage = {
         name = "Black Mage",
         description = "A devastatingly powerful destructive magic specialist.",
@@ -218,7 +253,7 @@ jobSystem.jobs = {
             Mage = 10
         }
     },
-    
+
     WhiteMage = {
         name = "White Mage",
         description = "A master of healing and supportive magic.",
@@ -249,7 +284,7 @@ jobSystem.jobs = {
             Cleric = 5
         }
     },
-    
+
     Assassin = {
         name = "Assassin",
         description = "A deadly specialist in taking down targets quickly and quietly.",
@@ -280,7 +315,7 @@ jobSystem.jobs = {
             Rogue = 10
         }
     },
-    
+
     Ranger = {
         name = "Ranger",
         description = "A skilled marksman who excels at ranged combat.",
@@ -312,7 +347,7 @@ jobSystem.jobs = {
             Fighter = 5
         }
     },
-    
+
     Paladin = {
         name = "Paladin",
         description = "A holy knight who combines combat prowess with divine magic.",
@@ -344,7 +379,7 @@ jobSystem.jobs = {
             Cleric = 5
         }
     },
-    
+
     DarkMage = {
         name = "Dark Mage",
         description = "A mage who delves into necromancy and dark magics.",
@@ -373,7 +408,7 @@ jobSystem.jobs = {
             Mage = 3
         }
     },
-  
+
     ElementalMage = {
         name = "Elemental Mage",
         description = "A mage who specializes in commanding the raw elemental forces.",
@@ -402,7 +437,7 @@ jobSystem.jobs = {
             Mage = 3
         }
     },
-    
+
     SpiritSpeaker = {
         name = "Spirit Speaker",
         description = "A cleric who can commune with and channel spirits from beyond.",
@@ -431,7 +466,7 @@ jobSystem.jobs = {
             Cleric = 10
         }
     },
-    
+
     -- Master jobs (tier 3)
     HolyKnight = {
         name = "Holy Knight",
@@ -465,7 +500,7 @@ jobSystem.jobs = {
             Knight = 10
         }
     },
-    
+
     Archmage = {
         name = "Archmage",
         description = "A legendary mage who has mastered all forms of magic.",
@@ -496,7 +531,7 @@ jobSystem.jobs = {
             WhiteMage = 10
         }
     },
-    
+
     Shadowblade = {
         name = "Shadowblade",
         description = "A master assassin who has merged with the shadows themselves.",
@@ -528,37 +563,8 @@ jobSystem.jobs = {
         }
     },
 
-    Necromancer = {
-        name = "Necromancer",
-        description = "Master of death who commands undead minions to do their bidding.",
-        tier = 3,
-        attributeModifiers = {
-            INT = 4,
-            WIL = 3,
-            WIS = 2
-        },
-        startingSkills = {
-            "RaiseSkeleton",
-            "DarkCommand"
-        },
-        availableSkills = {
-            "RaiseSkeleton",
-            "RaiseZombie",
-            "RaiseWraith",
-            "DarkCommand",
-            "DeathPact",
-            "UnholyAura",
-            "BoneArmor"
-        },
-        startingEquipment = {
-            weapon = "NecromanticStaff",
-            body = "NecromancerRobes"
-        },
-        requirements = {
-            DarkMage = 2
-        }
-    },
-    
+   
+
     Conjurer = {
         name = "Conjurer",
         description = "Elementalist who summons powerful elemental beings to fight alongside them.",
@@ -566,7 +572,7 @@ jobSystem.jobs = {
         attributeModifiers = {
             INT = 5,
             WIS = 2,
-            DEX = 2 
+            DEX = 2
         },
         startingSkills = {
             "SummonFireElemental",
@@ -589,7 +595,7 @@ jobSystem.jobs = {
             ElementalMage = 15
         }
     },
-    
+
     Shaman = {
         name = "Shaman",
         description = "Spiritual leader who communes with ancestral and nature spirits for guidance and power.",
@@ -624,64 +630,68 @@ jobSystem.jobs = {
 
 -- Get a job definition by name
 function jobSystem:getJob(name)
+    name = name:gsub("%s+", "")
     return self.jobs[name]
 end
 
 -- Get all available jobs for a character
 function jobSystem:getAvailableJobs(character)
     local available = {}
-    
+
     -- Ensure character has required fields
     if not character then
         print("Warning: Called getAvailableJobs with nil character")
         return available
     end
-    
+
     -- Ensure jobLevels exists
     if not character.jobLevels then
         print("Warning: Character " .. character.name .. " missing jobLevels table")
         character.jobLevels = {}
     end
-    
+
     for name, job in pairs(self.jobs) do
         local canAccess = true
         
         -- Check requirements
         if job.requirements then
             for reqJob, reqLevel in pairs(job.requirements) do
-                -- Check jobLevels table instead of jobHistory
+                -- Check jobLevels table instead of jobHistory                
+                -- Plase check comment at the top of the file to understand this
+                reqJob = reqJob:gsub("(%l)(%u)", "%1 %2")
+                -- print("Checking job (on class):", reqJob)
                 local jobLevel = character.jobLevels[reqJob] or 0
-                
+
                 if jobLevel < reqLevel then
                     canAccess = false
                     break -- Stop checking requirements for this job
                 end
             end
         end
-        
+
         if canAccess then
             table.insert(available, job)
         end
     end
-    
+
     -- Sort by tier
     table.sort(available, function(a, b)
         return a.tier < b.tier
     end)
-    
+
     return available
 end
 
 -- Get base jobs (tier 1)
 function jobSystem:getBaseJobs()
     local baseJobs = {}
-    
+
     for name, job in pairs(self.jobs) do
         if job.tier == 1 then
             table.insert(baseJobs, job)
         end
     end
-    
+
     return baseJobs
 end
 
@@ -689,14 +699,14 @@ end
 function jobSystem:getJobProgressions(jobName)
     local progressions = {}
     local currentJob = self:getJob(jobName)
-    
+
     if not currentJob then
         return {}
     end
-    
+
     -- Get next tier jobs
     local nextTier = currentJob.tier + 1
-    
+
     for name, job in pairs(self.jobs) do
         if job.tier == nextTier then
             -- Check if this job requires the current job
@@ -705,7 +715,7 @@ function jobSystem:getJobProgressions(jobName)
             end
         end
     end
-    
+
     return progressions
 end
 
