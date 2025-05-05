@@ -49,8 +49,19 @@ function questLog:createUI()
                 quests = questSystem:getCompletedQuests()
             end
             
+            -- De-duplicate quests by ID
+            local uniqueQuests = {}
+            local questIds = {}
+            
+            for _, quest in ipairs(quests) do
+                if not questIds[quest.id] then
+                    questIds[quest.id] = true
+                    table.insert(uniqueQuests, quest)
+                end
+            end
+            
             -- Draw quests
-            for i, quest in ipairs(quests) do
+            for i, quest in ipairs(uniqueQuests) do
                 local questY = self.y + 50 + (i-1) * 70
                 
                 -- Skip if out of view
@@ -117,7 +128,7 @@ function questLog:createUI()
             end
             
             -- Draw message if no quests
-            if #quests == 0 then
+            if #uniqueQuests == 0 then
                 love.graphics.setFont(screenManager.fonts.medium)
                 love.graphics.setColor(0.7, 0.7, 0.7)
                 
@@ -152,8 +163,19 @@ function questLog:createUI()
                     quests = questSystem:getCompletedQuests()
                 end
                 
+                -- De-duplicate quests by ID
+                local uniqueQuests = {}
+                local questIds = {}
+                
+                for _, quest in ipairs(quests) do
+                    if not questIds[quest.id] then
+                        questIds[quest.id] = true
+                        table.insert(uniqueQuests, quest)
+                    end
+                end
+                
                 -- Check quest entries
-                for i, quest in ipairs(quests) do
+                for i, quest in ipairs(uniqueQuests) do
                     local questY = self.y + 50 + (i-1) * 70
                     
                     -- Skip if out of view

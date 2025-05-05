@@ -539,8 +539,19 @@ function questSystem:getAvailableQuests(location, level)
     
     for _, quest in ipairs(self.quests) do
         if quest.giver == location and quest.status == self.STATUS.AVAILABLE then
-            -- Check if level appropriate (within 3 levels)
-            if not level or math.abs(quest.level - level) <= 3 then
+            -- Check if the quest is in the completed quests list
+            local isCompleted = false
+            if GAME.completedQuests then
+                for _, completedQuest in ipairs(GAME.completedQuests) do
+                    if completedQuest.id == quest.id then
+                        isCompleted = true
+                        break
+                    end
+                end
+            end
+            
+            -- Only add if not completed and level appropriate (within 3 levels)
+            if not isCompleted and (not level or math.abs(quest.level - level) <= 3) then
                 table.insert(available, quest)
             end
         end
@@ -811,11 +822,23 @@ function questSystem:completeQuest(questId)
                 -- Remove from active quests
                 table.remove(GAME.activeQuests, i)
                 
-                -- Add to completed quests
-                if GAME.completedQuests then
-                    table.insert(GAME.completedQuests, quest)
-                else
+                -- Add to completed quests if not already there
+                if not GAME.completedQuests then
                     GAME.completedQuests = {quest}
+                else
+                    -- Check if already in completed quests
+                    local alreadyExists = false
+                    for _, completedQuest in ipairs(GAME.completedQuests) do
+                        if completedQuest.id == questId then
+                            alreadyExists = true
+                            break
+                        end
+                    end
+                    
+                    -- Only add if not already in the list
+                    if not alreadyExists then
+                        table.insert(GAME.completedQuests, quest)
+                    end
                 end
                 
                 break
@@ -958,10 +981,25 @@ end
 
 -- Reset available quests
 function questSystem:resetAvailableQuests()
-    -- Reset status to available for all quests not active
+    -- Reset status to available for all quests not active or completed
     for _, quest in ipairs(self.quests) do
+        -- Skip active quests
         if quest.status ~= self.STATUS.ACTIVE then
-            quest.status = self.STATUS.AVAILABLE
+            -- Check if the quest is in the completed quests list
+            local isCompleted = false
+            if GAME.completedQuests then
+                for _, completedQuest in ipairs(GAME.completedQuests) do
+                    if completedQuest.id == quest.id then
+                        isCompleted = true
+                        break
+                    end
+                end
+            end
+            
+            -- Only reset to available if not completed
+            if not isCompleted then
+                quest.status = self.STATUS.AVAILABLE
+            end
         end
     end
     
