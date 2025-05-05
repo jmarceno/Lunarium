@@ -3082,6 +3082,7 @@ function combatSystem:createCombat(party, enemy)
                         if allDefeated then
                             -- Add delay before triggering victory to show final messages
                             self:addLog("All enemies have been defeated!", {0, 1, 0.2})
+                            self:addLog(minion.name .. " has dealt the final blow!", {0.3, 1, 0.7})
                             
                             -- Calculate rewards BEFORE setting victory state
                             self:calculateVictoryRewards()
@@ -3089,11 +3090,11 @@ function combatSystem:createCombat(party, enemy)
                             -- Set state directly to victory instead of continuing turn processing
                             self.state = combatSystem.STATE.VICTORY
                             
-                            -- Use a short delay before showing victory screen
-                            self.animationDelay = 1.0
+                            -- Use a longer delay before showing victory screen when minion delivers final blow
+                            self.animationDelay = 2.0  -- Increased from 1.0
                             
                             -- Trigger victory directly with a delay
-                            self.turnEndDelay = 0.2
+                            self.turnEndDelay = 1.5  -- Increased from 0.2
                             
                             -- We'll need a custom function to handle this delayed victory
                             self.pendingVictory = true

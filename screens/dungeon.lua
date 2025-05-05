@@ -1256,6 +1256,9 @@ function dungeon:checkEntityInteraction()
                         "Return to town? Quest progress might be lost!", 
                         function() -- onConfirm
                             print("Confirmed returning to town.")
+                            -- Make sure to clean up minions when leaving dungeon
+                            self:exitDungeon()
+                            
                             local gameState = require("states/gameState")
                             gameState:changeState("overworld")
                             -- Optionally fail quest here if needed (e.g., escort)
@@ -1635,6 +1638,9 @@ function dungeon:completeQuest()
         end
     end
     
+    -- Make sure to clean up minions when leaving dungeon
+    self:exitDungeon()
+    
     -- Return to town
     local gameState = require("states/gameState")
     gameState:changeState("overworld")
@@ -1642,6 +1648,10 @@ end
 
 function dungeon:failQuest()
     -- Handle quest failure
+    
+    -- Make sure to clean up minions when leaving dungeon
+    self:exitDungeon()
+    
     -- For now, just return to town
     local gameState = require("states/gameState")
     gameState:changeState("overworld")
