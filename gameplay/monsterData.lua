@@ -2,6 +2,7 @@
 local monsterData = {}
 local assets = require("assets/assetManager")
 
+-- Monster definitions
 monsterData.monsters = {
     -- Bloomers (Fungal monsters)
     ["fungal_fighter"] = {
