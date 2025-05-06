@@ -1773,4 +1773,16 @@ function dungeon:exitDungeon()
     minionManager:onDungeonExit()
 end
 
+-- Handle mouse wheel scrolling
+function dungeon:wheelmoved(x, y)
+    -- Forward wheel events to combat system if in combat state
+    if self.state == STATES.COMBAT and self.combat then
+        if self.combat:wheelmoved(x, y) then
+            return true -- If combat handled it, return true
+        end
+    end
+    
+    return false -- Not handled
+end
+
 return dungeon

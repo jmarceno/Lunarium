@@ -324,6 +324,9 @@ function combatSystem:createCombat(party, enemy)
                 y = GAME.height - partyHeight - 250, -- Position above the party UI
                 width = 250,
                 height = 200,
+                selectedIndex = 1, -- Track the selected index
+                scroll = 0, -- Current scroll position
+                maxSkillsVisible = 7, -- Max number of skills visible at once
                 
                 draw = function(self)
                     if not self.visible then return end
@@ -341,15 +344,21 @@ function combatSystem:createCombat(party, enemy)
                     love.graphics.setColor(1, 1, 1)
                     love.graphics.print("Skills", self.x + 10, self.y + 5)
                     
+                    -- Calculate visible range based on scroll
+                    local startIdx = self.scroll + 1
+                    local endIdx = math.min(startIdx + self.maxSkillsVisible - 1, #self.skills)
+                    
                     -- Draw skill list
                     love.graphics.setFont(screenManager.fonts.small)
-                    for i, skill in ipairs(self.skills) do
-                        local y = self.y + 30 + (i - 1) * 25
+                    for i = startIdx, endIdx do
+                        local skill = self.skills[i]
+                        local displayIndex = i - startIdx
+                        local y = self.y + 30 + displayIndex * 25
                         
                         -- Highlight selected skill
                         if skill.selected then
                             love.graphics.setColor(0.3, 0.3, 0.7)
-                            love.graphics.rectangle("fill", self.x + 5, y - 2, self.width - 10, 22)
+                            love.graphics.rectangle("fill", self.x + 5, y - 2, self.width - 25, 22) -- Width reduced to make room for scrollbar
                         end
                         
                         -- Draw skill name
@@ -360,6 +369,21 @@ function combatSystem:createCombat(party, enemy)
                         love.graphics.setColor(0.5, 0.5, 1)
                         love.graphics.print("MP: " .. skill.mpCost, self.x + 180, y)
                     end
+                    
+                    -- Draw scrollbar if needed
+                    if #self.skills > self.maxSkillsVisible then
+                        -- Draw scrollbar background
+                        love.graphics.setColor(0.2, 0.2, 0.3)
+                        love.graphics.rectangle("fill", self.x + self.width - 15, self.y + 30, 10, self.height - 35)
+                        
+                        -- Calculate scrollbar size and position
+                        local scrollBarHeight = math.max(20, (self.maxSkillsVisible / #self.skills) * (self.height - 35))
+                        local scrollBarY = self.y + 30 + (self.scroll / math.max(1, #self.skills - self.maxSkillsVisible)) * (self.height - 35 - scrollBarHeight)
+                        
+                        -- Draw scrollbar handle
+                        love.graphics.setColor(0.5, 0.5, 0.8)
+                        love.graphics.rectangle("fill", self.x + self.width - 15, scrollBarY, 10, scrollBarHeight, 3, 3)
+                    end
                 end,
                 
                 clicked = function(self, x, y)
@@ -369,9 +393,34 @@ function combatSystem:createCombat(party, enemy)
                     if x >= self.x and x <= self.x + self.width and
                        y >= self.y and y <= self.y + self.height then
                        
+                        -- Check if click is on the scrollbar
+                        if x >= self.x + self.width - 15 and #self.skills > self.maxSkillsVisible then
+                            -- Clicked on scrollbar - calculate new scroll position
+                            local scrollAreaHeight = self.height - 35
+                            local scrollBarHeight = math.max(20, (self.maxSkillsVisible / #self.skills) * scrollAreaHeight)
+                            local clickY = y - (self.y + 30)
+                            
+                            if clickY < 0 then clickY = 0 end
+                            if clickY > scrollAreaHeight then clickY = scrollAreaHeight end
+                            
+                            -- Calculate new scroll position
+                            local maxScroll = math.max(0, #self.skills - self.maxSkillsVisible)
+                            self.scroll = math.floor((clickY / scrollAreaHeight) * maxScroll)
+                            
+                            -- Ensure scroll is within bounds
+                            if self.scroll < 0 then self.scroll = 0 end
+                            if self.scroll > maxScroll then self.scroll = maxScroll end
+                            
+                            return true
+                        end
+                        
                         -- Check skill selection
-                        for i, skill in ipairs(self.skills) do
-                            local skillY = self.y + 30 + (i - 1) * 25
+                        local startIdx = self.scroll + 1
+                        local endIdx = math.min(startIdx + self.maxSkillsVisible - 1, #self.skills)
+                        
+                        for i = startIdx, endIdx do
+                            local displayIndex = i - startIdx
+                            local skillY = self.y + 30 + displayIndex * 25
                             
                             if y >= skillY - 2 and y <= skillY + 20 then
                                 -- Deselect all skills
@@ -380,9 +429,87 @@ function combatSystem:createCombat(party, enemy)
                                 end
                                 
                                 -- Select this skill
-                                skill.selected = true
+                                self.skills[i].selected = true
+                                self.selectedIndex = i
                                 return true
                             end
+                        end
+                        
+                        return true
+                    end
+                    
+                    return false
+                end,
+                
+                -- Handle wheel scrolling
+                wheel = function(self, mouseX, mouseY, x, y)
+                    if not self.visible then return false end
+                    
+                    -- Check if mouse is within bounds
+                    if mouseX >= self.x and mouseX <= self.x + self.width and
+                       mouseY >= self.y and mouseY <= self.y + self.height then
+                       
+                        -- Scroll up or down based on wheel direction
+                        local maxScroll = math.max(0, #self.skills - self.maxSkillsVisible)
+                        if y > 0 then
+                            -- Scroll up
+                            self.scroll = math.max(0, self.scroll - 1)
+                        else
+                            -- Scroll down
+                            self.scroll = math.min(maxScroll, self.scroll + 1)
+                        end
+                        
+                        return true
+                    end
+                    
+                    return false
+                end,
+                
+                -- Handle WASD navigation
+                keypressed = function(self, key)
+                    if not self.visible or #self.skills == 0 then return false end
+                    
+                    if key == "w" or key == "up" then
+                        -- Move selection up
+                        local newIndex = self.selectedIndex - 1
+                        if newIndex < 1 then newIndex = #self.skills end
+                        
+                        -- Deselect all skills
+                        for _, s in ipairs(self.skills) do
+                            s.selected = false
+                        end
+                        
+                        -- Select the new skill
+                        self.skills[newIndex].selected = true
+                        self.selectedIndex = newIndex
+                        
+                        -- Adjust scroll if necessary
+                        if newIndex <= self.scroll then
+                            self.scroll = math.max(0, newIndex - 1)
+                        elseif newIndex > self.scroll + self.maxSkillsVisible then
+                            self.scroll = newIndex - self.maxSkillsVisible
+                        end
+                        
+                        return true
+                    elseif key == "s" or key == "down" then
+                        -- Move selection down
+                        local newIndex = self.selectedIndex + 1
+                        if newIndex > #self.skills then newIndex = 1 end
+                        
+                        -- Deselect all skills
+                        for _, s in ipairs(self.skills) do
+                            s.selected = false
+                        end
+                        
+                        -- Select the new skill
+                        self.skills[newIndex].selected = true
+                        self.selectedIndex = newIndex
+                        
+                        -- Adjust scroll if necessary
+                        if newIndex <= self.scroll then
+                            self.scroll = math.max(0, newIndex - 1)
+                        elseif newIndex > self.scroll + self.maxSkillsVisible then
+                            self.scroll = newIndex - self.maxSkillsVisible
                         end
                         
                         return true
@@ -1485,6 +1612,10 @@ function combatSystem:createCombat(party, enemy)
             -- Prepare skill list
             self.elements.skillList.skills = {}
             
+            -- Reset scroll and selection
+            self.elements.skillList.scroll = 0
+            self.elements.skillList.selectedIndex = 1
+            
             -- Add skills from character
             for skillName, skillInfo in pairs(currentChar.skills) do
                 local skill = skillSystem:getSkill(skillName)
@@ -1506,6 +1637,11 @@ function combatSystem:createCombat(party, enemy)
             table.sort(self.elements.skillList.skills, function(a, b)
                 return a.name < b.name
             end)
+            
+            -- Select the first skill if available
+            if #self.elements.skillList.skills > 0 then
+                self.elements.skillList.skills[1].selected = true
+            end
             
             -- Show skill list
             self.elements.skillList.visible = true
@@ -2560,6 +2696,15 @@ function combatSystem:createCombat(party, enemy)
                 -- Remove keyboard shortcut for exiting combat
                 return false
             end
+            
+            -- Check if the skill list should handle the keypress
+            if self.state == combatSystem.STATE.PLAYER_TURN and 
+               self.elements.skillList and 
+               self.elements.skillList.visible and
+               self.elements.skillList:keypressed(key) then
+                return false
+            end
+            
             return false
         end,
         
@@ -3402,6 +3547,19 @@ function combatSystem:createCombat(party, enemy)
                 print("  Experience: " .. self.rewards.exp)
                 print("  Loot items: " .. #self.rewards.loot)
             end
+        end,
+        
+        -- Handle mouse wheel scrolling
+        wheelmoved = function(self, x, y)
+            -- Check if we need to forward to skill list
+            if self.state == combatSystem.STATE.PLAYER_TURN and 
+               self.elements.skillList and 
+               self.elements.skillList.visible and 
+               self.elements.skillList:wheel(love.mouse.getX(), love.mouse.getY(), x, y) then
+                return false
+            end
+            
+            return false
         end,
     }
     
