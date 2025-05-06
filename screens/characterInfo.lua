@@ -21,12 +21,12 @@ function characterInfo:init()
 end
 
 function characterInfo:createUI()
-    -- Create character list (party members)
+    -- Create character list (party members) - now a vertical list on the left
     self.elements.characterList = {
         x = 50,
         y = 90,
-        width = 700,
-        height = 80,
+        width = 250, -- Slightly narrower to give more space to details panel
+        height = 500, -- Taller to fit stacked characters
         
         draw = function(self)
             if not GAME.party or #GAME.party == 0 then
@@ -36,11 +36,12 @@ function characterInfo:createUI()
                 return
             end
             
-            -- Draw character slots
-            local charWidth = math.min(150, self.width / #GAME.party)
+            -- Draw character slots stacked vertically
+            local charHeight = 120 -- Height per character slot
+            local padding = 10 -- Padding between character slots
             
             for i, character in ipairs(GAME.party) do
-                local x = self.x + (i-1) * charWidth
+                local y = self.y + (i-1) * (charHeight + padding)
                 
                 -- Draw selection background if selected
                 if character == characterInfo.selectedCharacter then
@@ -49,21 +50,28 @@ function characterInfo:createUI()
                     love.graphics.setColor(0.2, 0.2, 0.3)
                 end
                 
-                love.graphics.rectangle("fill", x, self.y, charWidth - 10, self.height, 5, 5)
+                love.graphics.rectangle("fill", self.x, y, self.width, charHeight, 5, 5)
+                
+                -- Set up portrait area
+                local portraitScale = 0.5
+                local portraitX = self.x + 15
+                local portraitY = y + 15
+                local textX = portraitX + 100 -- Start text after portrait
+                local barWidth = self.width - 130 -- Bar width adjusted for left column
                 
                 -- Draw character portrait
                 love.graphics.setColor(1, 1, 1)
                 if character.portraitId and assetManager.images.portraits[character.portraitId] then
                     love.graphics.draw(
                         assetManager.images.portraits[character.portraitId],
-                        x + 5, self.y + 5,
-                        0, 0.5, 0.5
+                        portraitX, portraitY,
+                        0, portraitScale, portraitScale
                     )
                 elseif assetManager.images.profiles[character.profileIndex] then
                     love.graphics.draw(
                         assetManager.images.profiles[character.profileIndex],
-                        x + 5, self.y + 5,
-                        0, 0.5, 0.5
+                        portraitX, portraitY,
+                        0, portraitScale, portraitScale
                     )
                 end
                 
@@ -72,42 +80,52 @@ function characterInfo:createUI()
                 love.graphics.setColor(1, 1, 1)
                 
                 local nameWidth = screenManager.fonts.small:getWidth(character.name)
-                if nameWidth > charWidth - 20 then
+                if nameWidth > barWidth then
                     -- Truncate name if too long
                     local truncName = ""
                     local j = 1
-                    while screenManager.fonts.small:getWidth(truncName .. "...") < charWidth - 20 and j <= #character.name do
+                    while screenManager.fonts.small:getWidth(truncName .. "...") < barWidth and j <= #character.name do
                         truncName = truncName .. character.name:sub(j, j)
                         j = j + 1
                     end
-                    love.graphics.print(truncName .. "...", x + 60, self.y + 10)
+                    love.graphics.print(truncName .. "...", textX, y + 20)
                 else
-                    love.graphics.print(character.name, x + 60, self.y + 10)
+                    love.graphics.print(character.name, textX, y + 20)
                 end
                 
                 -- Draw character job and level
                 love.graphics.setColor(0.8, 0.8, 1)
-                love.graphics.print(
-                    character.job .. " Lv." .. (character.jobLevels[character.job] or 1) .. " (Total: " .. characterSystem:_calculateTotalLevel(character) .. ")",
-                    x + 60, self.y + 30
-                )
+                local jobText = character.job .. " Lv." .. (character.jobLevels[character.job] or 1)
+                love.graphics.print(jobText, textX, y + 40)
                 
-                -- Draw HP/MP bars
-                local barWidth = charWidth - 70
-                
+                -- Draw HP/MP bars with spacing
                 -- HP bar
                 local healthWidth = barWidth * (character.currentHP / character.maxHP)
                 love.graphics.setColor(0.2, 0.2, 0.2)
-                love.graphics.rectangle("fill", x + 60, self.y + 50, barWidth, 8)
+                love.graphics.rectangle("fill", textX, y + 73, barWidth, 10)
                 love.graphics.setColor(0.8, 0.2, 0.2)
-                love.graphics.rectangle("fill", x + 60, self.y + 50, healthWidth, 8)
+                love.graphics.rectangle("fill", textX, y + 73, healthWidth, 10)
+                
+                -- HP values
+                love.graphics.setColor(1, 0.7, 0.7)
+                love.graphics.print(
+                    character.currentHP .. "/" .. character.maxHP,
+                    textX + barWidth - 60, y + 73 - 14
+                )
                 
                 -- MP bar
                 local manaWidth = barWidth * (character.currentMP / character.maxMP)
                 love.graphics.setColor(0.2, 0.2, 0.2)
-                love.graphics.rectangle("fill", x + 60, self.y + 60, barWidth, 8)
+                love.graphics.rectangle("fill", textX, y + 95, barWidth, 10)
                 love.graphics.setColor(0.2, 0.2, 0.8)
-                love.graphics.rectangle("fill", x + 60, self.y + 60, manaWidth, 8)
+                love.graphics.rectangle("fill", textX, y + 95, manaWidth, 10)
+                
+                -- MP values
+                love.graphics.setColor(0.7, 0.7, 1)
+                love.graphics.print(
+                    character.currentMP .. "/" .. character.maxMP,
+                    textX + barWidth - 60, y + 95 - 14
+                )
             end
         end,
         
@@ -120,11 +138,13 @@ function characterInfo:createUI()
                y >= self.y and y <= self.y + self.height then
                 
                 -- Find which character was clicked
-                local charWidth = math.min(150, self.width / #GAME.party)
+                local charHeight = 120
+                local padding = 10
+                
                 for i, character in ipairs(GAME.party) do
-                    local charX = self.x + (i-1) * charWidth
+                    local charY = self.y + (i-1) * (charHeight + padding)
                     
-                    if x >= charX and x <= charX + charWidth - 10 then
+                    if y >= charY and y <= charY + charHeight then
                         characterInfo:selectCharacter(character)
                         return true
                     end
@@ -137,31 +157,34 @@ function characterInfo:createUI()
         end
     }
     
-    -- Create tab buttons
+    -- Create tab buttons - now on the right column
+    local detailsX = 330 -- X position for detail panels (moved further left)
+    local tabY = 90 -- Y position for tabs
+    
     self.elements.statsTab = screenManager.UI.Button(
-        170, 190, 120, 30, "Stats", 
+        detailsX, tabY, 120, 30, "Stats",
         function() self:selectTab("stats") end
     )
     self.elements.statsTab.visible = true
     
     self.elements.equipmentTab = screenManager.UI.Button(
-        300, 190, 120, 30, "Equipment", 
+        detailsX + 130, tabY, 120, 30, "Equipment",
         function() self:selectTab("equipment") end
     )
     self.elements.equipmentTab.visible = true
     
     self.elements.skillsTab = screenManager.UI.Button(
-        430, 190, 120, 30, "Skills", 
+        detailsX + 260, tabY, 120, 30, "Skills",
         function() self:selectTab("skills") end
     )
     self.elements.skillsTab.visible = true
     
-    -- Create info panel
+    -- Create info panel - now taller on the right column and wider
     self.elements.infoPanel = {
-        x = 50,
-        y = 230,
-        width = 700,
-        height = 300,
+        x = detailsX,
+        y = tabY + 40, -- Just below tabs
+        width = 820, -- Wider panel to use more screen space
+        height = 450, -- Taller panel
         
         draw = function(self)
             -- Draw panel background
@@ -472,6 +495,16 @@ function characterInfo:createUI()
     )
     self.elements.backToGameButton.visible = true
     
+    -- Initialize party panel
+    if not self.elements.partyPanel then
+        self.elements.partyPanel = {
+            init = function(self)
+                -- Initialize any party panel specific data
+            end
+        }
+        self.elements.partyPanel:init()
+    end
+    
     -- Set initial tab highlighting
     self:updateTabHighlighting()
 end
@@ -543,14 +576,18 @@ function characterInfo:draw()
     -- Draw background
     love.graphics.clear(screenManager.colors.background)
     
-    -- Draw parchment background
-    love.graphics.setColor(0.95, 0.92, 0.85)
+    love.graphics.setColor(screenManager.colors.background)
     love.graphics.rectangle("fill", 0, 0, GAME.width, GAME.height)
     
     -- Draw screen title
     love.graphics.setFont(screenManager.fonts.large)
-    love.graphics.setColor(0.3, 0.2, 0.1)
+    love.graphics.setColor(screenManager.colors.title)
     love.graphics.print("Character Information", 50, 30)
+    
+    -- Draw separator line between columns
+    love.graphics.setColor(0.7, 0.6, 0.5, 0.7)
+    love.graphics.setLineWidth(2)
+    love.graphics.line(315, 90, 315, 590)
     
     -- Draw UI elements
     for name, element in pairs(self.elements) do

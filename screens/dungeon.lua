@@ -1120,6 +1120,8 @@ function dungeon:checkEntityInteraction()
                 -- For boss monsters, always use single-enemy combat
                 if entity.isBoss then
                     self.combat = combatSystem:createCombat(GAME.party, entity)
+                    -- Play boss battle music
+                    assetManager:playMusic("bossCombat")
                 else
                     -- For regular monsters, check mission difficulty
                     local difficulty = self.currentQuest and self.currentQuest.difficulty or 1
@@ -1151,6 +1153,13 @@ function dungeon:checkEntityInteraction()
                     else
                         -- Easy missions still have single enemies
                         self.combat = combatSystem:createCombat(GAME.party, entity)
+                    end
+                    
+                    -- Play regular battle music (randomly select between two tracks)
+                    if math.random() > 0.5 then
+                        assetManager:playMusic("combat")
+                    else
+                        assetManager:playMusic("combatAlt")
                     end
                 end
                 
@@ -1524,7 +1533,9 @@ function dungeon:keypressed(key, scancode, isrepeat)
                     self.state = STATES.EXPLORING
                     self.combat = nil
                     -- Reset kill quest notification flag AFTER victory if no level up occurs
-                    self.killQuestNotificationShown = false                    
+                    self.killQuestNotificationShown = false
+                    -- Return to dungeon music
+                    assetManager:playMusic("dungeon")
                 end
 
             else
@@ -1696,7 +1707,9 @@ function dungeon:mousepressed(x, y, button, istouch, presses)
                     self.state = STATES.EXPLORING
                     self.combat = nil
                     -- Reset kill quest notification flag AFTER victory if no level up occurs
-                    self.killQuestNotificationShown = false                    
+                    self.killQuestNotificationShown = false
+                    -- Return to dungeon music
+                    assetManager:playMusic("dungeon")
                 end
 
             else

@@ -12,7 +12,21 @@ GAME = {
     version = "0.1",
     debug = false,
     currentState = nil,
-    prevState = nil
+    prevState = nil,
+    
+    -- Set game volume settings
+    setVolume = function(musicVolume, soundVolume, masterVolume)
+        local assetManager = require("assets/assetManager")
+        if masterVolume then
+            assetManager:setMasterVolume(masterVolume)
+        end
+        if musicVolume then
+            assetManager:setMusicVolume(musicVolume)
+        end
+        if soundVolume then
+            assetManager.audioSettings.soundVolume = soundVolume
+        end
+    end
 }
 
 -- In main.lua, add this after GAME is defined but before other initializations
@@ -69,6 +83,9 @@ function love.load()
         -- Load minion data
         minionManager:load()
     end
+
+    -- Set initial volume
+    GAME.setVolume(0.2)
 end
 
 function love.update(dt)

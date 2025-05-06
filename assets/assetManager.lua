@@ -5,7 +5,14 @@ local assetManager = {
     sounds = {},
     music = {},
     texArrays = {}, -- Texture arrays for hardware-accelerated rendering
-    textureIds = {} -- Maps texture names to indices in texture arrays
+    textureIds = {}, -- Maps texture names to indices in texture arrays
+    
+    -- Centralized audio settings
+    audioSettings = {
+        masterVolume = 1.0,
+        musicVolume = 0.2, -- Default music volume
+        soundVolume = 0.2  -- Default sound volume
+    }
 }
 
 function assetManager:init()
@@ -617,25 +624,59 @@ function assetManager:loadMusic()
         menu = nil,
         dungeon = nil,
         combat = nil,
+        combatAlt = nil,  -- Alternative battle music
+        bossCombat = nil, -- Boss battle music
         victory = nil,
-        town = nil
+        town = nil,
+        currentTrack = nil -- Track which music is currently playing
     }
     
     -- Try to load music, but don't crash if it doesn't exist
     local function tryLoadMusic(name, path)
-        local success, result = pcall(function() return love.audio.newSource(path, "stream") end)
-        if success then
-            self.music[name] = result
-            result:setLooping(true)
+        if love.filesystem.getInfo(path) then
+            local success, result = pcall(function() return love.audio.newSource(path, "stream") end)
+            if success then
+                self.music[name] = result
+                result:setLooping(true)
+                result:setVolume(self.audioSettings.musicVolume)
+                print("  - Loaded music: " .. name .. " from " .. path)
+                return true
+            else
+                print("  - Failed to load music: " .. path)
+            end
+        else
+            print("  - Music file not found: " .. path)
         end
+        return false
     end
     
     -- Try to load all music
     tryLoadMusic("menu", "assets/music/menu.ogg")
-    tryLoadMusic("dungeon", "assets/music/dungeon.ogg")
-    tryLoadMusic("combat", "assets/music/combat.ogg")
+    
+    -- Try to load town music from either standard or custom location
+    if not tryLoadMusic("town", "assets/music/town.ogg") then
+        tryLoadMusic("town", "assets/Sounds/Music/CityMusic01.mp3")
+    end
+    
+    -- Try to load dungeon music from either standard or custom location
+    if not tryLoadMusic("dungeon", "assets/music/dungeon.ogg") then
+        tryLoadMusic("dungeon", "assets/Sounds/Music/DungeonMusic01.mp3")
+    end
+    
+    -- Try to load combat music from either standard or custom location
+    if not tryLoadMusic("combat", "assets/music/combat.ogg") then
+        tryLoadMusic("combat", "assets/Sounds/Music/BattleMusic01.mp3")
+    end
+    
+    -- Load alternative battle music
+    tryLoadMusic("combatAlt", "assets/Sounds/Music/BattleMusic02.mp3")
+    
+    -- Load boss battle music
+    tryLoadMusic("bossCombat", "assets/Sounds/Music/BattleMusicBoss01.mp3")
+    
     tryLoadMusic("victory", "assets/music/victory.ogg")
-    tryLoadMusic("town", "assets/music/town.ogg")
+    
+    print("Loaded " .. self:countTableElements(self.music) - 1 .. " music tracks") -- -1 for currentTrack
 end
 
 -- Play a sound if it's loaded
@@ -643,6 +684,9 @@ function assetManager:playSound(name, pitch)
     if self.sounds[name] then
         -- Clone the source to allow overlapping sounds
         local clone = self.sounds[name]:clone()
+        
+        -- Apply volume based on settings
+        clone:setVolume(self.audioSettings.soundVolume)
         
         -- Apply pitch if specified
         if pitch then
@@ -656,17 +700,17 @@ end
 -- Set volume for a specific sound
 function assetManager:setSoundVolume(name, volume)
     if self.sounds[name] then
-        self.sounds[name]:setVolume(volume)
+        self.sounds[name]:setVolume(volume * self.audioSettings.soundVolume)
     end
 end
 
 -- Set volume for all button sounds
 function assetManager:setButtonSoundVolume(volume)
     if self.sounds.button_hover then
-        self.sounds.button_hover:setVolume(volume)
+        self.sounds.button_hover:setVolume(volume * self.audioSettings.soundVolume)
     end
     if self.sounds.button_click then
-        self.sounds.button_click:setVolume(volume)
+        self.sounds.button_click:setVolume(volume * self.audioSettings.soundVolume)
     end
 end
 
@@ -687,18 +731,48 @@ function assetManager:setButtonSounds(hoverSoundPath, clickSoundPath)
     end
 end
 
+-- Set music volume (affects all music tracks)
+function assetManager:setMusicVolume(volume)
+    self.audioSettings.musicVolume = volume
+    
+    -- Apply to currently playing music
+    for key, music in pairs(self.music) do
+        if type(music) == "userdata" then
+            music:setVolume(volume)
+        end
+    end
+end
+
+-- Set master volume (affects both music and sound)
+function assetManager:setMasterVolume(volume)
+    self.audioSettings.masterVolume = volume
+    
+    -- Update music volume
+    self:setMusicVolume(self.audioSettings.musicVolume * volume)
+    
+    -- Update sound volume (will apply to next sounds played)
+    self.audioSettings.soundVolume = self.audioSettings.soundVolume * volume
+end
+
 -- Play music if it's loaded
 function assetManager:playMusic(name)
+    -- Skip if already playing this track
+    if self.music.currentTrack == name and self.music[name] and self.music[name]:isPlaying() then
+        return
+    end
+    
     -- Stop any currently playing music
-    for _, music in pairs(self.music) do
-        if music and music:isPlaying() then
+    for key, music in pairs(self.music) do
+        if type(music) == "userdata" and music:isPlaying() then
             music:stop()
         end
     end
     
     -- Play the requested music if it exists
     if self.music[name] then
+        self.music[name]:setVolume(self.audioSettings.musicVolume)
         self.music[name]:play()
+        self.music.currentTrack = name
     end
 end
 
