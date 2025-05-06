@@ -139,7 +139,7 @@ function overworld:createUI()
     
     -- Create character info button (in top bar)
     self.elements.characterInfoButton = screenManager.UI.Button(
-        GAME.width - 170, 170, 150, 40, "Character Info", 
+        GAME.width - 170, 170, 150, 40, "Party Info", 
         function() 
             local gameState = require("states/gameState")
             gameState:changeState("characterInfo")

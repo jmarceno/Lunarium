@@ -129,6 +129,12 @@ function dungeon:init()
         function() self:completeQuest() end
     )
     
+    -- Character Info Button (Bottom Right, above Inventory)
+    self.elements.characterInfoButton = screenManager.UI.Button(
+        GAME.width - 170, GAME.height - 190, 150, 30, "Party Info (C)",
+        function() self:openCharacterInfo() end
+    )
+    
     -- Inventory Button (Bottom Right, above Status and Quest Status)
     self.elements.inventoryButton = screenManager.UI.Button(
         GAME.width - 170, GAME.height - 150, 150, 30, "Inventory (I)",
@@ -366,6 +372,7 @@ function dungeon:enter(params)
     
     -- Check if we're returning from inventory or level up screen
     if (params and params.from == "inventory" and self.map) or 
+       (params and params.from == "characterInfo" and self.map) or
        (params and params.from_levelup and self.map) then
         print("Preserving existing dungeon state")
         -- We're coming back from inventory or level up, keep the existing dungeon state
@@ -1263,6 +1270,7 @@ function dungeon:draw()
     
     -- Draw UI buttons (except in combat)
     if self.state ~= STATES.COMBAT then
+        if self.elements.characterInfoButton then self.elements.characterInfoButton:draw() end
         if self.elements.inventoryButton then self.elements.inventoryButton:draw() end
         if self.elements.statusButton then self.elements.statusButton:draw() end
     end
@@ -1291,6 +1299,12 @@ function dungeon:keypressed(key, scancode, isrepeat)
         -- Inventory shortcut
         if key == 'i' then
             self:openInventory()
+            return true
+        end
+        
+        -- Character Info shortcut
+        if key == 'c' then
+            self:openCharacterInfo()
             return true
         end
         
@@ -1442,6 +1456,7 @@ function dungeon:mousepressed(x, y, button, istouch, presses)
     
     -- Handle Inventory/Quest button clicks ONLY if panels are NOT open
     if self.state == STATES.EXPLORING then
+        if self.elements.characterInfoButton:clicked(x, y, button) then return true end
         if self.elements.inventoryButton:clicked(x, y, button) then return true end
         if self.elements.statusButton:clicked(x, y, button) then return true end
     end
@@ -1659,6 +1674,16 @@ function dungeon:openInventory()
     
     local gameState = require("states/gameState")
     gameState:changeState("inventory", { from = "dungeon" })
+end
+
+-- Open Character Info Screen
+function dungeon:openCharacterInfo()
+    -- Store texture settings before switching screens
+    self.textureSettings.wallTexturesEnabled = raycaster.texturesEnabled
+    self.textureSettings.floorTexturesEnabled = raycaster.floorTexturesEnabled
+    
+    local gameState = require("states/gameState")
+    gameState:changeState("characterInfo", { from = "dungeon" })
 end
 
 -- Function to handle drawing the exploring state

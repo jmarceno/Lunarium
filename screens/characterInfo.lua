@@ -660,7 +660,22 @@ end
 function characterInfo:returnToGame()
     -- Return to game
     local gameState = require("states/gameState")
-    gameState:changeState("overworld")
+    
+    -- Get previous state name
+    local prevStateName = ""
+    for name, state in pairs(gameState.states) do
+        if state == GAME.prevState then
+            prevStateName = name
+            break
+        end
+    end
+    
+    -- Determine where to return based on previous state
+    if prevStateName == "dungeon" then
+        gameState:changeState("dungeon", { from = "characterInfo" })
+    else
+        gameState:changeState("overworld")
+    end
 end
 
 -- Add mouse wheel handling for scrolling
