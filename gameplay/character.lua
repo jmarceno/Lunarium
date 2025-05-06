@@ -231,8 +231,25 @@ function character:levelUp(char)
     -- Increase current job level
     char.jobLevels[currentJobName] = currentJobLevel + 1
     
-    -- Grant skill points (based on total level increase - might reconsider later)
-    char.skillPoints = char.skillPoints + 1
+    -- Grant new skills on odd levels after level 1
+    local currentJobLevel = char.jobLevels[currentJobName]
+    if currentJobLevel > 1 and currentJobLevel % 2 == 1 then
+        -- Get job data to check available skills
+        local jobData = jobSystem:getJob(currentJobName)
+        if jobData and jobData.availableSkills then
+            -- Find next unlearned skill
+            for _, skillName in ipairs(jobData.availableSkills) do
+                if not char.skills[skillName] then
+                    -- Add the skill at level 1
+                    char.skills[skillName] = {
+                        level = 1,
+                        experience = 0
+                    }
+                    break -- Only add one skill per level
+                end
+            end
+        end
+    end
     
     -- Adjust experience (as before)
     if char.experience >= char.experienceToNext then

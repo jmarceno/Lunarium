@@ -469,7 +469,37 @@ function levelUpScreen:draw()
         -- Skill Point
         gainTextY = gainTextY + 15
         love.graphics.setColor(1, 1, 1)
-        love.graphics.print("Skill Points Gained: +1", gainsX + 20, gainTextY)
+        -- Show next skill to be gained if this is an odd level after 1
+        local character = self.charactersToLevel[self.currentCharacterIndex]
+        local jobData = self.selectedOption.jobData
+        local newJobLevel = character.jobLevels[jobData.name] or 1
+        if not self.selectedOption.isNewJob then
+            newJobLevel = newJobLevel + 1 -- Account for pending level up
+        end
+        
+        if newJobLevel > 1 and newJobLevel % 2 == 1 and jobData.availableSkills then
+            gainTextY = gainTextY + 15
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.print("Next Level Skill:", gainsX + 20, gainTextY)
+            gainTextY = gainTextY + 25
+            
+            -- Find next unlearned skill
+            local nextSkill = nil
+            for _, skillName in ipairs(jobData.availableSkills) do
+                if not character.skills[skillName] then
+                    nextSkill = skillName
+                    break
+                end
+            end
+            
+            if nextSkill then
+                love.graphics.setColor(0.8, 0.8, 1)
+                love.graphics.print("  - " .. nextSkill, gainsX + 30, gainTextY)
+                gainTextY = gainTextY + 20
+            end
+        end
+        gainTextY = gainTextY + 15
+        love.graphics.setColor(1, 1, 1)
 
 
     else
