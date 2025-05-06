@@ -1432,10 +1432,72 @@ function dungeon:keypressed(key, scancode, isrepeat)
                         itemSystem:addToInventory(item)
                     end
                 end
-                for i = #self.entities, 1, -1 do
-                    if self.entities[i] == enemyToRemove then
-                        table.remove(self.entities, i)
-                        break
+                
+                -- Handle multiple enemies if present
+                if self.combat.enemies and #self.combat.enemies > 0 then
+                    -- Track entities to remove
+                    local entitiesToRemove = {}
+                    
+                    -- Find enemies to remove
+                    for _, combatEnemy in ipairs(self.combat.enemies) do
+                        for i, entity in ipairs(self.entities) do
+                            if entity.type == "monster" and entity.id == combatEnemy.id then
+                                table.insert(entitiesToRemove, i)
+                                break
+                            end
+                        end
+                    end
+                    
+                    -- Remove entities and update quest progress
+                    table.sort(entitiesToRemove, function(a, b) return a > b end)
+                    for _, index in ipairs(entitiesToRemove) do
+                        -- Get entity before removing it
+                        local entity = self.entities[index]
+                        
+                        -- Make sure entity exists before accessing its properties
+                        if entity then
+                            -- Update quest progress for kill quests
+                            if entity.type == "monster" and self.currentQuest and self.currentQuest.type == "KILL" then
+                                -- Trigger kill event
+                                local questSystem = require("gameplay/questSystem")
+                                questSystem:updateProgress("kill", {monsterId = entity.id})
+                                
+                                if GAME.debug then
+                                    print("Keypressed: Updated kill quest progress for monster ID: " .. entity.id)
+                                end
+                            end
+                            
+                            -- Remove the entity
+                            table.remove(self.entities, index)
+                        else
+                            print("Warning: Tried to access nil entity at index " .. index)
+                        end
+                    end
+                else
+                    -- Handle single enemy for backward compatibility
+                    local enemyToRemove = self.combat.enemy
+                    
+                    -- Make sure enemyToRemove exists before proceeding
+                    if enemyToRemove then
+                        for i = #self.entities, 1, -1 do
+                            if self.entities[i] == enemyToRemove then
+                                -- Update quest progress for kill quests if applicable
+                                if enemyToRemove.type == "monster" and self.currentQuest and self.currentQuest.type == "KILL" then
+                                    -- Trigger kill event through quest system
+                                    local questSystem = require("gameplay/questSystem")
+                                    questSystem:updateProgress("kill", {monsterId = enemyToRemove.id})
+                                    
+                                    if GAME.debug then
+                                        print("Keypressed: Updated kill quest progress for monster ID: " .. enemyToRemove.id)
+                                    end
+                                end
+                                
+                                table.remove(self.entities, i)
+                                break
+                            end
+                        end
+                    else
+                        print("Warning: Tried to handle nil enemyToRemove in single-enemy combat")
                     end
                 end
 
@@ -1455,9 +1517,9 @@ function dungeon:keypressed(key, scancode, isrepeat)
                     print("Combat Victory: Triggering level up for", #charactersToLevelUp, "character(s).")
                     self.combat = nil -- Clear combat state
                     gameState:changeState("levelUp", { charactersToLevelUp = charactersToLevelUp })
-                    -- Note: Don't reset killQuestNotificationShown here, LevelUp screen will return
+                     -- Note: Don't reset killQuestNotificationShown here, LevelUp screen will return
                 else
-                    -- No level ups, return to exploring
+                     -- No level ups, return to exploring
                     print("Combat Victory: No level ups, returning to exploring.")
                     self.state = STATES.EXPLORING
                     self.combat = nil
@@ -1466,7 +1528,7 @@ function dungeon:keypressed(key, scancode, isrepeat)
                 end
 
             else
-                -- Handle defeat
+                -- Handle defeat                 
                 self:failQuest()
             end
             return true -- Indicate keypress was handled and led to state change
@@ -1560,17 +1622,54 @@ function dungeon:mousepressed(x, y, button, istouch, presses)
                     -- Remove the entities in reverse order to avoid index shifting issues
                     table.sort(entitiesToRemove, function(a, b) return a > b end)
                     for _, index in ipairs(entitiesToRemove) do
-                        table.remove(self.entities, index)
+                        -- Get the entity before removing it
+                        local entity = self.entities[index]
+                        
+                        -- Make sure entity exists before accessing its properties
+                        if entity then
+                            -- Update quest progress for kill quests if applicable
+                            if entity.type == "monster" and self.currentQuest and self.currentQuest.type == "KILL" then
+                                -- Trigger kill event through quest system
+                                local questSystem = require("gameplay/questSystem")
+                                questSystem:updateProgress("kill", {monsterId = entity.id})
+                                
+                                if GAME.debug then
+                                    print("Updated kill quest progress for monster ID: " .. entity.id)
+                                end
+                            end
+                            
+                            -- Remove the entity
+                            table.remove(self.entities, index)
+                        else
+                            print("Warning: Tried to access nil entity at index " .. index)
+                        end
                     end
                     
                 elseif self.combat.enemy then
                     -- Backward compatibility for single enemy combat
                     local enemyToRemove = self.combat.enemy
-                    for i = #self.entities, 1, -1 do
-                        if self.entities[i] == enemyToRemove then
-                            table.remove(self.entities, i)
-                            break
+                    
+                    -- Make sure enemyToRemove exists before proceeding
+                    if enemyToRemove then
+                        for i = #self.entities, 1, -1 do
+                            if self.entities[i] == enemyToRemove then
+                                -- Update quest progress for kill quests if applicable
+                                if enemyToRemove.type == "monster" and self.currentQuest and self.currentQuest.type == "KILL" then
+                                    -- Trigger kill event through quest system
+                                    local questSystem = require("gameplay/questSystem")
+                                    questSystem:updateProgress("kill", {monsterId = enemyToRemove.id})
+                                    
+                                    if GAME.debug then
+                                        print("Updated kill quest progress for monster ID: " .. enemyToRemove.id)
+                                    end
+                                end
+                                
+                                table.remove(self.entities, i)
+                                break
+                            end
                         end
+                    else
+                        print("Warning: Tried to handle nil enemyToRemove in single-enemy combat")
                     end
                 end
 
