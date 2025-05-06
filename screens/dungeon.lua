@@ -39,8 +39,6 @@ function dungeon:init()
     self.moveSpeed = self.baseMoveSpeed
     self.turnSpeed = 0.03
     self.objective = {x = 0, y = 0, completed = false, reached = false}
-    self.inventoryPanelVisible = false
-    self.questLogPanelVisible = false
     self.selectedInventoryItemIndex = nil
     self.statusBarVisible = true -- Initially visible
     self.statusBarTimer = 10 -- 10 seconds timer
@@ -131,21 +129,14 @@ function dungeon:init()
         function() self:completeQuest() end
     )
     
-    -- Inventory Button (Bottom Right)
+    -- Inventory Button (Bottom Right, above Status and Quest Status)
     self.elements.inventoryButton = screenManager.UI.Button(
-        GAME.width - 110, GAME.height - 110, 100, 30, "Inventory (I)",
+        GAME.width - 170, GAME.height - 150, 150, 30, "Inventory (I)",
         function() self:openInventory() end
     )
-    
-    -- Quest Log Button (Bottom Right, above Inventory)
-    self.elements.questLogButton = screenManager.UI.Button(
-        GAME.width - 110, GAME.height - 150, 100, 30, "Quests (J)",
-        function() self:toggleQuestLogPanel() end
-    )
-    
-    -- Status Button (Bottom Right, left of Inventory)
+    -- Status Button (Bottom Right, Bellow Inventory)
     self.elements.statusButton = screenManager.UI.Button(
-        GAME.width - 220, GAME.height - 110, 100, 30, "Status (K)",
+        GAME.width - 170, GAME.height - 110, 150, 30, "Quest Status (J)",
         function() self:toggleStatusBar() end
     )
     
@@ -357,88 +348,6 @@ function dungeon:init()
                     end
                 end
             end
-        end
-    }
-    
-    -- Quest Log Panel (Hidden Initially)
-    self.elements.questLogPanel = {
-        visible = false,
-        x = GAME.width / 2 - 250,
-        y = GAME.height / 2 - 150,
-        width = 500,
-        height = 300,
-        closeButton = nil,
-        
-        init = function(self)
-            self.closeButton = screenManager.UI.Button(
-                self.x + self.width / 2 - 60, self.y + self.height - 60,
-                120, 40, "Close (ESC)",
-                function() dungeon:toggleQuestLogPanel() end
-            )
-        end,
-        
-        draw = function(self)
-            if not self.visible then return end
-            if not self.closeButton then self:init() end
-            
-            -- Placeholder draw function
-            love.graphics.setColor(0.15, 0.1, 0.1, 0.95)
-            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height)
-            love.graphics.setColor(0.8, 0.8, 0.8)
-            love.graphics.rectangle("line", self.x, self.y, self.width, self.height)
-            love.graphics.setFont(screenManager.fonts.large)
-            love.graphics.printf("Quest Log", self.x, self.y + 10, self.width, "center")
-            
-             
-            love.graphics.setFont(screenManager.fonts.medium)
-            if dungeon.currentQuest then
-                love.graphics.setColor(1, 1, 0)
-                love.graphics.print("Current Quest:", self.x + 20, self.y + 60)
-                love.graphics.setColor(1, 1, 1)
-                love.graphics.print(dungeon.currentQuest.name, self.x + 40, self.y + 90)
-                
-                love.graphics.setFont(screenManager.fonts.small)
-                love.graphics.setColor(0.9, 0.9, 0.9)
-                -- Simple word wrapping for description
-                local description = dungeon.currentQuest.description or "No description available."
-                local wrappedText = {}
-                local maxWidth = self.width - 60
-                local font = screenManager.fonts.small
-                local lines = {}
-                for line in string.gmatch(description, "([^\\n]*)\\n?") do
-                    local currentLine = ""
-                    for word in string.gmatch(line .. " ", "(%S+)%s*") do
-                        local testLine = currentLine .. word .. " "
-                        if font:getWidth(testLine) <= maxWidth then
-                            currentLine = testLine
-                        else
-                            table.insert(lines, currentLine)
-                            currentLine = word .. " "
-                        end
-                    end
-                    table.insert(lines, currentLine)
-                end
-                
-                local textY = self.y + 120
-                for _, line in ipairs(lines) do
-                    love.graphics.print(line, self.x + 40, textY)
-                    textY = textY + font:getHeight() + 2
-                end
-            else
-                love.graphics.setColor(0.7, 0.7, 0.7)
-                love.graphics.printf("No active quest.", self.x, self.y + 100, self.width, "center")
-            end
-            
-            -- Draw Close button
-            self.closeButton:draw()
-        end,
-        
-        clicked = function(self, x, y, button)
-            if not self.visible then return false end
-            
-            if self.closeButton:clicked(x, y, button) then return true end
-            
-            return false -- Click was inside but not on the button
         end
     }
     
@@ -906,11 +815,6 @@ function dungeon:update(dt)
 
     -- Update based on current state
     if self.state == STATES.EXPLORING then
-        -- If quest log panel is open, don't update exploration logic (movement, etc.)
-        if self.elements.questLogPanel.visible then
-            return -- Stop further updates for this frame
-        end
-        
         -- Check if a kill quest was just completed
         if self.currentQuest and self.currentQuest.type == "KILL" and 
            self.currentQuest.objective.current >= self.currentQuest.objective.count and
@@ -1303,14 +1207,8 @@ function dungeon:draw()
 
     -- Draw based on current state
     if self.state == STATES.EXPLORING then
-        -- Draw 3D view only if not in inventory or quest log
-        if not (self.elements.questLogPanel.visible) then
-            self:drawExploringState()
-        else
-            -- Even if quest log is visible, draw some background
-            love.graphics.setColor(0.2, 0.2, 0.3)
-            love.graphics.rectangle("fill", 0, 0, GAME.width, GAME.height)
-        end
+        -- Draw 3D view
+        self:drawExploringState()
 
         -- Draw UI elements that should appear in exploring state
         if self.elements.minimap then
@@ -1366,13 +1264,7 @@ function dungeon:draw()
     -- Draw UI buttons (except in combat)
     if self.state ~= STATES.COMBAT then
         if self.elements.inventoryButton then self.elements.inventoryButton:draw() end
-        if self.elements.questLogButton then self.elements.questLogButton:draw() end
         if self.elements.statusButton then self.elements.statusButton:draw() end
-    end
-    
-    -- Draw any panels that should appear on top
-    if self.elements.questLogPanel and self.elements.questLogPanel.visible then
-        self.elements.questLogPanel:draw()
     end
     
     -- Draw confirmation dialog last (if visible)
@@ -1393,13 +1285,6 @@ function dungeon:keypressed(key, scancode, isrepeat)
         return true
     end
 
-    -- Check if panels are open and escape pressed
-    if self.elements.questLogPanel.visible then
-        if key == 'escape' then
-            self:toggleQuestLogPanel()
-            return true
-        end
-    end
     
     -- Process keys based on state
     if self.state == STATES.EXPLORING then
@@ -1409,14 +1294,8 @@ function dungeon:keypressed(key, scancode, isrepeat)
             return true
         end
         
-        -- Quest log shortcut
-        if key == 'j' then
-            self:toggleQuestLogPanel()
-            return true
-        end
-        
         -- Status bar shortcut
-        if key == 'k' then
+        if key == 'j' then
             self:toggleStatusBar()
             return true
         end
@@ -1561,24 +1440,9 @@ function dungeon:mousepressed(x, y, button, istouch, presses)
         return self.elements.confirmDialog:clicked(x, y, button)
     end
     
-    if self.elements.questLogPanel.visible then
-        if self.elements.questLogPanel:clicked(x, y, button) then
-            return true -- Click handled by quest panel
-        else
-            -- Check if click was *outside* the panel bounds; if so, close it
-            local panel = self.elements.questLogPanel
-            if not (x >= panel.x and x <= panel.x + panel.width and y >= panel.y and y <= panel.y + panel.height) then
-                self:toggleQuestLogPanel()
-                return true -- Consumed click outside panel to close it
-            end
-            return true -- Consume click even if not handled inside panel
-        end
-    end
-    
     -- Handle Inventory/Quest button clicks ONLY if panels are NOT open
     if self.state == STATES.EXPLORING then
         if self.elements.inventoryButton:clicked(x, y, button) then return true end
-        if self.elements.questLogButton:clicked(x, y, button) then return true end
         if self.elements.statusButton:clicked(x, y, button) then return true end
     end
 
@@ -1785,11 +1649,6 @@ function dungeon:onResize(width, height)
     self.elements.minimap.x = width - 220
     
     -- You might need to update other position-dependent elements here
-end
-
--- Toggle Quest Log Panel Visibility
-function dungeon:toggleQuestLogPanel()
-    self.elements.questLogPanel.visible = not self.elements.questLogPanel.visible
 end
 
 -- Open Inventory Screen
