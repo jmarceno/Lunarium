@@ -11,8 +11,8 @@ local layoutHelper = screenManager.layoutHelper
 local characterSystem = require("gameplay/character")
 local gameState = require("states/gameState")
 local minionManager = require("gameplay/minionManager")
-
 local dungeon = screenManager:createScreen("Dungeon")
+local partyPanel = require("screens/ui_slices/partyPanel")
 
 -- Dungeon states
 local STATES = {
@@ -131,18 +131,18 @@ function dungeon:init()
     
     -- Character Info Button (Bottom Right, above Inventory)
     self.elements.characterInfoButton = screenManager.UI.Button(
-        GAME.width - 170, GAME.height - 190, 150, 30, "Party Info (C)",
+        GAME.width - 170, GAME.height - 233, 150, 30, "Party Info (C)",
         function() self:openCharacterInfo() end
     )
     
     -- Inventory Button (Bottom Right, above Status and Quest Status)
     self.elements.inventoryButton = screenManager.UI.Button(
-        GAME.width - 170, GAME.height - 150, 150, 30, "Inventory (I)",
+        GAME.width - 170, GAME.height - 193, 150, 30, "Inventory (I)",
         function() self:openInventory() end
     )
     -- Status Button (Bottom Right, Bellow Inventory)
     self.elements.statusButton = screenManager.UI.Button(
-        GAME.width - 170, GAME.height - 110, 150, 30, "Quest Status (J)",
+        GAME.width - 170, GAME.height - 153, 150, 30, "Quest Status (J)",
         function() self:toggleStatusBar() end
     )
     
@@ -299,65 +299,11 @@ function dungeon:init()
             end
         end
     }
-    
-    -- Party Panel to display character info
-    self.elements.partyPanel = {
-        x = 10,
-        y = GAME.height - 70,
-        width = GAME.width - 20,
-        height = 60,
-        
-        draw = function(self)
-            if not GAME.party then return end
-            
-            -- Draw background
-            love.graphics.setColor(0, 0, 0, 0.7)
-            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 5, 5)
-            love.graphics.setColor(0.3, 0.3, 0.5)
-            love.graphics.rectangle("line", self.x, self.y, self.width, self.height, 5, 5)
-            
-            -- Draw party member info
-            local memberWidth = self.width / #GAME.party
-            for i, character in ipairs(GAME.party) do
-                local portraitX = self.x + (i-1) * memberWidth + 10
-                local portraitY = self.y + 10
-                
-                -- Draw character name
-                love.graphics.setFont(screenManager.fonts.small)
-                love.graphics.setColor(1, 1, 1)
-                love.graphics.print(character.name, portraitX, portraitY)
-                
-                -- Draw HP/MP bars
-                if character.currentHP and character.maxHP then
-                    -- HP bar
-                    local hpWidth = (memberWidth - 20) * (character.currentHP / character.maxHP)
-                    love.graphics.setColor(0.5, 0, 0)
-                    love.graphics.rectangle("fill", portraitX, portraitY + 20, memberWidth - 20, 10)
-                    love.graphics.setColor(1, 0, 0)
-                    love.graphics.rectangle("fill", portraitX, portraitY + 20, hpWidth, 10)
-                    
-                    -- HP text
-                    love.graphics.setColor(1, 1, 1)
-                    love.graphics.print(character.currentHP .. "/" .. character.maxHP, portraitX + 5, portraitY + 19)
-                    
-                    -- MP bar if character has MP
-                    if character.currentMP and character.maxMP then
-                        local manaWidth = (memberWidth - 20) * (character.currentMP / character.maxMP)
-                        love.graphics.setColor(0, 0, 0.5)
-                        love.graphics.rectangle("fill", portraitX, portraitY + 35, memberWidth - 20, 10)
-                        love.graphics.setColor(0, 0, 1)
-                        love.graphics.rectangle("fill", portraitX, portraitY + 35, manaWidth, 10)
-                        
-                        -- MP text
-                        love.graphics.setColor(1, 1, 1)
-                        love.graphics.print(character.currentMP .. "/" .. character.maxMP, portraitX + 5, portraitY + 34)
-                    end
-                end
-            end
-        end
-    }
-    
-    -- Initialize the minion manager
+
+     -- Initialize party panel
+     self.elements.partyPanel = partyPanel
+
+     -- Initialize the minion manager
     minionManager:init()
     
     return self

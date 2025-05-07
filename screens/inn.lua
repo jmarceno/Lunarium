@@ -4,6 +4,7 @@ local screenManager = require("screens/screenManager")
 local assetManager = require("assets/assetManager")
 local innSystem = require("gameplay/innSystem")
 local reputationSystem = require("gameplay/reputationSystem")
+local partyPanel = require("screens/ui_slices/partyPanel")
 
 local inn = screenManager:createScreen("Inn")
 
@@ -31,40 +32,40 @@ function inn:createUI()
         draw = function()
             -- Draw background
             love.graphics.setColor(0.1, 0.1, 0.15, 0.8)
-            love.graphics.rectangle("fill", 100, 100, GAME.width - 200, GAME.height - 200, 10, 10)
+            love.graphics.rectangle("fill", 100, 50, GAME.width - 200, GAME.height - 200, 10, 10)
             
             -- Draw inn title
             love.graphics.setFont(screenManager.fonts.large)
             love.graphics.setColor(1, 0.9, 0.7)
-            love.graphics.printf("The Adventurer's Inn", 100, 120, GAME.width - 200, "center")
+            love.graphics.printf("The Adventurer's Inn", 100, 70, GAME.width - 200, "center")
             
             -- Draw innkeeper message
             love.graphics.setFont(screenManager.fonts.medium)
             love.graphics.setColor(0.9, 0.9, 1)
-            love.graphics.printf("Welcome to our humble establishment. How may I serve you today?", 150, 180, GAME.width - 300, "center")
+            love.graphics.printf("Welcome to our humble establishment. How may I serve you today?", 150, 130, GAME.width - 300, "center")
             
             -- Draw character status
             if GAME.party and GAME.party[1] then
                 local character = GAME.party[1]
                 love.graphics.setFont(screenManager.fonts.small)
                 love.graphics.setColor(0.8, 0.8, 0.8)
-                love.graphics.print("Name: " .. character.name, 150, 250)
-                love.graphics.print("Level: " .. (character.jobLevels[character.job] or 1), 150, 275)
-                love.graphics.print("Job: " .. character.job, 150, 300)
+                love.graphics.print("Name: " .. character.name, 150, 200)
+                love.graphics.print("Level: " .. (character.jobLevels[character.job] or 1), 150, 225)
+                love.graphics.print("Job: " .. character.job, 150, 250)
                 
                 -- Draw HP/MP
-                love.graphics.print("HP: " .. character.currentHP .. "/" .. character.maxHP, 150, 325)
-                love.graphics.print("MP: " .. character.currentMP .. "/" .. character.maxMP, 150, 350)
+                love.graphics.print("HP: " .. character.currentHP .. "/" .. character.maxHP, 150, 275)
+                love.graphics.print("MP: " .. character.currentMP .. "/" .. character.maxMP, 150, 300)
                 
                 -- Draw gold
                 love.graphics.setColor(1, 0.8, 0.2)
-                love.graphics.print("Gold: " .. (GAME.gold or 0), 150, 385)
+                love.graphics.print("Gold: " .. (GAME.gold or 0), 150, 335)
                 
                 -- Draw tavern reputation
                 local tavernRepLevel = reputationSystem:getReputationLevel(reputationSystem.factions.TAVERN)
                 local repName = reputationSystem:getReputationLevelName(tavernRepLevel)
                 love.graphics.setColor(0.8, 0.9, 1)
-                love.graphics.print("Tavern Reputation: " .. repName, 150, 410)
+                love.graphics.print("Tavern Reputation: " .. repName, 150, 360)
             end
         end
     }
@@ -75,18 +76,18 @@ function inn:createUI()
         draw = function()
             -- Draw background
             love.graphics.setColor(0.1, 0.1, 0.15, 0.8)
-            love.graphics.rectangle("fill", 100, 100, GAME.width - 200, GAME.height - 200, 10, 10)
+            love.graphics.rectangle("fill", 100, 50, GAME.width - 200, GAME.height - 200, 10, 10)
             
             -- Draw title
             love.graphics.setFont(screenManager.fonts.large)
             love.graphics.setColor(1, 0.9, 0.7)
-            love.graphics.printf("Inn Rooms", 100, 120, GAME.width - 200, "center")
+            love.graphics.printf("Inn Rooms", 100, 70, GAME.width - 200, "center")
             
             -- Draw room options
             local rooms = innSystem:getAvailableRoomTypes()
             
             for i, room in ipairs(rooms) do
-                local y = 180 + (i-1) * 90
+                local y = 130 + (i-1) * 90
                 
                 -- Background for selection
                 if i == self.selectedRoomIndex then
@@ -138,7 +139,7 @@ function inn:createUI()
                 local rooms = innSystem:getAvailableRoomTypes()
                 
                 for i, _ in ipairs(rooms) do
-                    local roomY = 180 + (i-1) * 90
+                    local roomY = 130 + (i-1) * 90
                     
                     if x >= 150 and x <= GAME.width - 150 and
                        y >= roomY and y <= roomY + 80 then
@@ -158,18 +159,18 @@ function inn:createUI()
         draw = function()
             -- Draw background
             love.graphics.setColor(0.1, 0.1, 0.15, 0.8)
-            love.graphics.rectangle("fill", 100, 100, GAME.width - 200, GAME.height - 200, 10, 10)
+            love.graphics.rectangle("fill", 100, 50, GAME.width - 200, GAME.height - 200, 10, 10)
             
             -- Draw title
             love.graphics.setFont(screenManager.fonts.large)
             love.graphics.setColor(1, 0.9, 0.7)
-            love.graphics.printf("Inn Food", 100, 120, GAME.width - 200, "center")
+            love.graphics.printf("Inn Food", 100, 70, GAME.width - 200, "center")
             
             -- Draw food options
             local foods = innSystem.foodItems
             
             for i, food in ipairs(foods) do
-                local y = 180 + (i-1) * 90
+                local y = 130 + (i-1) * 90
                 
                 -- Background for selection
                 if i == self.selectedFoodIndex then
@@ -229,7 +230,7 @@ function inn:createUI()
                 local foods = innSystem.foodItems
                 
                 for i, _ in ipairs(foods) do
-                    local foodY = 180 + (i-1) * 90
+                    local foodY = 130 + (i-1) * 90
                     
                     if x >= 150 and x <= GAME.width - 150 and
                        y >= foodY and y <= foodY + 80 then
@@ -249,18 +250,18 @@ function inn:createUI()
         draw = function()
             -- Draw background
             love.graphics.setColor(0.1, 0.1, 0.15, 0.8)
-            love.graphics.rectangle("fill", 100, 100, GAME.width - 200, GAME.height - 200, 10, 10)
+            love.graphics.rectangle("fill", 100, 50, GAME.width - 200, GAME.height - 200, 10, 10)
             
             -- Draw title
             love.graphics.setFont(screenManager.fonts.large)
             love.graphics.setColor(1, 0.9, 0.7)
-            love.graphics.printf("Inn Drinks", 100, 120, GAME.width - 200, "center")
+            love.graphics.printf("Inn Drinks", 100, 70, GAME.width - 200, "center")
             
             -- Draw drink options
             local drinks = innSystem.drinkItems
             
             for i, drink in ipairs(drinks) do
-                local y = 180 + (i-1) * 90
+                local y = 130 + (i-1) * 90
                 
                 -- Background for selection
                 if i == self.selectedDrinkIndex then
@@ -326,7 +327,7 @@ function inn:createUI()
                 local drinks = innSystem.drinkItems
                 
                 for i, _ in ipairs(drinks) do
-                    local drinkY = 180 + (i-1) * 90
+                    local drinkY = 130 + (i-1) * 90
                     
                     if x >= 150 and x <= GAME.width - 150 and
                        y >= drinkY and y <= drinkY + 80 then
@@ -450,10 +451,10 @@ function inn:createUI()
     
     -- Rooms button
     self.elements.roomsButton = screenManager.UI.Button(
-        buttonX, baseY, 
-        buttonWidth, buttonHeight, 
-        "Rest Rooms", 
-        function() 
+        buttonX - buttonWidth - 20, baseY + buttonSpacing,
+        buttonWidth, buttonHeight,
+        "Rest Rooms",
+        function()
             self.currentSection = "rooms"
             self:updatePanelVisibility()
         end
@@ -461,10 +462,10 @@ function inn:createUI()
     
     -- Food button
     self.elements.foodButton = screenManager.UI.Button(
-        buttonX, baseY + buttonSpacing, 
-        buttonWidth, buttonHeight, 
-        "Order Food", 
-        function() 
+        buttonX, baseY + buttonSpacing,
+        buttonWidth, buttonHeight,
+        "Order Food",
+        function()
             self.currentSection = "food"
             self:updatePanelVisibility()
         end
@@ -472,10 +473,10 @@ function inn:createUI()
     
     -- Drinks button
     self.elements.drinksButton = screenManager.UI.Button(
-        buttonX, baseY + buttonSpacing * 2, 
-        buttonWidth, buttonHeight, 
-        "Order Drinks", 
-        function() 
+        buttonX + buttonWidth + 20, baseY + buttonSpacing,
+        buttonWidth, buttonHeight,
+        "Order Drinks",
+        function()
             self.currentSection = "drinks"
             self:updatePanelVisibility()
         end
@@ -485,7 +486,7 @@ function inn:createUI()
     
     -- Back button (common to most sections)
     self.elements.backButton = screenManager.UI.Button(
-        100, GAME.height - 80,
+        100, GAME.height - 190,
         150, 40,
         "Back",
         function()
@@ -502,7 +503,7 @@ function inn:createUI()
     
     -- Rent room button
     self.elements.rentRoomButton = screenManager.UI.Button(
-        GAME.width - 250, GAME.height - 80,
+        GAME.width - 250, GAME.height - 190,
         150, 40,
         "Rent Room",
         function()
@@ -537,7 +538,7 @@ function inn:createUI()
     
     -- Buy food button
     self.elements.buyFoodButton = screenManager.UI.Button(
-        GAME.width - 250, GAME.height - 80,
+        GAME.width - 250, GAME.height - 190,
         150, 40,
         "Buy Food",
         function()
@@ -559,7 +560,7 @@ function inn:createUI()
     
     -- Buy drink button
     self.elements.buyDrinkButton = screenManager.UI.Button(
-        GAME.width - 250, GAME.height - 80,
+        GAME.width - 250, GAME.height - 190,
         150, 40,
         "Buy Drink",
         function()
@@ -638,6 +639,11 @@ function inn:createUI()
     
     -- Update panel visibility
     self:updatePanelVisibility()
+
+    -- Initialize party panel
+    self.elements.partyPanel = partyPanel
+    self.elements.partyPanel.visible = true
+
 end
 
 function inn:updatePanelVisibility()
@@ -728,14 +734,63 @@ function inn:draw()
         love.graphics.rectangle("fill", 0, 0, GAME.width, GAME.height)
     end
     
-    -- Draw visible elements
-    for _, element in pairs(self.elements) do
-        if element.visible then
-            element:draw()
-        end
+    -- First draw main panel if visible (to ensure it's in the back)
+    if self.elements.mainPanel and self.elements.mainPanel.visible then
+        self.elements.mainPanel:draw()
     end
     
-    -- Always draw popup message if visible
+    -- Draw other panels
+    if self.elements.roomsPanel and self.elements.roomsPanel.visible then
+        self.elements.roomsPanel:draw()
+    end
+    
+    if self.elements.foodPanel and self.elements.foodPanel.visible then
+        self.elements.foodPanel:draw()
+    end
+    
+    if self.elements.drinksPanel and self.elements.drinksPanel.visible then
+        self.elements.drinksPanel:draw()
+    end
+    
+    if self.elements.eventPanel and self.elements.eventPanel.visible then
+        self.elements.eventPanel:draw()
+    end
+    
+    -- Draw party panel if visible
+    if self.elements.partyPanel and self.elements.partyPanel.visible then
+        self.elements.partyPanel:draw()
+    end
+    
+    -- Draw buttons last to ensure they're on top
+    if self.elements.roomsButton and self.elements.roomsButton.visible then
+        self.elements.roomsButton:draw()
+    end
+    
+    if self.elements.foodButton and self.elements.foodButton.visible then
+        self.elements.foodButton:draw()
+    end
+    
+    if self.elements.drinksButton and self.elements.drinksButton.visible then
+        self.elements.drinksButton:draw()
+    end
+    
+    if self.elements.backButton and self.elements.backButton.visible then
+        self.elements.backButton:draw()
+    end
+    
+    if self.elements.rentRoomButton and self.elements.rentRoomButton.visible then
+        self.elements.rentRoomButton:draw()
+    end
+    
+    if self.elements.buyFoodButton and self.elements.buyFoodButton.visible then
+        self.elements.buyFoodButton:draw()
+    end
+    
+    if self.elements.buyDrinkButton and self.elements.buyDrinkButton.visible then
+        self.elements.buyDrinkButton:draw()
+    end
+    
+    -- Always draw popup message if visible (should be at the very top)
     self.elements.popupMessage:draw()
     
     -- Draw selection helper text if in a selection panel
@@ -817,7 +872,7 @@ function inn:mousepressed(x, y, button)
         if self.currentSection == "rooms" and self.elements.roomsPanel.visible then
             local rooms = innSystem:getAvailableRoomTypes()
             for i, _ in ipairs(rooms) do
-                local roomY = 180 + (i-1) * 90
+                local roomY = 130 + (i-1) * 90
                 if x >= 150 and x <= GAME.width - 150 and
                    y >= roomY and y <= roomY + 80 then
                     -- Set selection
@@ -836,7 +891,7 @@ function inn:mousepressed(x, y, button)
         elseif self.currentSection == "food" and self.elements.foodPanel.visible then
             local foods = innSystem.foodItems
             for i, _ in ipairs(foods) do
-                local foodY = 180 + (i-1) * 90
+                local foodY = 130 + (i-1) * 90
                 if x >= 150 and x <= GAME.width - 150 and
                    y >= foodY and y <= foodY + 80 then
                     -- Set selection
@@ -855,7 +910,7 @@ function inn:mousepressed(x, y, button)
         elseif self.currentSection == "drinks" and self.elements.drinksPanel.visible then
             local drinks = innSystem.drinkItems
             for i, _ in ipairs(drinks) do
-                local drinkY = 180 + (i-1) * 90
+                local drinkY = 130 + (i-1) * 90
                 if x >= 150 and x <= GAME.width - 150 and
                    y >= drinkY and y <= drinkY + 80 then
                     -- Set selection
