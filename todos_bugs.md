@@ -9,4 +9,6 @@
 -- Inn
 -- Shop
 
+- Visual effects for the dungeon - Make it that it get darker
+
 #Bugs

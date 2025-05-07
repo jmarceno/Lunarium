@@ -34,11 +34,19 @@ local raycaster = {
     fov = 60 * math.pi / 180, -- Convert to radians
     wallHeight = 1.0,
     maxDistance = 40,
-    shadeDepth = 30, -- How far before walls are completely dark
+    shadeDepth = 10, -- How far before walls are completely dark
     texturesEnabled = true,
     floorTexturesEnabled = true,
     entitiesEnabled = true,
-    spriteVerticalOffset = 0.3, -- Vertical offset for sprites (higher values = lower position)
+    spriteVerticalOffset = 0.2, -- Vertical offset for sprites (higher values = lower position)
+    
+    -- Torch light effect parameters
+    torchEnabled = false,
+    torchIntensity = 0.9, -- Base intensity of the torch (0-1)
+    torchRange = 5.0, -- How far the torch light reaches
+    torchPulseSpeed = 1.0, -- Speed of torch light pulsation
+    torchRedTint = 0.5, -- Amount of red tint in the torch light (0-1)
+    globalDarkness = 0.6, -- Global darkness level (0-1, higher = darker)
     
     -- Camera properties
     camera = {
@@ -59,7 +67,10 @@ local raycaster = {
         spritesRenderTime = 0,
         numChecks = 0,
         renderTime = 0
-    }
+    },
+    
+    -- Torch light time tracker
+    torchTime = 0
 }
 
 -- Load the shaders for hardware-accelerated rendering
@@ -82,6 +93,12 @@ local function loadShaders()
     uniform ArrayImage textures;
     uniform float cameraOffset;
     uniform float cameraTilt;
+    uniform float torchTime;
+    uniform float torchIntensity;
+    uniform float torchRange;
+    uniform float torchRedTint;
+    uniform float globalDarkness;
+    uniform bool torchEnabled;
 
     RenderData extractRenderData(float screenU) {
         RenderData result;
@@ -113,6 +130,27 @@ local function loadShaders()
             gl_FragDepth = 1;
         } else {
             vec3 colour = Texel(textures, vec3(rd.u, v, rd.textureId)).rgb * rd.shade;
+            
+            // Apply global darkness
+            colour *= (1.0 - globalDarkness);
+            
+            // Apply torch effect if enabled
+            if (torchEnabled) {
+                // Pulsating effect based on time
+                float pulse = 0.5 + 0.5 * sin(torchTime);
+                
+                // Distance-based torch light (stronger near camera)
+                float torchFactor = max(0.0, 1.0 - (rd.rayLength / torchRange));
+                
+                // Combine pulse with distance for torch intensity
+                float intensity = torchIntensity * pulse * torchFactor;
+                
+                // Apply red-tinted torch light
+                colour.r += intensity * torchRedTint;
+                colour.g += intensity * (1.0 - torchRedTint) * 0.5;
+                colour.b += intensity * (1.0 - torchRedTint) * 0.2;
+            }
+            
             love_Canvases[MAIN_CANVAS] = vec4(colour, 1);
             gl_FragDepth = rd.z;
         }
@@ -134,6 +172,12 @@ local function loadShaders()
     uniform float cameraOffset;
     uniform float cameraTilt;
     uniform float shadeDepth;
+    uniform float torchTime;
+    uniform float torchIntensity;
+    uniform float torchRange;
+    uniform float torchRedTint;
+    uniform float globalDarkness;
+    uniform bool torchEnabled;
 
     vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords)
     {
@@ -144,7 +188,7 @@ local function loadShaders()
         float offsetCorrection = (1*width-(height*2)) / 2;
         float z = (height+cameraOffset+offsetCorrection)/(screen_coords.y-cameraTilt-(height));
         float s = 1.0f - (z/shadeDepth);
-        s = clamp(s, 0.2, 1.0); // Limit minimum brightness
+        s = clamp(s, 0.0, 1.0); // Allow complete darkness at max distance
         float ppx = position.x + dir.x * (z/cos(rayAngle-angle));
         float ppy = position.y + dir.y * (z/cos(rayAngle-angle));
         float ux = floor(ppx);
@@ -153,12 +197,34 @@ local function loadShaders()
         float v = ppy - uy;
         float tileId = Texel(map, vec2(ux +0.5, uy+0.5) / mapDimensions).r;
         
+        vec3 colour;
         if (int(ux) < 0 || int(ux) >= mapDimensions.x || int(uy) < 0 || int(uy) >= mapDimensions.y || tileId < 0) {
-            return vec4(0.4, 0.4, 0.2, 1.0) * s; // Default color for out of bounds
+            colour = vec3(0.4, 0.4, 0.2) * s; // Default color for out of bounds
+        } else {
+            colour = Texel(textures, vec3(u, v, tileId)).rgb * s;
         }
         
-        vec3 colour = Texel(textures, vec3(u, v, tileId)).rgb;
-        return vec4(colour * s, 1);
+        // Apply global darkness
+        colour *= (1.0 - globalDarkness);
+        
+        // Apply torch effect if enabled
+        if (torchEnabled) {
+            // Pulsating effect based on time
+            float pulse = 0.5 + 0.5 * sin(torchTime);
+            
+            // Distance-based torch light (stronger near camera)
+            float torchFactor = max(0.0, 1.0 - (z / torchRange));
+            
+            // Combine pulse with distance for torch intensity
+            float intensity = torchIntensity * pulse * torchFactor;
+            
+            // Apply red-tinted torch light
+            colour.r += intensity * torchRedTint;
+            colour.g += intensity * (1.0 - torchRedTint) * 0.5;
+            colour.b += intensity * (1.0 - torchRedTint) * 0.2;
+        }
+        
+        return vec4(colour, 1);
     }
     #endif
     ]])
@@ -177,6 +243,12 @@ local function loadShaders()
     uniform float cameraOffset;
     uniform float cameraTilt;
     uniform float shadeDepth;
+    uniform float torchTime;
+    uniform float torchIntensity;
+    uniform float torchRange;
+    uniform float torchRedTint;
+    uniform float globalDarkness;
+    uniform bool torchEnabled;
 
     vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords)
     {
@@ -188,7 +260,7 @@ local function loadShaders()
         float z = (height+cameraOffset+offsetCorrection)/(height - screen_coords.y + cameraTilt);
         
         float s = 1.0f - (z/shadeDepth);
-        s = clamp(s, 0.1, 1.0); // Limit minimum brightness
+        s = clamp(s, 0.0, 1.0); // Allow complete darkness at max distance
         
         float ppx = position.x + dir.x * (z/cos(rayAngle-angle));
         float ppy = position.y + dir.y * (z/cos(rayAngle-angle));
@@ -201,12 +273,34 @@ local function loadShaders()
         
         float tileId = Texel(map, vec2(ux +0.5, uy+0.5) / mapDimensions).r;
         
+        vec3 colour;
         if (int(ux) < 0 || int(ux) >= mapDimensions.x || int(uy) < 0 || int(uy) >= mapDimensions.y || tileId < 0) {
-            return vec4(0.1, 0.1, 0.3, 1.0) * s; // Default ceiling color
+            colour = vec3(0.1, 0.1, 0.3) * s; // Default ceiling color
+        } else {
+            colour = Texel(textures, vec3(u, v, tileId)).rgb * s;
         }
         
-        vec3 colour = Texel(textures, vec3(u, v, tileId)).rgb;
-        return vec4(colour * s, 1);
+        // Apply global darkness
+        colour *= (1.0 - globalDarkness);
+        
+        // Apply torch effect if enabled
+        if (torchEnabled) {
+            // Pulsating effect based on time
+            float pulse = 0.5 + 0.5 * sin(torchTime);
+            
+            // Distance-based torch light (stronger near camera)
+            float torchFactor = max(0.0, 1.0 - (z / torchRange));
+            
+            // Combine pulse with distance for torch intensity
+            float intensity = torchIntensity * pulse * torchFactor;
+            
+            // Apply red-tinted torch light
+            colour.r += intensity * torchRedTint;
+            colour.g += intensity * (1.0 - torchRedTint) * 0.5;
+            colour.b += intensity * (1.0 - torchRedTint) * 0.2;
+        }
+        
+        return vec4(colour, 1);
     }
     #endif
     ]])
@@ -229,6 +323,12 @@ local function loadShaders()
     varying float v_depth;
     uniform float shadeDepth;
     uniform float depth;
+    uniform float torchTime;
+    uniform float torchIntensity;
+    uniform float torchRange;
+    uniform float torchRedTint;
+    uniform float globalDarkness;
+    uniform bool torchEnabled;
     
     vec4 effect(vec4 color, Image texture, vec2 texture_coords, vec2 screen_coords)
     {
@@ -236,10 +336,32 @@ local function loadShaders()
         if (texcolor.a < 0.1) discard;
         
         float shade = 1.0 - (v_depth / shadeDepth);
-        shade = clamp(shade, 0.2, 1.0);
+        shade = clamp(shade, 0.0, 1.0); // Allow complete darkness at max distance
+        
+        vec3 colour = texcolor.rgb * shade * color.rgb;
+        
+        // Apply global darkness
+        colour *= (1.0 - globalDarkness);
+        
+        // Apply torch effect if enabled
+        if (torchEnabled) {
+            // Pulsating effect based on time
+            float pulse = 0.5 + 0.5 * sin(torchTime);
+            
+            // Distance-based torch light (stronger near camera)
+            float torchFactor = max(0.0, 1.0 - (v_depth / torchRange));
+            
+            // Combine pulse with distance for torch intensity
+            float intensity = torchIntensity * pulse * torchFactor;
+            
+            // Apply red-tinted torch light
+            colour.r += intensity * torchRedTint;
+            colour.g += intensity * (1.0 - torchRedTint) * 0.5;
+            colour.b += intensity * (1.0 - torchRedTint) * 0.2;
+        }
         
         gl_FragDepth = depth;
-        return vec4(texcolor.rgb * shade * color.rgb, texcolor.a * color.a);
+        return vec4(colour, texcolor.a * color.a);
     }
     #endif
     ]])
@@ -584,7 +706,7 @@ function raycaster:renderWalls(map)
             
             -- Calculate shade based on distance and side
             local shade = (1 - (0.5 * self.result.side)) * (1 - (correctedRayLength / self.shadeDepth))
-            shade = math.max(0.2, shade) -- Ensure minimum brightness
+            shade = math.max(0.0, shade) -- Allow complete darkness at max distance
             
             -- Get texture ID for the wall
             local textureId = 0
@@ -628,6 +750,14 @@ function raycaster:renderWalls(map)
     self.wallShader:send("cameraTilt", self.camera.tilt)
     self.wallShader:send("textures", assetManager.texArrays.walls)
     
+    -- Update shader uniforms for torch effect
+    self.wallShader:send("torchTime", self.torchTime)
+    self.wallShader:send("torchIntensity", self.torchIntensity)
+    self.wallShader:send("torchRange", self.torchRange)
+    self.wallShader:send("torchRedTint", self.torchRedTint)
+    self.wallShader:send("globalDarkness", self.globalDarkness)
+    self.wallShader:send("torchEnabled", self.torchEnabled)
+    
     -- Draw walls
     love.graphics.rectangle("fill", 0, 0, self.viewWidth, self.viewHeight)
     love.graphics.setShader()
@@ -660,6 +790,14 @@ function raycaster:renderFloorAndCeiling(map)
     self.ceilingShader:send("map", map.ceilingsTexture)
     self.ceilingShader:send("mapDimensions", map.dimensions)
     
+    -- Send shader uniforms for torch effect
+    self.ceilingShader:send("torchTime", self.torchTime)
+    self.ceilingShader:send("torchIntensity", self.torchIntensity)
+    self.ceilingShader:send("torchRange", self.torchRange)
+    self.ceilingShader:send("torchRedTint", self.torchRedTint)
+    self.ceilingShader:send("globalDarkness", self.globalDarkness)
+    self.ceilingShader:send("torchEnabled", self.torchEnabled)
+    
     -- Draw ceiling
     love.graphics.rectangle("fill", 0, 0, self.viewWidth, self.halfHeight + self.camera.tilt)
     
@@ -678,6 +816,14 @@ function raycaster:renderFloorAndCeiling(map)
     self.floorShader:send("cameraOffset", self.camera.height)
     self.floorShader:send("map", map.floorsTexture)
     self.floorShader:send("mapDimensions", map.dimensions)
+    
+    -- Send shader uniforms for torch effect
+    self.floorShader:send("torchTime", self.torchTime)
+    self.floorShader:send("torchIntensity", self.torchIntensity)
+    self.floorShader:send("torchRange", self.torchRange)
+    self.floorShader:send("torchRedTint", self.torchRedTint)
+    self.floorShader:send("globalDarkness", self.globalDarkness)
+    self.floorShader:send("torchEnabled", self.torchEnabled)
     
     -- Draw floor
     love.graphics.rectangle("fill", 0, self.halfHeight + self.camera.tilt, self.viewWidth, self.halfHeight - self.camera.tilt)
@@ -698,6 +844,14 @@ function raycaster:renderEntities(entities)
     love.graphics.setCanvas(self.spriteMode)
     love.graphics.setDepthMode("lequal", true)
     love.graphics.setShader(self.spriteShader)
+    
+    -- Send shader uniforms for torch effect
+    self.spriteShader:send("torchTime", self.torchTime)
+    self.spriteShader:send("torchIntensity", self.torchIntensity)
+    self.spriteShader:send("torchRange", self.torchRange)
+    self.spriteShader:send("torchRedTint", self.torchRedTint)
+    self.spriteShader:send("globalDarkness", self.globalDarkness)
+    self.spriteShader:send("torchEnabled", self.torchEnabled)
     
     -- Sort entities by distance (farthest to closest for correct drawing order)
     table.sort(entities, function(a, b)
@@ -757,7 +911,7 @@ function raycaster:renderEntities(entities)
                     
                     -- Calculate shade based on distance
                     local shade = 1.0 - (perpDistance / self.shadeDepth)
-                    shade = math.max(0.3, shade)
+                    shade = math.max(0.0, shade) -- Allow complete darkness at max distance
                     love.graphics.setColor(shade, shade, shade)
                     
                     -- Set depth value for this sprite
@@ -788,7 +942,7 @@ function raycaster:renderEntities(entities)
                     
                     -- Calculate shade based on distance
                     local shade = 1.0 - (perpDistance / self.shadeDepth)
-                    shade = math.max(0.2, shade)
+                    shade = math.max(0.0, shade) -- Allow complete darkness at max distance
                     
                     -- Set color with correct shading
                     love.graphics.setColor(
@@ -815,9 +969,18 @@ function raycaster:renderEntities(entities)
     self.stats.spritesRenderTime = love.timer.getTime() - start
 end
 
+-- Update function to handle torch light time
+function raycaster:update(dt)
+    -- Update torch light time for pulsating effect
+    self.torchTime = self.torchTime + dt * self.torchPulseSpeed
+end
+
 -- Render the complete scene
 function raycaster:render(map, entities)
     if not map or not self.initialized then return end
+    
+    -- Update torch light time
+    self:update(love.timer.getDelta())
     
     -- Clear the depth buffer
     love.graphics.setCanvas(self.justDepthBuffer)
