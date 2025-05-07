@@ -744,28 +744,93 @@ function combatSystem:createCombat(party, enemy)
                 return
             end
             
-            -- Enemy turn processing
-            if self.state == combatSystem.STATE.ENEMY_TURN then
+            -- Enemy turn processing            
+            if self.state == combatSystem.STATE.ENEMY_TURN then       
                 if self.enemyTurnDelay == nil then
                     -- Initialize enemy turns - set the active enemy index to the first enemy
                     self.activeEnemyIndex = 1
                     self.enemyTurnDelay = 1.0  -- Initial delay before first enemy acts
+                    
+                    -- Debug output to check enemy state
+                    if GAME.debug then
+                        print("Starting enemy turns with " .. #self.enemies .. " enemies")
+                        for i, enemy in ipairs(self.enemies) do
+                            print("Enemy " .. i .. ": " .. enemy.name .. " (active: " .. tostring(enemy.active) .. ", HP: " .. enemy.currentHP .. "/" .. enemy.maxHP .. ")")
+                        end
+                    end
+                    
+                    -- Check if ANY enemies are active
+                    local anyActive = false
+                    for _, enemy in ipairs(self.enemies) do
+                        if enemy.active then
+                            anyActive = true
+                            break
+                        end
+                    end
+                    
+                    -- If no active enemies at all, go to next turn
+                    if not anyActive then
+                        
+                            print("No active enemies at start of enemy turn, skipping to next turn")
+                        
+                        self:addLog("No active enemies remaining", {0.7, 0.7, 0.7})
+                        self.enemyTurnDelay = nil
+                        self:nextTurn()
+                        return
+                    end
+                    
+                    -- Find the first active enemy
+                    while self.activeEnemyIndex <= #self.enemies and not self.enemies[self.activeEnemyIndex].active do
+                        self.activeEnemyIndex = self.activeEnemyIndex + 1
+                    end
+                    
+                    -- If no active enemies found in sequence, go to next turn
+                    if self.activeEnemyIndex > #self.enemies then
+                        
+                            print("Reached end of enemy list without finding active enemy")
+                        
+                        self:addLog("No active enemies to take turns", {0.7, 0.7, 0.7})
+                        self.enemyTurnDelay = nil
+                        self:nextTurn()
+                        return
+                    end
                 end
                 
                 self.enemyTurnDelay = self.enemyTurnDelay - dt
                 
                 if self.enemyTurnDelay <= 0 then
+                    -- Debug
+                    
+                        print("Enemy turn timer expired, executing enemy turn for index " .. self.activeEnemyIndex)
+                    
+                    
                     -- Execute current enemy's turn
                     self:executeEnemyTurn()
                     
-                    -- Check if we need to move to the next enemy
-                    if self.activeEnemyIndex >= #self.enemies then
-                        -- We've completed a full cycle of enemies
+                    -- Find the next active enemy
+                    local foundNextEnemy = false
+                    while self.activeEnemyIndex <= #self.enemies do
+                        if self.enemies[self.activeEnemyIndex].active then
+                            foundNextEnemy = true
+                            break
+                        end
+                        self.activeEnemyIndex = self.activeEnemyIndex + 1
+                    end
+                    
+                    -- Check if we need to move to the next enemy or turn
+                    if not foundNextEnemy or self.activeEnemyIndex > #self.enemies then
+                        -- We've completed all enemy turns
+                        
+                            print("All enemies have taken their turns, transitioning to next turn state")
+                        
                         self.enemyTurnDelay = nil
                         self:nextTurn() -- Go to player turn
                     else
                         -- More enemies to process, set a delay before next enemy acts
                         self.enemyTurnDelay = 0.7 -- Delay between enemy actions
+                        
+                            print("Moving to next enemy turn: " .. self.activeEnemyIndex)
+                        
                     end
                 end
             end
@@ -788,9 +853,9 @@ function combatSystem:createCombat(party, enemy)
                         return
                     end
                     
-                    -- Move to next turn
-                    self.minionTurnDelay = nil
-                    self:nextTurn()
+                    -- Move to minion turn
+                    self.minionTurnDelay = 0.5
+                    self:executeEnemyTurn()
                 end
             end
         end,
@@ -1536,7 +1601,9 @@ function combatSystem:createCombat(party, enemy)
                                     if y >= enemyY - 2 and y <= enemyY + 20 then
                                         -- Select this enemy
                                         self.selectedIndex = i
-                                        print("Selected enemy: " .. enemies[i].name .. " (index: " .. i .. ")")
+                                        if GAME.debug then
+                                            print("Selected enemy: " .. enemies[i].name .. " (index: " .. i .. ")")
+                                        end
                                         
                                         -- Auto-confirm the selection if needed
                                         if self.combatRef.settings and self.combatRef.settings.autoConfirmSelection then
@@ -2481,7 +2548,7 @@ function combatSystem:createCombat(party, enemy)
         
         -- Move to next character's turn
         nextTurn = function(self)
-            -- Mark the current character's turn as taken
+            -- Mark the current character's turn as taken if applicable
             if self.state == combatSystem.STATE.PLAYER_TURN and 
                self.currentCharacter >= 1 and 
                self.currentCharacter <= #self.party then
@@ -2500,119 +2567,125 @@ function combatSystem:createCombat(party, enemy)
                 self.minionsTurnTaken[charIndex][minionIndex] = true
             end
             
-            -- Find next character with an untaken turn
-            local foundCharacter = false
-            for i = 1, #self.party do
-                local idx = (self.currentCharacter + i - 1) % #self.party + 1 -- Cycle through characters starting from current+1
-                if self.party[idx].active and not self.charactersTurnTaken[idx] then
-                    self.currentCharacter = idx
-                    foundCharacter = true
-                    self.state = combatSystem.STATE.PLAYER_TURN
-                    
-                    -- Reset selection state for new character turn
-                    self.selectedAction = nil
-                    self.selectedTarget = nil
-                    self.selectedSkill = nil
-                    self.selectedItem = nil
-                    
-                    -- Hide any selection lists
-                    self.elements.skillList.visible = false
-                    self.elements.itemList.visible = false
-                    self.elements.partySelectList.visible = false
-                    if self.elements.enemySelectList then
-                        self.elements.enemySelectList.visible = false
-                    end
-                    
-                    -- Show action buttons for the new turn
-                    self.elements.attackButton.visible = true
-                    self.elements.skillButton.visible = true
-                    self.elements.itemButton.visible = true
-                    self.elements.defendButton.visible = true
-                    self.elements.confirmButton.visible = false
-                    self.elements.backButton.visible = false
-                    
-                    -- Log new character turn
-                    self:addLog(self.party[self.currentCharacter].name .. "'s turn begins", {0.5, 0.5, 1})
-                    
-                    break
-                end
+            -- Track which state we're transitioning from
+            local previousState = self.state
+            
+            -- Debug output
+            if GAME.debug then
+                print("Current state: " .. self:getStateName(previousState))
+                print("Transition progression: " .. self:getStateProgressionInfo())
             end
             
-            -- If no characters have untaken turns, check for minions with untaken turns
-            if not foundCharacter then
-                local foundMinion = false
-                
-                -- Check for any active minions with untaken turns
-                for charIndex, minions in pairs(self.minions) do
-                    if self.party[charIndex] and self.party[charIndex].active then -- Only consider minions of active characters
-                        for minionIndex, minion in pairs(minions) do
-                            -- Check if minion is active, takes actions, and hasn't had its turn yet
-                            if minion.active and minion.takesActions and 
-                              (not self.minionsTurnTaken[charIndex] or not self.minionsTurnTaken[charIndex][minionIndex]) then
-                                
-                                -- Set active minion
-                                self.activeMinion = {
-                                    charIndex = charIndex,
-                                    minionIndex = minionIndex
-                                }
-                                
-                                foundMinion = true
-                                self.state = combatSystem.STATE.MINION_TURN
-                                
-                                -- Initialize minion turn delay
-                                self.minionTurnDelay = 0.8
-                                
-                                -- Add log entry
-                                self:addLog(minion.name .. "'s turn begins", {0.5, 0.7, 1})
-                                
-                                break
-                            end
-                        end
-                        if foundMinion then break end
+            -- Simple state machine approach - force progression through states in order
+            if previousState == combatSystem.STATE.PLAYER_TURN then
+                -- If we're coming from player turn, check if any players have untaken turns
+                local foundNextPlayer = false
+                for i = 1, #self.party do
+                    local idx = (self.currentCharacter + i - 1) % #self.party + 1
+                    if self.party[idx].active and not self.charactersTurnTaken[idx] then
+                        -- Found an active player with an untaken turn
+                        self.currentCharacter = idx
+                        foundNextPlayer = true
+                        
+                        -- Stay in player turn state
+                        self.state = combatSystem.STATE.PLAYER_TURN
+                        
+                        -- Reset selection state
+                        self:resetSelectionUI()
+                        
+                        -- Log new character turn
+                        self:addLog(self.party[self.currentCharacter].name .. "'s turn begins", {0.5, 0.5, 1})
+                        
+                        break
                     end
                 end
                 
-                -- If all characters and minions have taken turns, move to enemy turn
-                if not foundMinion then
-                    -- Check if all party members are inactive
-                    local allInactive = true
-                    for _, character in ipairs(self.party) do
-                        if character.active then
-                            allInactive = false
-                            break
-                        end
+                -- If no more players have untaken turns, check for minions
+                if not foundNextPlayer then
+                    -- Check if any active minions with untaken turns exist
+                    local activeMinion = self:findActiveUntakenMinion()
+                    
+                    if activeMinion then
+                        -- Found an active minion with an untaken turn
+                        self.activeMinion = activeMinion
+                        self.state = combatSystem.STATE.MINION_TURN
+                        
+                        -- Initialize minion turn delay
+                        self.minionTurnDelay = 0.8
+                        
+                        -- Log minion turn
+                        local minion = self.minions[activeMinion.charIndex][activeMinion.minionIndex]
+                        self:addLog(minion.name .. "'s turn begins", {0.5, 0.7, 1})
+                    else
+                        -- No more players or minions, move to enemy turn
+                        self:transitionToEnemyTurn()
                     end
+                end
+            elseif previousState == combatSystem.STATE.MINION_TURN then
+                -- Check if any more minions have untaken turns
+                local activeMinion = self:findActiveUntakenMinion()
+                
+                if activeMinion then
+                    -- Found another active minion with an untaken turn
+                    self.activeMinion = activeMinion
+                    self.state = combatSystem.STATE.MINION_TURN
                     
-                    if allInactive then
-                        -- All party members are defeated
-                        self:partyDefeated()
-                        return
+                    -- Initialize minion turn delay
+                    self.minionTurnDelay = 0.8
+                    
+                    -- Log minion turn
+                    local minion = self.minions[activeMinion.charIndex][activeMinion.minionIndex]
+                    self:addLog(minion.name .. "'s turn begins", {0.5, 0.7, 1})
+                else
+                    -- No more minions, move to enemy turn
+                    self:transitionToEnemyTurn()
+                end
+            elseif previousState == combatSystem.STATE.ENEMY_TURN then
+                -- Coming from enemy turn - start a new round
+                
+                -- Reset player turns for the next round
+                for i = 1, #self.party do
+                    self.charactersTurnTaken[i] = false
+                end
+                
+                -- Reset minion turns for the next round
+                self.minionsTurnTaken = {}
+                
+                -- Start with first active character
+                local foundNextPlayer = false
+                for i = 1, #self.party do
+                    if self.party[i].active then
+                        self.currentCharacter = i
+                        foundNextPlayer = true
+                        
+                        -- Switch to player turn state
+                        self.state = combatSystem.STATE.PLAYER_TURN
+                        
+                        -- Reset selection state
+                        self:resetSelectionUI()
+                        
+                        -- Log new round
+                        self:addLog("Round " .. self.currentTurn .. " begins", {1, 1, 0.5})
+                        self.currentTurn = self.currentTurn + 1
+                        
+                        -- Log new character turn
+                        self:addLog(self.party[self.currentCharacter].name .. "'s turn begins", {0.5, 0.5, 1})
+                        
+                        break
                     end
-                    
-                    -- No minions to act, proceed to enemy turn
-                    self.state = combatSystem.STATE.ENEMY_TURN
-                    
-                    -- Reset enemy turn delay to force initialization
-                    self.enemyTurnDelay = nil
-                    
-                    -- Reset player turns for the next round
-                    for i = 1, #self.party do
-                        self.charactersTurnTaken[i] = false
-                    end
-                    
-                    -- Reset minion turns for the next round
-                    for charIndex, turnData in pairs(self.minionsTurnTaken) do
-                        for minionIndex, _ in pairs(turnData) do
-                            self.minionsTurnTaken[charIndex][minionIndex] = false
-                        end
-                    end
+                end
+                
+                -- If no active players, it's game over
+                if not foundNextPlayer then
+                    self:partyDefeated()
                 end
             end
             
-            -- Move to the next enemy's turn (if we're in enemy state)
-            if self.state == combatSystem.STATE.ENEMY_TURN then
-                self.activeEnemyIndex = 1  -- Start with the first enemy
+            -- Debug state transition
+            if GAME.debug then
+                print("State changed: " .. self:getStateName(previousState) .. " -> " .. self:getStateName(self.state))
             end
+            
         end,
         
         -- Handle party defeat
@@ -3131,6 +3204,19 @@ function combatSystem:createCombat(party, enemy)
             
             local minion = self.minions[charIndex][minionIndex]
             
+            -- Debug minion turn
+            if GAME.debug then
+                print("Executing turn for minion: " .. minion.name)
+                print("  Owner: " .. self.party[charIndex].name)
+                print("  Minion HP: " .. minion.currentHP .. "/" .. minion.maxHP)
+                
+                -- Debug enemy states
+                print("Checking enemy states during minion turn:")
+                for i, enemy in ipairs(self.enemies) do
+                    print("  Enemy " .. i .. ": " .. enemy.name .. " (active: " .. tostring(enemy.active) .. ")")
+                end
+            end
+            
             -- Add log entry
             self:addLog(minion.name .. " takes its turn!", {0.5, 0.7, 1})
             
@@ -3261,6 +3347,14 @@ function combatSystem:createCombat(party, enemy)
                 end
             end
             
+            -- Debug enemy states after minion action
+            if GAME.debug then
+                print("Enemy states after minion turn:")
+                for i, enemy in ipairs(self.enemies) do
+                    print("  Enemy " .. i .. ": " .. enemy.name .. " (active: " .. tostring(enemy.active) .. ")")
+                end
+            end
+            
             -- Add delay before next turn
             self.turnEndDelay = 0.7
         end,
@@ -3314,18 +3408,39 @@ function combatSystem:createCombat(party, enemy)
         executeEnemyTurn = function(self)
             -- Get the current active enemy
             local enemy = self.enemies[self.activeEnemyIndex]
-            if not enemy or not enemy.active then
-                -- Skip the turn if the enemy is inactive
-                if self.activeEnemyIndex < #self.enemies then
-                    -- Try the next enemy
-                    self.activeEnemyIndex = self.activeEnemyIndex + 1
-                    return
+            
+            -- Debug information
+            if GAME.debug then
+                print("Executing turn for enemy at index " .. self.activeEnemyIndex)
+                if enemy then
+                    print("Enemy: " .. enemy.name .. " (active: " .. tostring(enemy.active) .. ")")
                 else
-                    -- No more enemies to act
-                    self:nextTurn()
-                    return
+                    print("No enemy found at this index")
                 end
             end
+            
+            -- Ensure enemy exists
+            if not enemy then
+                self.activeEnemyIndex = self.activeEnemyIndex + 1
+                return
+            end
+            
+            -- Ensure active is a boolean (fix it if nil)
+            if enemy.active == nil then
+                enemy.active = (enemy.currentHP or 0) > 0
+                if GAME.debug then
+                    print("WARNING: Fixed nil enemy.active for " .. enemy.name .. " - now set to " .. tostring(enemy.active))
+                end
+            end
+            
+            -- Skip the turn if the enemy is inactive
+            if not enemy.active then
+                self.activeEnemyIndex = self.activeEnemyIndex + 1
+                return
+            end
+            
+            -- Log that this enemy is taking its turn
+            self:addLog(enemy.name .. " prepares to attack!", {1, 0.6, 0.6})
             
             -- Check for valid targets (party members and minions)
             local validTargets = {}
@@ -3348,6 +3463,11 @@ function combatSystem:createCombat(party, enemy)
                         })
                     end
                 end
+            end
+            
+            -- Debug information about targets
+            if GAME.debug then
+                print("Found " .. #validTargets .. " valid targets")
             end
             
             -- If no valid targets, party must be defeated
@@ -3431,15 +3551,8 @@ function combatSystem:createCombat(party, enemy)
             -- Play attack sound
             assetManager:playSound("attack")
             
-            -- Increment to next enemy or move to next turn
+            -- Increment to next enemy - only increment here
             self.activeEnemyIndex = self.activeEnemyIndex + 1
-            if self.activeEnemyIndex > #self.enemies then
-                -- All enemies have acted, move to next turn
-                self.enemyTurnDelay = 0.5
-            else
-                -- More enemies to act, set delay for the next enemy
-                self.enemyTurnDelay = 0.7
-            end
         end,
         
         -- Handle enemy being defeated
@@ -3560,6 +3673,151 @@ function combatSystem:createCombat(party, enemy)
             end
             
             return false
+        end,
+        
+        -- Helper method to get state name for debugging
+        getStateName = function(self, stateValue)
+            for name, value in pairs(combatSystem.STATE) do
+                if value == stateValue then
+                    return name
+                end
+            end
+            return "UNKNOWN_STATE"
+        end,
+        
+        -- Get progression info for debugging
+        getStateProgressionInfo = function(self)
+            -- Player stats
+            local activePlayers = 0
+            local playersTaken = 0
+            for i=1, #self.party do
+                if self.party[i].active then
+                    activePlayers = activePlayers + 1
+                    if self.charactersTurnTaken[i] then
+                        playersTaken = playersTaken + 1
+                    end
+                end
+            end
+            
+            -- Minion stats
+            local activeMinions = 0
+            local minionsTaken = 0
+            for charIndex, minions in pairs(self.minions) do
+                for minionIndex, minion in pairs(minions) do
+                    if minion.active and minion.takesActions then
+                        activeMinions = activeMinions + 1
+                        if self.minionsTurnTaken[charIndex] and self.minionsTurnTaken[charIndex][minionIndex] then
+                            minionsTaken = minionsTaken + 1
+                        end
+                    end
+                end
+            end
+            
+            -- Enemy stats
+            local activeEnemies = 0
+            for _, enemy in ipairs(self.enemies) do
+                if enemy.active then
+                    activeEnemies = activeEnemies + 1
+                end
+            end
+            
+            return "Players: " .. playersTaken .. "/" .. activePlayers .. 
+                   " | Minions: " .. minionsTaken .. "/" .. activeMinions .. 
+                   " | Active enemies: " .. activeEnemies
+        end,
+        
+        -- Find an active minion with an untaken turn
+        findActiveUntakenMinion = function(self)
+            for charIndex, minions in pairs(self.minions) do
+                if self.party[charIndex] and self.party[charIndex].active then -- Only consider minions of active characters
+                    for minionIndex, minion in pairs(minions) do
+                        -- Check if minion is active, takes actions, and hasn't had its turn yet
+                        if minion.active and minion.takesActions and 
+                          (not self.minionsTurnTaken[charIndex] or not self.minionsTurnTaken[charIndex][minionIndex]) then
+                            -- Return reference to this minion
+                            return {
+                                charIndex = charIndex,
+                                minionIndex = minionIndex
+                            }
+                        end
+                    end
+                end
+            end
+            
+            -- No active untaken minion found
+            return nil
+        end,
+        
+        -- Reset selection UI elements
+        resetSelectionUI = function(self)
+            -- Reset selection state for new character turn
+            self.selectedAction = nil
+            self.selectedTarget = nil
+            self.selectedSkill = nil
+            self.selectedItem = nil
+            
+            -- Hide any selection lists
+            self.elements.skillList.visible = false
+            self.elements.itemList.visible = false
+            self.elements.partySelectList.visible = false
+            if self.elements.enemySelectList then
+                self.elements.enemySelectList.visible = false
+            end
+            
+            -- Show action buttons for the new turn
+            self.elements.attackButton.visible = true
+            self.elements.skillButton.visible = true
+            self.elements.itemButton.visible = true
+            self.elements.defendButton.visible = true
+            self.elements.confirmButton.visible = false
+            self.elements.backButton.visible = false
+        end,
+        
+        -- Transition to enemy turn
+        transitionToEnemyTurn = function(self)
+            -- Check if all party members are inactive (defeated)
+            local allInactive = true
+            for _, character in ipairs(self.party) do
+                if character.active then
+                    allInactive = false
+                    break
+                end
+            end
+            
+            if allInactive then
+                -- All party members are defeated
+                self:partyDefeated()
+                return
+            end
+            
+            -- Check if any enemies are active
+            local anyActiveEnemies = false
+            for _, enemy in ipairs(self.enemies) do
+                -- Force repair any nil active flags
+                if enemy.active == nil then
+                    enemy.active = (enemy.currentHP or 0) > 0
+                end
+                
+                if enemy.active then
+                    anyActiveEnemies = true
+                    break
+                end
+            end
+            
+            if not anyActiveEnemies then
+                -- No active enemies, trigger victory
+                self:victory()
+                return
+            end
+            
+            -- Set enemy turn state
+            self.state = combatSystem.STATE.ENEMY_TURN
+            
+            -- Reset enemy turn delay to force initialization
+            self.enemyTurnDelay = nil
+            
+            -- Log start of enemy turns
+            self:addLog("Enemy turn begins", {1, 0.5, 0.5})
         end,
     }
     
