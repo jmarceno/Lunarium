@@ -368,35 +368,7 @@ function questSystem:generateRandomQuest(giver, level, difficulty)
     
     if questType == "KILL" then
         -- Monster targets based on level and categories
-        local monsterCategories = {
-            { -- Level 1-2
-                {id = "fungal_fighter", name = "Fungal Fighter"},
-                {id = "shroomling", name = "Shroomling"},
-                {id = "zombie_farmer", name = "Zombie Farmer"},
-                {id = "horned_beetle", name = "Horned Beetle"}
-            },
-            { -- Level 3-4
-                {id = "walking_mushroom", name = "Walking Mushroom"},
-                {id = "toxic_sporeling", name = "Toxic Sporeling"},
-                {id = "cultists_initiate", name = "Cultist Initiate"},
-                {id = "hooded_cultist", name = "Hooded Cultist"},
-                {id = "zombie_biter", name = "Zombie Biter"},
-                {id = "skeletal_hound", name = "Skeletal Hound"},
-                {id = "buzzer", name = "Buzzer"},
-                {id = "armored_ant", name = "Armored Ant"}
-            },
-            { -- Level 5-7
-                {id = "fungal_zombie", name = "Fungal Zombie"},
-                {id = "cult_warlock", name = "Cult Warlock"},
-                {id = "cultist_pyromancer", name = "Cultist Pyromancer"},
-                {id = "plague_cultist", name = "Plague Cultist"},
-                {id = "skeleton_warrior", name = "Skeleton Warrior"},
-                {id = "ghoul_stalker", name = "Ghoul Stalker"},
-                {id = "tormented_ghoul", name = "Tormented Ghoul"},
-                {id = "mantis_warrior", name = "Mantis Warrior"},
-                {id = "wasp_demon", name = "Wasp Demon"}
-            }
-        }
+        local monsterCategories = monster_definitions.monsterCategories
         
         -- Select appropriate category based on level
         local categoryIndex = math.min(math.ceil(level / 2), #monsterCategories)
@@ -412,13 +384,7 @@ function questSystem:generateRandomQuest(giver, level, difficulty)
         }
     elseif questType == "COLLECT" then
         -- Item targets
-        local items = {
-            {id = "item_rare_herb", name = "Rare Healing Herb"},
-            {id = "item_magic_crystal", name = "Magic Crystal"},
-            {id = "item_ancient_relic", name = "Ancient Relic"},
-            {id = "item_dragon_scale", name = "Dragon Scale"},
-            {id = "item_enchanted_gem", name = "Enchanted Gem"}
-        }
+        local items = questDefinitions.item_targets
         
         -- Select item based on level
         local itemIndex = math.min(level, #items)
@@ -431,13 +397,7 @@ function questSystem:generateRandomQuest(giver, level, difficulty)
         }
     elseif questType == "EXPLORE" then
         -- Locations
-        local locations = {
-            {id = 1, name = "Foggy Cave"},
-            {id = 2, name = "Dark Forest"},
-            {id = 3, name = "Ancient Ruins"},
-            {id = 4, name = "Volcanic Cavern"},
-            {id = 5, name = "Frozen Temple"}
-        }
+        local locations = questDefinitions.explore_locations
         
         -- Select location based on level
         local locationIndex = math.min(level, #locations)
@@ -449,22 +409,10 @@ function questSystem:generateRandomQuest(giver, level, difficulty)
         }
     elseif questType == "ESCORT" then
         -- NPCs
-        local npcs = {
-            {id = 1, name = "Merchant Thomas"},
-            {id = 2, name = "Scholar Eliza"},
-            {id = 3, name = "Ambassador Krell"},
-            {id = 4, name = "Priestess Lyra"},
-            {id = 5, name = "Prince Aldric"}
-        }
+        local npcs = questDefinitions.escort_npcs
         
         -- Locations
-        local locations = {
-            {id = 1, name = "Trade Route"},
-            {id = 2, name = "Mountain Pass"},
-            {id = 3, name = "Ancient Road"},
-            {id = 4, name = "Swamp Path"},
-            {id = 5, name = "Royal Highway"}
-        }
+        local locations = questDefinitions.escort_locations
         
         -- Select NPC and location based on level
         local npcIndex = math.min(level, #npcs)
@@ -478,32 +426,9 @@ function questSystem:generateRandomQuest(giver, level, difficulty)
         }
     elseif questType == "BOSS" then
         -- Bosses
-        local bosses = {
-            { -- Level 5-7
-                {id = "spore_witch_boss", name = "Spore Witch"},
-                {id = "chanting_fanatic_boss", name = "Chanting Fanatic"}
-            },
-            { -- Level 8-9
-                {id = "spore_lord_boss", name = "Spore Lord"},
-                {id = "skeleton_general_boss", name = "Skeleton General"},
-                {id = "matron_zirrk_boss", name = "Matron Zirrk"}
-            },
-            { -- Level 10+
-                {id = "demonic_leader_boss", name = "Demonic Leader"},
-                {id = "lich_king_boss", name = "Lich King"},
-                {id = "killerpede_boss", name = "Killerpede"}
-            }
-        }
-        
+        local bosses = monster_definitions.bosses 
         -- Locations
-        local locations = {
-            {id = 1, name = "Fungal Grove"},
-            {id = 2, name = "Cultist Altar"},
-            {id = 3, name = "Ancient Crypt"},
-            {id = 4, name = "Dragon's Lair"},
-            {id = 5, name = "Insect Hive"},
-            {id = 6, name = "Corrupted Temple"}
-        }
+        local locations = questDefinitions.bosslocations
         
         -- Select boss based on level
         local categoryIndex = math.min(math.ceil((level - 4) / 2), #bosses)

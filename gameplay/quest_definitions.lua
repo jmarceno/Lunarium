@@ -213,4 +213,45 @@ local questData = {
     }
 }
 
-return questData 
+boss_locations = {
+    {id = 1, name = "Fungal Grove"},
+    {id = 2, name = "Cultist Altar"},
+    {id = 3, name = "Ancient Crypt"},
+    {id = 4, name = "Dragon's Lair"},
+    {id = 5, name = "Insect Hive"},
+    {id = 6, name = "Corrupted Temple"}
+}
+
+item_targets = {
+    {id = "item_rare_herb", name = "Rare Healing Herb"},
+    {id = "item_magic_crystal", name = "Magic Crystal"},
+    {id = "item_ancient_relic", name = "Ancient Relic"},
+    {id = "item_dragon_scale", name = "Dragon Scale"},
+    {id = "item_enchanted_gem", name = "Enchanted Gem"}
+}
+
+explore_locations = {
+    {id = 1, name = "Foggy Cave"},
+    {id = 2, name = "Dark Forest"},
+    {id = 3, name = "Ancient Ruins"},
+    {id = 4, name = "Volcanic Cavern"},
+    {id = 5, name = "Frozen Temple"}
+}
+
+escort_npcs = {
+    {id = 1, name = "Merchant Thomas"},
+    {id = 2, name = "Scholar Eliza"},
+    {id = 3, name = "Ambassador Krell"},
+    {id = 4, name = "Priestess Lyra"},
+    {id = 5, name = "Prince Aldric"}
+}
+
+escort_locations = {
+    {id = 1, name = "Trade Route"},
+    {id = 2, name = "Mountain Pass"},
+    {id = 3, name = "Ancient Road"},
+    {id = 4, name = "Swamp Path"},
+    {id = 5, name = "Royal Highway"}
+}
+
+return questData

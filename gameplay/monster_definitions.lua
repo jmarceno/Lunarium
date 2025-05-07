@@ -308,4 +308,54 @@ monsterDefinitions.idMapping = {
     [108] = "killerpede_boss"
 }
 
+-- Monster targets based on level and categories
+monsterCategories = {
+    { -- Level 1-2
+        {id = "fungal_fighter", name = "Fungal Fighter"},
+        {id = "shroomling", name = "Shroomling"},
+        {id = "zombie_farmer", name = "Zombie Farmer"},
+        {id = "horned_beetle", name = "Horned Beetle"}
+    },
+    { -- Level 3-4
+        {id = "walking_mushroom", name = "Walking Mushroom"},
+        {id = "toxic_sporeling", name = "Toxic Sporeling"},
+        {id = "cultists_initiate", name = "Cultist Initiate"},
+        {id = "hooded_cultist", name = "Hooded Cultist"},
+        {id = "zombie_biter", name = "Zombie Biter"},
+        {id = "skeletal_hound", name = "Skeletal Hound"},
+        {id = "buzzer", name = "Buzzer"},
+        {id = "armored_ant", name = "Armored Ant"}
+    },
+    { -- Level 5-7
+        {id = "fungal_zombie", name = "Fungal Zombie"},
+        {id = "cult_warlock", name = "Cult Warlock"},
+        {id = "cultist_pyromancer", name = "Cultist Pyromancer"},
+        {id = "plague_cultist", name = "Plague Cultist"},
+        {id = "skeleton_warrior", name = "Skeleton Warrior"},
+        {id = "ghoul_stalker", name = "Ghoul Stalker"},
+        {id = "tormented_ghoul", name = "Tormented Ghoul"},
+        {id = "mantis_warrior", name = "Mantis Warrior"},
+        {id = "wasp_demon", name = "Wasp Demon"}
+    }
+}
+
+bosses = {
+    { -- Level 5-7
+        {id = "spore_witch_boss", name = "Spore Witch"},
+        {id = "chanting_fanatic_boss", name = "Chanting Fanatic"}
+    },
+    { -- Level 8-9
+        {id = "spore_lord_boss", name = "Spore Lord"},
+        {id = "skeleton_general_boss", name = "Skeleton General"},
+        {id = "matron_zirrk_boss", name = "Matron Zirrk"}
+    },
+    { -- Level 10+
+        {id = "demonic_leader_boss", name = "Demonic Leader"},
+        {id = "lich_king_boss", name = "Lich King"},
+        {id = "killerpede_boss", name = "Killerpede"}
+    }
+}
+
+
+
 return monsterDefinitions 

@@ -621,4 +621,4 @@ local jobDefinitions = {
     }
 }
 
-return jobDefinitions 
+return jobDefinitions
