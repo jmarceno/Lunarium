@@ -13,7 +13,7 @@ function inventory:init()
     self.selectedCharacter = nil
     self.selectedCategory = "All"
     self.pageOffset = 0
-    self.itemsPerPage = 12
+    self.itemsPerPage = 9
     self.sortBy = "type" -- type, name, value
     self.contextMenuVisible = false
     self.confirmDialogVisible = false

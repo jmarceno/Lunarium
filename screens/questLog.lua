@@ -11,28 +11,45 @@ function questLog:init()
     self.state = "main"
     self.selectedQuest = nil
     self.category = "active" -- active, completed
+    self.questScroll = 0
+    self.maxQuestScroll = 0
+    self.selectedQuestIndex = 1
+    self.questsPerView = 8
     
     -- Create UI elements
     self:createUI()
 end
 
 function questLog:createUI()
-    -- Create category tabs
-    self.elements.activeTab = screenManager.UI.Button(
-        150, 70, 170, 40, "Active Quests", 
-        function() self:selectCategory("active") end
-    )
-    self.elements.activeTab.visible = true
-    
-    self.elements.completedTab = screenManager.UI.Button(
-        450, 70, 170, 40, "Completed Quests", 
-        function() self:selectCategory("completed") end
-    )
-    self.elements.completedTab.visible = true
-    
-    -- Create quest list panel
-    self.elements.questListPanel = {
+    -- Column 1: Category Buttons
+    self.elements.categoryPanel = {
         x = 50,
+        y = 120,
+        width = 200,
+        height = 400,
+        
+        draw = function(self)
+            -- Draw panel background
+            screenManager:drawPanel("Categories", self.x, self.y, self.width, self.height)
+        end
+    }
+    
+    -- Create category buttons
+    self.elements.activeButton = screenManager.UI.Button(
+        70, 180, 160, 40, "Active Quests", 
+        function() questLog:selectCategory("active") end
+    )
+    self.elements.activeButton.visible = true
+    
+    self.elements.completedButton = screenManager.UI.Button(
+        70, 230, 160, 40, "Completed Quests", 
+        function() questLog:selectCategory("completed") end
+    )
+    self.elements.completedButton.visible = true
+    
+    -- Column 2: Quest List Panel
+    self.elements.questListPanel = {
+        x = 270,
         y = 120,
         width = 300,
         height = 400,
@@ -60,17 +77,19 @@ function questLog:createUI()
                 end
             end
             
+            -- Update max scroll value
+            questLog.maxQuestScroll = math.max(0, #uniqueQuests - questLog.questsPerView)
+            
             -- Draw quests
-            for i, quest in ipairs(uniqueQuests) do
-                local questY = self.y + 50 + (i-1) * 70
-                
-                -- Skip if out of view
-                if questY > self.y + self.height - 20 then
-                    break
-                end
+            local startIndex = questLog.questScroll + 1
+            local endIndex = math.min(startIndex + questLog.questsPerView - 1, #uniqueQuests)
+            
+            for i = startIndex, endIndex do
+                local quest = uniqueQuests[i]
+                local questY = self.y + 50 + (i - startIndex) * 40
                 
                 -- Draw quest entry background
-                if quest == questLog.selectedQuest then
+                if i == questLog.selectedQuestIndex then
                     love.graphics.setColor(0.3, 0.3, 0.5)
                 else
                     love.graphics.setColor(0.2, 0.2, 0.3)
@@ -79,7 +98,7 @@ function questLog:createUI()
                 love.graphics.rectangle(
                     "fill",
                     self.x + 10, questY, 
-                    self.width - 20, 60,
+                    self.width - 40, 35,
                     5, 5
                 )
                 
@@ -87,43 +106,47 @@ function questLog:createUI()
                 love.graphics.setFont(screenManager.fonts.medium)
                 love.graphics.setColor(1, 1, 1)
                 
-                love.graphics.print(
-                    quest.name,
-                    self.x + 20, questY + 10
-                )
-                
-                -- Draw quest difficulty
-                love.graphics.setFont(screenManager.fonts.small)
-                local diffText = "Level " .. quest.level .. " - "
-                
-                -- Add difficulty text based on value
-                if quest.difficulty == questSystem.DIFFICULTY.EASY then
-                    diffText = diffText .. "Easy"
-                    love.graphics.setColor(0.2, 0.8, 0.2)
-                elseif quest.difficulty == questSystem.DIFFICULTY.MEDIUM then
-                    diffText = diffText .. "Medium"
-                    love.graphics.setColor(0.8, 0.8, 0.2)
-                elseif quest.difficulty == questSystem.DIFFICULTY.HARD then
-                    diffText = diffText .. "Hard"
-                    love.graphics.setColor(0.8, 0.4, 0.2)
-                elseif quest.difficulty == questSystem.DIFFICULTY.VERY_HARD then
-                    diffText = diffText .. "Very Hard"
-                    love.graphics.setColor(0.8, 0.2, 0.2)
-                elseif quest.difficulty == questSystem.DIFFICULTY.LEGENDARY then
-                    diffText = diffText .. "Legendary"
-                    love.graphics.setColor(0.8, 0.2, 0.8)
+                -- Truncate long names
+                local questName = quest.name
+                if love.graphics.getFont():getWidth(questName) > self.width - 60 then
+                    local truncatedName = ""
+                    for i = 1, #questName do
+                        if love.graphics.getFont():getWidth(truncatedName .. questName:sub(i,i) .. "...") > self.width - 60 then
+                            truncatedName = truncatedName .. "..."
+                            break
+                        end
+                        truncatedName = truncatedName .. questName:sub(i,i)
+                    end
+                    questName = truncatedName
                 end
                 
                 love.graphics.print(
-                    diffText,
-                    self.x + 20, questY + 35
+                    questName,
+                    self.x + 20, questY + 5
+                )
+            end
+            
+            -- Draw scrollbar if needed
+            if questLog.maxQuestScroll > 0 then
+                -- Draw scrollbar background
+                love.graphics.setColor(0.15, 0.15, 0.2)
+                love.graphics.rectangle(
+                    "fill",
+                    self.x + self.width - 25, self.y + 50,
+                    15, self.height - 70,
+                    5, 5
                 )
                 
-                -- Draw quest source
-                love.graphics.setColor(0.7, 0.7, 1)
-                love.graphics.print(
-                    "Source: " .. (quest.source or "Unknown"),
-                    self.x + 170, questY + 35
+                -- Draw scrollbar handle
+                local scrollbarHeight = (self.height - 70) * (questLog.questsPerView / #uniqueQuests)
+                local scrollbarY = self.y + 50 + (self.height - 70 - scrollbarHeight) * (questLog.questScroll / questLog.maxQuestScroll)
+                
+                love.graphics.setColor(0.4, 0.4, 0.6)
+                love.graphics.rectangle(
+                    "fill",
+                    self.x + self.width - 25, scrollbarY,
+                    15, scrollbarHeight,
+                    5, 5
                 )
             end
             
@@ -151,9 +174,9 @@ function questLog:createUI()
         clicked = function(self, x, y, button)
             if button ~= 1 then return false end
             
-            -- Check if click is within panel
-            if x >= self.x and x <= self.x + self.width and
-               y >= self.y and y <= self.y + self.height then
+            -- Check if click is within panel content area
+            if x >= self.x + 10 and x <= self.x + self.width - 30 and
+               y >= self.y + 50 and y <= self.y + self.height - 20 then
                 
                 -- Get quests based on selected category
                 local quests = {}
@@ -174,17 +197,16 @@ function questLog:createUI()
                     end
                 end
                 
-                -- Check quest entries
-                for i, quest in ipairs(uniqueQuests) do
-                    local questY = self.y + 50 + (i-1) * 70
+                -- Determine which quest was clicked
+                local startIndex = questLog.questScroll + 1
+                local endIndex = math.min(startIndex + questLog.questsPerView - 1, #uniqueQuests)
+                
+                for i = startIndex, endIndex do
+                    local questY = self.y + 50 + (i - startIndex) * 40
                     
-                    -- Skip if out of view
-                    if questY > self.y + self.height - 20 then
-                        break
-                    end
-                    
-                    if y >= questY and y <= questY + 60 then
-                        questLog:selectQuest(quest)
+                    if y >= questY and y <= questY + 35 then
+                        questLog.selectedQuestIndex = i
+                        questLog:selectQuest(uniqueQuests[i])
                         return true
                     end
                 end
@@ -192,15 +214,58 @@ function questLog:createUI()
                 return true
             end
             
+            -- Check scrollbar click
+            if questLog.maxQuestScroll > 0 and
+               x >= self.x + self.width - 25 and x <= self.x + self.width - 10 and
+               y >= self.y + 50 and y <= self.y + self.height - 20 then
+                
+                -- Get quests based on category
+                local quests = {}
+                if questLog.category == "active" then
+                    quests = questSystem:getActiveQuests()
+                else
+                    quests = questSystem:getCompletedQuests()
+                end
+                
+                -- Calculate new scroll position
+                local uniqueQuestsCount = 0
+                local questIds = {}
+                for _, quest in ipairs(quests) do
+                    if not questIds[quest.id] then
+                        questIds[quest.id] = true
+                        uniqueQuestsCount = uniqueQuestsCount + 1
+                    end
+                end
+                
+                local scrollRatio = (y - (self.y + 50)) / (self.height - 70)
+                local newScroll = math.floor(scrollRatio * questLog.maxQuestScroll)
+                questLog.questScroll = math.max(0, math.min(questLog.maxQuestScroll, newScroll))
+                
+                return true
+            end
+            
             return false
+        end,
+        
+        -- Add mouse wheel support
+        wheelmoved = function(self, x, y)
+            if y > 0 then
+                -- Scroll up
+                questLog.questScroll = math.max(0, questLog.questScroll - 1)
+            elseif y < 0 then
+                -- Scroll down
+                questLog.questScroll = math.min(questLog.maxQuestScroll, questLog.questScroll + 1)
+            end
+            
+            return true
         end
     }
     
-    -- Create quest details panel
+    -- Column 3: Quest Details Panel
     self.elements.questDetailsPanel = {
-        x = 370,
+        x = 590,
         y = 120,
-        width = 380,
+        width = 560,
         height = 400,
         
         draw = function(self)
@@ -228,7 +293,7 @@ function questLog:createUI()
                 love.graphics.printf(
                     quest.description,
                     self.x + 30, self.y + 100,
-                    self.width - 60, "center"
+                    self.width - 60, "left" -- Left aligned for better readability
                 )
                 
                 -- Draw quest objectives
@@ -249,13 +314,13 @@ function questLog:createUI()
                             love.graphics.setColor(0.2, 0.8, 0.2)
                             love.graphics.print(
                                 "✓ " .. objective.description,
-                                self.x + 40, self.y + 200 + (i-1) * 25
+                                self.x + 40, self.y + 210 + (i-1) * 25
                             )
                         else
                             love.graphics.setColor(0.7, 0.7, 0.7)
                             love.graphics.print(
                                 "□ " .. objective.description,
-                                self.x + 40, self.y + 200 + (i-1) * 25
+                                self.x + 40, self.y + 210 + (i-1) * 25
                             )
                         end
                     end
@@ -263,7 +328,7 @@ function questLog:createUI()
                     love.graphics.setColor(0.7, 0.7, 0.7)
                     love.graphics.print(
                         "• Complete the quest",
-                        self.x + 40, self.y + 200
+                        self.x + 40, self.y + 210
                     )
                 end
                 
@@ -273,7 +338,7 @@ function questLog:createUI()
                 
                 love.graphics.print(
                     "Rewards:",
-                    self.x + 30, self.y + 280
+                    self.x + 30, self.y + 290
                 )
                 
                 -- Draw gold reward
@@ -282,7 +347,7 @@ function questLog:createUI()
                 
                 love.graphics.print(
                     quest.rewards.gold .. " Gold",
-                    self.x + 50, self.y + 310
+                    self.x + 50, self.y + 320
                 )
                 
                 -- Draw item rewards
@@ -292,7 +357,7 @@ function questLog:createUI()
                     
                     love.graphics.print(
                         "Items:",
-                        self.x + 50, self.y + 340
+                        self.x + 50, self.y + 350
                     )
                     
                     for i, item in ipairs(quest.rewards.items) do
@@ -306,7 +371,7 @@ function questLog:createUI()
                         
                         love.graphics.print(
                             itemText,
-                            self.x + 70, self.y + 340 + i * 25
+                            self.x + 70, self.y + 350 + i * 25
                         )
                     end
                 end
@@ -337,38 +402,97 @@ function questLog:createUI()
 end
 
 function questLog:updateElementVisibility()
-    -- All elements are visible in the quest log
-    for name, element in pairs(self.elements) do
-        if element.visible ~= nil then
-            element.visible = true
-        end
-    end
-    
-    -- Update tab highlighting based on selected category
+    -- Update button highlighting based on selected category
     if self.category == "active" then
-        -- Update tab appearance
-        self.elements.activeTab.colors = {
-            normal = {0.3, 0.3, 0.6},
-            hover = {0.4, 0.4, 0.7},
-            press = {0.2, 0.2, 0.5}
+        -- Update active button appearance with stronger visual cue
+        self.elements.activeButton.colors = {
+            normal = {0.4, 0.4, 0.8},
+            hover = {0.5, 0.5, 0.9},
+            press = {0.3, 0.3, 0.7}
         }
-        self.elements.completedTab.colors = {
+        -- Draw a highlight border around the active button
+        self.elements.activeButton.drawCustom = function(self)
+            -- First draw a highlight border
+            love.graphics.setColor(0.6, 0.6, 1, 0.8)
+            love.graphics.rectangle("line", self.x - 2, self.y - 2, self.width + 4, self.height + 4, 6, 6)
+            
+            -- Then draw the normal button
+            -- Draw button background based on state
+            local bgColor = self.colors.normal
+            if self.pressed then
+                bgColor = self.colors.press
+            elseif self.hover then
+                bgColor = self.colors.hover
+            end
+            
+            love.graphics.setColor(bgColor)
+            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 5, 5)
+            
+            -- Draw button text
+            love.graphics.setFont(screenManager.fonts.medium)
+            love.graphics.setColor(1, 1, 1)
+            
+            local textX = self.x + (self.width - love.graphics.getFont():getWidth(self.text)) / 2
+            local textY = self.y + (self.height - love.graphics.getFont():getHeight()) / 2
+            love.graphics.print(self.text, textX, textY)
+            
+            -- Draw selection indicator
+            love.graphics.setColor(1, 1, 0)
+            love.graphics.print("►", self.x - 15, self.y + 10)
+        end
+        
+        -- Reset completed button appearance
+        self.elements.completedButton.colors = {
             normal = {0.2, 0.2, 0.3},
             hover = {0.3, 0.3, 0.4},
             press = {0.1, 0.1, 0.2}
         }
+        self.elements.completedButton.drawCustom = nil
     else
-        -- Update tab appearance
-        self.elements.activeTab.colors = {
+        -- Update completed button appearance with stronger visual cue
+        self.elements.completedButton.colors = {
+            normal = {0.4, 0.4, 0.8},
+            hover = {0.5, 0.5, 0.9},
+            press = {0.3, 0.3, 0.7}
+        }
+        -- Draw a highlight border around the completed button
+        self.elements.completedButton.drawCustom = function(self)
+            -- First draw a highlight border
+            love.graphics.setColor(0.6, 0.6, 1, 0.8)
+            love.graphics.rectangle("line", self.x - 2, self.y - 2, self.width + 4, self.height + 4, 6, 6)
+            
+            -- Then draw the normal button
+            -- Draw button background based on state
+            local bgColor = self.colors.normal
+            if self.pressed then
+                bgColor = self.colors.press
+            elseif self.hover then
+                bgColor = self.colors.hover
+            end
+            
+            love.graphics.setColor(bgColor)
+            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 5, 5)
+            
+            -- Draw button text
+            love.graphics.setFont(screenManager.fonts.medium)
+            love.graphics.setColor(1, 1, 1)
+            
+            local textX = self.x + (self.width - love.graphics.getFont():getWidth(self.text)) / 2
+            local textY = self.y + (self.height - love.graphics.getFont():getHeight()) / 2
+            love.graphics.print(self.text, textX, textY)
+            
+            -- Draw selection indicator
+            love.graphics.setColor(1, 1, 0)
+            love.graphics.print("►", self.x - 15, self.y + 10)
+        end
+        
+        -- Reset active button appearance
+        self.elements.activeButton.colors = {
             normal = {0.2, 0.2, 0.3},
             hover = {0.3, 0.3, 0.4},
             press = {0.1, 0.1, 0.2}
         }
-        self.elements.completedTab.colors = {
-            normal = {0.3, 0.3, 0.6},
-            hover = {0.4, 0.4, 0.7},
-            press = {0.2, 0.2, 0.5}
-        }
+        self.elements.activeButton.drawCustom = nil
     end
     
     if GAME.debug then
@@ -380,6 +504,8 @@ function questLog:enter()
     -- Reset state
     self.category = "active"
     self.selectedQuest = nil
+    self.questScroll = 0
+    self.selectedQuestIndex = 1
     
     -- Update element visibility
     self:updateElementVisibility()
@@ -402,12 +528,56 @@ function questLog:draw()
     love.graphics.setColor(screenManager.colors.title)
     love.graphics.print("Quest Log", 50, 30)
     
-    -- Draw UI elements
-    for name, element in pairs(self.elements) do
-        if element.draw and element.visible ~= false then
-            element:draw()
+    -- Create an ordered table to control drawing order
+    local drawOrder = {
+        "categoryPanel",       -- Draw panels first
+        "questListPanel",
+        "questDetailsPanel",
+        "activeButton",        -- Draw buttons on top of panels
+        "completedButton",
+        "backToGameButton"
+    }
+    
+    -- Draw UI elements in specific order
+    for _, elementName in ipairs(drawOrder) do
+        local element = self.elements[elementName]
+        if element and element.visible ~= false then
+            if element.drawCustom then
+                -- Use custom drawing if available
+                element:drawCustom()
+            else
+                element:draw()
+            end
         end
     end
+    
+    -- Draw any remaining elements not in the ordered list
+    for name, element in pairs(self.elements) do
+        -- Skip elements that were already drawn in the ordered list
+        if not table.contains(drawOrder, name) and element.visible ~= false then
+            if element.drawCustom then
+                element:drawCustom()
+            else
+                element:draw()
+            end
+        end
+    end
+    
+    -- Draw navigation help text
+    love.graphics.setFont(screenManager.fonts.small)
+    love.graphics.setColor(0.7, 0.7, 0.7)
+    love.graphics.print("Use W/S or arrow keys to navigate quests", 50, GAME.height - 60)
+    love.graphics.print("Use A/D to switch categories", 50, GAME.height - 40)
+end
+
+-- Helper function to check if a table contains a value
+function table.contains(table, element)
+    for _, value in pairs(table) do
+        if value == element then
+            return true
+        end
+    end
+    return false
 end
 
 function questLog:mousepressed(x, y, button, istouch, presses)
@@ -436,19 +606,10 @@ end
 
 function questLog:mousereleased(x, y, button, istouch, presses)
     -- Handle mouse releases for UI elements
-    
-    -- Handle tab buttons
-    if self.elements.activeTab and self.elements.activeTab.released then
-        self.elements.activeTab:released(x, y, button)
-    end
-    
-    if self.elements.completedTab and self.elements.completedTab.released then
-        self.elements.completedTab:released(x, y, button)
-    end
-    
-    -- Handle back to game button
-    if self.elements.backToGameButton and self.elements.backToGameButton.released then
-        self.elements.backToGameButton:released(x, y, button)
+    for name, element in pairs(self.elements) do
+        if element.released and element.visible ~= false then
+            element:released(x, y, button)
+        end
     end
     
     if GAME.debug then
@@ -456,15 +617,136 @@ function questLog:mousereleased(x, y, button, istouch, presses)
     end
 end
 
+function questLog:wheelmoved(x, y)
+    -- Forward wheel movement to questListPanel
+    if self.elements.questListPanel and self.elements.questListPanel.wheelmoved then
+        return self.elements.questListPanel:wheelmoved(x, y)
+    end
+    
+    return false
+end
+
+function questLog:keypressed(key, scancode, isrepeat)
+    -- Get quests for current category
+    local quests = {}
+    if self.category == "active" then
+        quests = questSystem:getActiveQuests()
+    else
+        quests = questSystem:getCompletedQuests()
+    end
+    
+    -- De-duplicate quests by ID
+    local uniqueQuests = {}
+    local questIds = {}
+    
+    for _, quest in ipairs(quests) do
+        if not questIds[quest.id] then
+            questIds[quest.id] = true
+            table.insert(uniqueQuests, quest)
+        end
+    end
+    
+    local questCount = #uniqueQuests
+    
+    -- Handle keyboard navigation
+    if key == "w" or key == "up" then
+        -- Move selection up
+        self.selectedQuestIndex = math.max(1, self.selectedQuestIndex - 1)
+        
+        -- Adjust scroll if needed
+        if self.selectedQuestIndex <= self.questScroll then
+            self.questScroll = math.max(0, self.selectedQuestIndex - 1)
+        end
+        
+        -- Update selected quest
+        if questCount > 0 and self.selectedQuestIndex <= questCount then
+            self:selectQuest(uniqueQuests[self.selectedQuestIndex])
+        end
+        
+        -- Play sound
+        assetManager:playSound("button_hover")
+        return true
+        
+    elseif key == "s" or key == "down" then
+        -- Move selection down
+        self.selectedQuestIndex = math.min(questCount, self.selectedQuestIndex + 1)
+        
+        -- Adjust scroll if needed
+        if self.selectedQuestIndex > self.questScroll + self.questsPerView then
+            self.questScroll = self.selectedQuestIndex - self.questsPerView
+        end
+        
+        -- Update selected quest
+        if questCount > 0 and self.selectedQuestIndex <= questCount then
+            self:selectQuest(uniqueQuests[self.selectedQuestIndex])
+        end
+        
+        -- Play sound
+        assetManager:playSound("button_hover")
+        return true
+        
+    elseif key == "a" or key == "left" then
+        -- Switch to active quests category
+        if self.category ~= "active" then
+            self:selectCategory("active")
+            -- Play sound
+            assetManager:playSound("click")
+        end
+        return true
+        
+    elseif key == "d" or key == "right" then
+        -- Switch to completed quests category
+        if self.category ~= "completed" then
+            self:selectCategory("completed")
+            -- Play sound
+            assetManager:playSound("click")
+        end
+        return true
+        
+    elseif key == "escape" then
+        -- Return to game
+        self:returnToGame()
+        return true
+    end
+    
+    return false
+end
+
 function questLog:selectCategory(category)
     -- Select category
     self.category = category
     
-    -- Reset selected quest
+    -- Reset scroll and selection
+    self.questScroll = 0
+    self.selectedQuestIndex = 1
     self.selectedQuest = nil
     
     -- Update element visibility
     self:updateElementVisibility()
+    
+    -- Get quests based on selected category
+    local quests = {}
+    if self.category == "active" then
+        quests = questSystem:getActiveQuests()
+    else
+        quests = questSystem:getCompletedQuests()
+    end
+    
+    -- De-duplicate quests by ID
+    local uniqueQuests = {}
+    local questIds = {}
+    
+    for _, quest in ipairs(quests) do
+        if not questIds[quest.id] then
+            questIds[quest.id] = true
+            table.insert(uniqueQuests, quest)
+        end
+    end
+    
+    -- Select first quest if available
+    if #uniqueQuests > 0 then
+        self:selectQuest(uniqueQuests[1])
+    end
 end
 
 function questLog:selectQuest(quest)
