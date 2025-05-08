@@ -58,37 +58,70 @@ GAME.settings = {
     }
 }
 
+-- Loading state flag
+local isLoading = true
+local loadingFont = nil
+local loadingMessage = "Loading Data and Preparing Shaders..."
+local loadingStartTime = 0
+local minLoadingTime = 1.5 -- Minimum time to show loading screen in seconds
+
 function love.load()
     math.randomseed(os.time())
     love.graphics.setDefaultFilter('nearest', 'nearest')
-
-    -- Initialize systems
-    assets:init()
-    screens:init()
-    gameState:init()
     
-    assets:setButtonSoundVolume(0.1) 
-    -- Set the initial game state to main menu
-    gameState:changeState("mainMenu")
+    -- Setup loading font before any other initialization
+    loadingFont = love.graphics.newFont(24)
+    loadingStartTime = love.timer.getTime()
     
-    -- Initialize minion system
-    local minionManager = require("gameplay/minionManager")
-    minionManager:init()
-    
-    -- Save/load system
-    if love.filesystem.getInfo("savefile.dat") then
-        print("Loading save data...")
-        GAME:loadGame()
-        
-        -- Load minion data
-        minionManager:load()
-    end
-
-    -- Set initial volume
-    GAME.setVolume(0.2)
+    -- Defer the rest of initialization to the update cycle
 end
 
 function love.update(dt)
+    -- Handle loading sequence
+    if isLoading then
+        -- Calculate time elapsed since loading started
+        local currentTime = love.timer.getTime()
+        local timeElapsed = currentTime - loadingStartTime
+        
+        -- If this is the first update after load, initialize everything
+        if timeElapsed > 0.1 and not GAME.initialized then
+            -- Initialize systems
+            assets:init()
+            screens:init()
+            gameState:init()
+            
+            assets:setButtonSoundVolume(0.1) 
+            
+            -- Initialize minion system
+            local minionManager = require("gameplay/minionManager")
+            minionManager:init()
+            
+            -- Save/load system
+            if love.filesystem.getInfo("savefile.dat") then
+                print("Loading save data...")
+                GAME:loadGame()
+                
+                -- Load minion data
+                minionManager:load()
+            end
+
+            -- Set initial volume
+            GAME.setVolume(0.2)
+            
+            -- Set the initial game state to main menu
+            gameState:changeState("mainMenu")
+            
+            GAME.initialized = true
+        end
+        
+        -- Only finish loading after minimum time has passed AND initialization is done
+        if timeElapsed >= minLoadingTime and GAME.initialized then
+            isLoading = false
+        end
+        
+        return
+    end
+    
     -- Update current screen
     if GAME.currentState then
         GAME.currentState:update(dt)
@@ -96,6 +129,26 @@ function love.update(dt)
 end
 
 function love.draw()
+    -- Draw loading screen
+    if isLoading then
+        love.graphics.clear(0.1, 0.1, 0.1)
+        love.graphics.setFont(loadingFont)
+        
+        -- Get window dimensions directly from LÖVE
+        local windowWidth, windowHeight = love.graphics.getDimensions()
+        local textWidth = loadingFont:getWidth(loadingMessage)
+        local textHeight = loadingFont:getHeight()
+        
+        -- Set text color to white
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.print(
+            loadingMessage,
+            (windowWidth - textWidth) / 2,
+            (windowHeight - textHeight) / 2
+        )
+        return
+    end
+    
     -- Draw current screen
     if GAME.currentState then
         GAME.currentState:draw()

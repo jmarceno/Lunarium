@@ -7,12 +7,24 @@ local assetManager = {
     texArrays = {}, -- Texture arrays for hardware-accelerated rendering
     textureIds = {}, -- Maps texture names to indices in texture arrays
     
+    -- Normal maps storage
+    normalMaps = {
+        walls = {},
+        floors = {},
+        ceilings = {},
+        monsterSprites = {}
+    },
+    
     -- Centralized audio settings
     audioSettings = {
         masterVolume = 1.0,
         musicVolume = 0.2, -- Default music volume
         soundVolume = 0.2  -- Default sound volume
-    }
+    },
+
+    wallNormalMapStrength = 1.0,
+    floorNormalMapStrength = 1.5,
+    monsterNormalMapStrength = 0.1,
 }
 
 function assetManager:init()
@@ -86,6 +98,8 @@ end
 function assetManager:loadWallAndFloorTextures()
     self.images.walls = {}
     self.images.floors = {}
+    self.normalMaps.walls = {}
+    self.normalMaps.floors = {}
     
     -- Load wall textures
     local wallInfo = love.filesystem.getInfo("assets/Walls")
@@ -96,15 +110,24 @@ function assetManager:loadWallAndFloorTextures()
         for _, file in ipairs(files) do
             if file:match("%.png$") then
                 local path = "assets/Walls/" .. file
-                local success, texture = pcall(function()
-                    local img = love.graphics.newImage(path)
-                    img:setFilter("nearest", "nearest") -- Use nearest filtering for pixelated look
-                    return img
+                
+                -- First load the image data for normal map generation
+                local success, imgData = pcall(function()
+                    return love.image.newImageData(path)
                 end)
                 
-                if success and texture then
+                if success and imgData then
                     local textureName = file:gsub("%.png$", "")
+                    
+                    -- Create the texture from the image data
+                    local texture = love.graphics.newImage(imgData)
+                    texture:setFilter("nearest", "nearest")
                     self.images.walls[textureName] = texture
+                    
+                    -- Generate normal map
+                    local normalData = self:calculateNormalMap(imgData, assetManager.wallNormalMapStrength)
+                    self.normalMaps.walls[textureName] = love.graphics.newImage(normalData)
+                    
                     print("  - Loaded wall texture: " .. textureName)
                 else
                     print("  - Failed to load wall texture: " .. file)
@@ -126,15 +149,27 @@ function assetManager:loadWallAndFloorTextures()
         for _, file in ipairs(files) do
             if file:match("%.png$") then
                 local path = "assets/Floor/" .. file
-                local success, texture = pcall(function()
-                    local img = love.graphics.newImage(path)
-                    img:setFilter("nearest", "nearest") -- Use nearest filtering for pixelated look
-                    return img
+                
+                -- First load the image data for normal map generation
+                local success, imgData = pcall(function()
+                    return love.image.newImageData(path)
                 end)
                 
-                if success and texture then
+                if success and imgData then
                     local textureName = file:gsub("%.png$", "")
+                    
+                    -- Create the texture from the image data
+                    local texture = love.graphics.newImage(imgData)
+                    texture:setFilter("nearest", "nearest")
                     self.images.floors[textureName] = texture
+                    
+                    -- Generate normal map
+                    local normalData = self:calculateNormalMap(imgData, assetManager.floorNormalMapStrength)
+                    self.normalMaps.floors[textureName] = love.graphics.newImage(normalData)
+                    
+                    -- Also use for ceiling normals since we're sharing textures
+                    self.normalMaps.ceilings[textureName] = love.graphics.newImage(normalData)
+                    
                     print("  - Loaded floor texture: " .. textureName)
                 else
                     print("  - Failed to load floor texture: " .. file)
@@ -283,6 +318,11 @@ function assetManager:createWallPlaceholder(index)
     love.graphics.rectangle("line", 0, 0, width, height)
     
     love.graphics.setCanvas()
+    
+    -- Also create a normal map for the placeholder
+    local canvasData = canvas:newImageData()
+    local normalData = self:calculateNormalMap(canvasData, assetManager.wallNormalMapStrength)
+    self.normalMaps.walls[tostring(index)] = love.graphics.newImage(normalData)
     
     return canvas
 end
@@ -534,6 +574,12 @@ function assetManager:createFloorPlaceholder(index)
     
     love.graphics.setCanvas()
     
+    -- Also create a normal map for the placeholder
+    local canvasData = canvas:newImageData()
+    local normalData = self:calculateNormalMap(canvasData, assetManager.floorNormalMapStrength)
+    self.normalMaps.floors[tostring(index)] = love.graphics.newImage(normalData)
+    self.normalMaps.ceilings[tostring(index)] = love.graphics.newImage(normalData)
+    
     return canvas
 end
 
@@ -782,7 +828,10 @@ function assetManager:createTextureArrays()
     self.textureIds = {
         walls = {},
         floors = {},
-        ceilings = {}
+        ceilings = {},
+        wallNormals = {},
+        floorNormals = {},
+        ceilingNormals = {}
     }
     
     -- Helper function to convert an Image to ImageData
@@ -900,6 +949,75 @@ function assetManager:createTextureArrays()
         self.textureIds.ceilings["default"] = 0
     end
     
+    -- Create wall normal map texture array
+    local wallNormalTextures = {}
+    local wallNormalCount = 0
+    for name, texture in pairs(self.normalMaps.walls) do
+        wallNormalCount = wallNormalCount + 1
+        local imgData = convertToImageData(texture, 64)
+        if imgData then
+            table.insert(wallNormalTextures, imgData)
+            self.textureIds.wallNormals[name] = wallNormalCount - 1  -- 0-based index for shader
+        end
+    end
+    
+    if wallNormalCount > 0 then
+        pcall(function()
+            self.texArrays.wallNormals = love.graphics.newArrayImage(wallNormalTextures)
+        end)
+        if self.texArrays.wallNormals then
+            print("Created wall normal texture array with " .. wallNormalCount .. " textures")
+        else
+            print("Failed to create wall normal texture array")
+        end
+    end
+    
+    -- Create floor normal map texture array
+    local floorNormalTextures = {}
+    local floorNormalCount = 0
+    for name, texture in pairs(self.normalMaps.floors) do
+        floorNormalCount = floorNormalCount + 1
+        local imgData = convertToImageData(texture, 64)
+        if imgData then
+            table.insert(floorNormalTextures, imgData)
+            self.textureIds.floorNormals[name] = floorNormalCount - 1  -- 0-based index for shader
+        end
+    end
+    
+    if floorNormalCount > 0 then
+        pcall(function()
+            self.texArrays.floorNormals = love.graphics.newArrayImage(floorNormalTextures)
+        end)
+        if self.texArrays.floorNormals then
+            print("Created floor normal texture array with " .. floorNormalCount .. " textures")
+        else
+            print("Failed to create floor normal texture array")
+        end
+    end
+    
+    -- Create ceiling normal map texture array
+    local ceilingNormalTextures = {}
+    local ceilingNormalCount = 0
+    for name, texture in pairs(self.normalMaps.ceilings) do
+        ceilingNormalCount = ceilingNormalCount + 1
+        local imgData = convertToImageData(texture, 64)
+        if imgData then
+            table.insert(ceilingNormalTextures, imgData)
+            self.textureIds.ceilingNormals[name] = ceilingNormalCount - 1  -- 0-based index for shader
+        end
+    end
+    
+    if ceilingNormalCount > 0 then
+        pcall(function()
+            self.texArrays.ceilingNormals = love.graphics.newArrayImage(ceilingNormalTextures)
+        end)
+        if self.texArrays.ceilingNormals then
+            print("Created ceiling normal texture array with " .. ceilingNormalCount .. " textures")
+        else
+            print("Failed to create ceiling normal texture array")
+        end
+    end
+    
     -- Free the temporary imagedata objects
     for _, imgData in ipairs(wallTextures) do
         imgData:release()
@@ -908,6 +1026,15 @@ function assetManager:createTextureArrays()
         imgData:release()
     end
     for _, imgData in ipairs(ceilingTextures) do
+        imgData:release()
+    end
+    for _, imgData in ipairs(wallNormalTextures) do
+        imgData:release()
+    end
+    for _, imgData in ipairs(floorNormalTextures) do
+        imgData:release()
+    end
+    for _, imgData in ipairs(ceilingNormalTextures) do
         imgData:release()
     end
     
@@ -923,6 +1050,7 @@ function assetManager:loadMonsterSprites()
     end
     
     self.images.monsterSprites = {}
+    self.normalMaps.monsterSprites = {}
     
     -- Check if enemies directory exists
     local info = love.filesystem.getInfo("assets/Sprites/Enemies")
@@ -955,16 +1083,23 @@ function assetManager:loadMonsterSprites()
                         id = id:gsub("_BOSS$", "_boss") -- Convert to id format in monsterData
                     end
                     
-                    -- Load image
-                    local success, sprite = pcall(function()
-                        local img = love.graphics.newImage(path)
-                        img:setFilter("nearest", "nearest") -- Use nearest filtering for pixelated look
-                        return img
+                    -- First load the image data for normal map generation
+                    local success, imgData = pcall(function()
+                        return love.image.newImageData(path)
                     end)
                     
-                    if success and sprite then
+                    if success and imgData then
+                        -- Create the sprite texture
+                        local sprite = love.graphics.newImage(imgData)
+                        sprite:setFilter("nearest", "nearest")
+                        
                         -- Store sprite indexed by filename
                         self.images.monsterSprites[id] = sprite
+                        
+                        -- Generate and store normal map
+                        local normalData = self:calculateNormalMap(imgData, assetManager.monsterNormalMapStrength) -- Slightly stronger for monster details
+                        self.normalMaps.monsterSprites[id] = love.graphics.newImage(normalData)
+                        
                         totalLoaded = totalLoaded + 1
                         print("  - Loaded monster sprite: " .. id)
                     else
@@ -1024,6 +1159,94 @@ function assetManager:getImage(type, id)
     end
     
     -- Image not found
+    return nil
+end
+
+-- Calculate normal map from a texture
+function assetManager:calculateNormalMap(imageData, strength)
+    -- Default strength if not provided
+    strength = strength or 2.0
+    
+    local width, height = imageData:getDimensions()
+    local normalData = love.image.newImageData(width, height)
+    
+    for y = 0, height - 1 do
+        for x = 0, width - 1 do
+            -- Get heights at surrounding pixels (with edge handling)
+            local xMinus = x > 0 and x - 1 or x
+            local xPlus = x < width - 1 and x + 1 or x
+            local yMinus = y > 0 and y - 1 or y
+            local yPlus = y < height - 1 and y + 1 or y
+            
+            -- Sample pixel colors and calculate grayscale height values
+            local _, _, _, a00 = imageData:getPixel(xMinus, yMinus)
+            local r01, g01, b01, a01 = imageData:getPixel(x, yMinus)
+            local _, _, _, a02 = imageData:getPixel(xPlus, yMinus)
+            local r10, g10, b10, a10 = imageData:getPixel(xMinus, y)
+            local r11, g11, b11, a11 = imageData:getPixel(x, y)
+            local r12, g12, b12, a12 = imageData:getPixel(xPlus, y)
+            local _, _, _, a20 = imageData:getPixel(xMinus, yPlus)
+            local r21, g21, b21, a21 = imageData:getPixel(x, yPlus)
+            local _, _, _, a22 = imageData:getPixel(xPlus, yPlus)
+            
+            -- Skip calculation for fully transparent pixels
+            if a11 < 0.01 then
+                normalData:setPixel(x, y, 0.5, 0.5, 1.0, 0.0)
+            else
+                -- Calculate height values using luminance
+                local h00 = (a00 > 0.01) and 0.299 * r10 + 0.587 * g10 + 0.114 * b10 or 0
+                local h01 = (a01 > 0.01) and 0.299 * r01 + 0.587 * g01 + 0.114 * b01 or 0
+                local h02 = (a02 > 0.01) and 0.299 * r12 + 0.587 * g12 + 0.114 * b12 or 0
+                local h10 = (a10 > 0.01) and 0.299 * r10 + 0.587 * g10 + 0.114 * b10 or 0
+                local h11 = 0.299 * r11 + 0.587 * g11 + 0.114 * b11
+                local h12 = (a12 > 0.01) and 0.299 * r12 + 0.587 * g12 + 0.114 * b12 or 0
+                local h20 = (a20 > 0.01) and 0.299 * r21 + 0.587 * g21 + 0.114 * b21 or 0
+                local h21 = (a21 > 0.01) and 0.299 * r21 + 0.587 * g21 + 0.114 * b21 or 0
+                local h22 = (a22 > 0.01) and 0.299 * r12 + 0.587 * g12 + 0.114 * b12 or 0
+                
+                -- Sobel operator to get gradients
+                local xGradient = 
+                    (h00 + 2 * h10 + h20) - 
+                    (h02 + 2 * h12 + h22)
+                
+                local yGradient = 
+                    (h00 + 2 * h01 + h02) - 
+                    (h20 + 2 * h21 + h22)
+                
+                -- Normalize and apply strength
+                xGradient = xGradient * strength
+                yGradient = yGradient * strength
+                
+                -- Construct normal vector (x, y, z)
+                local length = math.sqrt(xGradient * xGradient + yGradient * yGradient + 1)
+                local nx = -xGradient / length
+                local ny = -yGradient / length
+                local nz = 1.0 / length
+                
+                -- Convert from [-1, 1] to [0, 1] range for storage
+                nx = nx * 0.5 + 0.5
+                ny = ny * 0.5 + 0.5
+                
+                -- Store normal in RGB format
+                normalData:setPixel(x, y, nx, ny, nz, a11)
+            end
+        end
+    end
+    
+    return normalData
+end
+
+-- Add helper function to get normal map for a specific texture
+function assetManager:getNormalMap(type, id)
+    if type == "wall" then
+        return self.normalMaps.walls[id]
+    elseif type == "floor" then
+        return self.normalMaps.floors[id]
+    elseif type == "ceiling" then
+        return self.normalMaps.ceilings[id]
+    elseif type == "monster" then
+        return self.normalMaps.monsterSprites[id]
+    end
     return nil
 end
 

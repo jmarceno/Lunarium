@@ -91,6 +91,7 @@ local function loadShaders()
 
     uniform Image dataBuffer;
     uniform ArrayImage textures;
+    uniform ArrayImage normalMaps;
     uniform float cameraOffset;
     uniform float cameraTilt;
     uniform float torchTime;
@@ -99,6 +100,7 @@ local function loadShaders()
     uniform float torchRedTint;
     uniform float globalDarkness;
     uniform bool torchEnabled;
+    uniform vec3 lightDir;
 
     RenderData extractRenderData(float screenU) {
         RenderData result;
@@ -129,7 +131,30 @@ local function loadShaders()
             love_Canvases[MAIN_CANVAS] = vec4(0);
             gl_FragDepth = 1;
         } else {
-            vec3 colour = Texel(textures, vec3(rd.u, v, rd.textureId)).rgb * rd.shade;
+            // Get diffuse color from texture
+            vec4 diffuseColor = Texel(textures, vec3(rd.u, v, rd.textureId));
+            
+            // Get normal from normal map
+            vec3 normal = Texel(normalMaps, vec3(rd.u, v, rd.textureId)).rgb;
+            
+            // Transform normal from [0,1] to [-1,1] range
+            normal = normal * 2.0 - 1.0;
+            
+            // Calculate lighting direction based on side (depends on ray direction)
+            vec3 lighting;
+            if (rd.textureId > 0.0) {
+                // Determine lighting based on wall normal and light direction
+                float diffuse = max(0.3, dot(normal, lightDir));
+                
+                // Apply base shade from distance and side
+                lighting = vec3(diffuse * rd.shade);
+            } else {
+                // Fallback for non-textured walls
+                lighting = vec3(rd.shade);
+            }
+            
+            // Apply lighting to color
+            vec3 colour = diffuseColor.rgb * lighting;
             
             // Apply global darkness
             colour *= (1.0 - globalDarkness);
@@ -145,13 +170,17 @@ local function loadShaders()
                 // Combine pulse with distance for torch intensity
                 float intensity = torchIntensity * pulse * torchFactor;
                 
+                // Enhanced torch effect using normal map
+                float normalFactor = max(0.0, dot(normal, vec3(0.0, 0.0, 1.0)));
+                intensity *= (0.7 + 0.3 * normalFactor);
+                
                 // Apply red-tinted torch light
                 colour.r += intensity * torchRedTint;
                 colour.g += intensity * (1.0 - torchRedTint) * 0.5;
                 colour.b += intensity * (1.0 - torchRedTint) * 0.2;
             }
             
-            love_Canvases[MAIN_CANVAS] = vec4(colour, 1);
+            love_Canvases[MAIN_CANVAS] = vec4(colour, diffuseColor.a);
             gl_FragDepth = rd.z;
         }
     }
@@ -165,6 +194,7 @@ local function loadShaders()
     uniform float height;
     uniform vec2 position;
     uniform ArrayImage textures;
+    uniform ArrayImage normalMaps;
     uniform Image map;
     uniform ivec2 mapDimensions;
     uniform float fov;
@@ -178,6 +208,7 @@ local function loadShaders()
     uniform float torchRedTint;
     uniform float globalDarkness;
     uniform bool torchEnabled;
+    uniform vec3 lightDir;
 
     vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords)
     {
@@ -201,7 +232,24 @@ local function loadShaders()
         if (int(ux) < 0 || int(ux) >= mapDimensions.x || int(uy) < 0 || int(uy) >= mapDimensions.y || tileId < 0) {
             colour = vec3(0.4, 0.4, 0.2) * s; // Default color for out of bounds
         } else {
-            colour = Texel(textures, vec3(u, v, tileId)).rgb * s;
+            // Get diffuse color from texture
+            vec4 diffuseColor = Texel(textures, vec3(u, v, tileId));
+            
+            // Get normal from normal map
+            vec3 normal = Texel(normalMaps, vec3(u, v, tileId)).rgb;
+            
+            // Transform normal from [0,1] to [-1,1] range
+            normal = normal * 2.0 - 1.0;
+            
+            // Floor normal is up by default, but we can perturb it with the normal map
+            // Blend between up vector and perturbed normal based on normal map intensity
+            vec3 floorNormal = normalize(vec3(normal.xy * 0.5, 1.0));
+            
+            // Calculate diffuse lighting
+            float diffuse = max(0.3, dot(floorNormal, lightDir));
+            
+            // Apply lighting and distance shading
+            colour = diffuseColor.rgb * diffuse * s;
         }
         
         // Apply global darkness
@@ -236,6 +284,7 @@ local function loadShaders()
     uniform float height;
     uniform vec2 position;
     uniform ArrayImage textures;
+    uniform ArrayImage normalMaps;
     uniform Image map;
     uniform ivec2 mapDimensions;
     uniform float fov;
@@ -249,6 +298,7 @@ local function loadShaders()
     uniform float torchRedTint;
     uniform float globalDarkness;
     uniform bool torchEnabled;
+    uniform vec3 lightDir;
 
     vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords)
     {
@@ -277,7 +327,24 @@ local function loadShaders()
         if (int(ux) < 0 || int(ux) >= mapDimensions.x || int(uy) < 0 || int(uy) >= mapDimensions.y || tileId < 0) {
             colour = vec3(0.1, 0.1, 0.3) * s; // Default ceiling color
         } else {
-            colour = Texel(textures, vec3(u, v, tileId)).rgb * s;
+            // Get diffuse color from texture
+            vec4 diffuseColor = Texel(textures, vec3(u, v, tileId));
+            
+            // Get normal from normal map
+            vec3 normal = Texel(normalMaps, vec3(u, v, tileId)).rgb;
+            
+            // Transform normal from [0,1] to [-1,1] range
+            normal = normal * 2.0 - 1.0;
+            
+            // Ceiling normal is down by default, but we can perturb it with the normal map
+            // Blend between down vector and perturbed normal based on normal map intensity
+            vec3 ceilingNormal = normalize(vec3(normal.xy * 0.5, -1.0));
+            
+            // Calculate diffuse lighting (invert light direction for ceiling)
+            float diffuse = max(0.3, dot(ceilingNormal, -lightDir));
+            
+            // Apply lighting and distance shading
+            colour = diffuseColor.rgb * diffuse * s;
         }
         
         // Apply global darkness
@@ -329,6 +396,9 @@ local function loadShaders()
     uniform float torchRedTint;
     uniform float globalDarkness;
     uniform bool torchEnabled;
+    uniform vec3 lightDir;
+    uniform Image normalMap;
+    uniform bool hasNormalMap;
     
     vec4 effect(vec4 color, Image texture, vec2 texture_coords, vec2 screen_coords)
     {
@@ -338,7 +408,19 @@ local function loadShaders()
         float shade = 1.0 - (v_depth / shadeDepth);
         shade = clamp(shade, 0.0, 1.0); // Allow complete darkness at max distance
         
-        vec3 colour = texcolor.rgb * shade * color.rgb;
+        vec3 normal = vec3(0.0, 0.0, 1.0); // Default forward-facing normal
+        
+        // If normal map is available, use it
+        if (hasNormalMap) {
+            vec3 normalValue = Texel(normalMap, texture_coords).rgb;
+            normal = normalValue * 2.0 - 1.0; // Convert from [0,1] to [-1,1]
+        }
+        
+        // Calculate diffuse lighting
+        float diffuse = max(0.3, dot(normal, lightDir));
+        
+        // Apply lighting
+        vec3 colour = texcolor.rgb * diffuse * shade * color.rgb;
         
         // Apply global darkness
         colour *= (1.0 - globalDarkness);
@@ -353,6 +435,12 @@ local function loadShaders()
             
             // Combine pulse with distance for torch intensity
             float intensity = torchIntensity * pulse * torchFactor;
+            
+            // Enhanced torch effect using normal map if available
+            if (hasNormalMap) {
+                float normalFactor = max(0.0, dot(normal, vec3(0.0, 0.0, 1.0)));
+                intensity *= (0.7 + 0.3 * normalFactor);
+            }
             
             // Apply red-tinted torch light
             colour.r += intensity * torchRedTint;
@@ -749,6 +837,15 @@ function raycaster:renderWalls(map)
     self.wallShader:send("cameraOffset", self.camera.height)
     self.wallShader:send("cameraTilt", self.camera.tilt)
     self.wallShader:send("textures", assetManager.texArrays.walls)
+    self.wallShader:send("normalMaps", assetManager.texArrays.wallNormals)
+    
+    -- Calculate light direction (pointing slightly downwards)
+    local lightDir = {0.2, 0.3, 0.9}
+    local lightDirLength = math.sqrt(lightDir[1]^2 + lightDir[2]^2 + lightDir[3]^2)
+    lightDir[1] = lightDir[1] / lightDirLength
+    lightDir[2] = lightDir[2] / lightDirLength
+    lightDir[3] = lightDir[3] / lightDirLength
+    self.wallShader:send("lightDir", lightDir)
     
     -- Update shader uniforms for torch effect
     self.wallShader:send("torchTime", self.torchTime)
@@ -775,6 +872,13 @@ function raycaster:renderFloorAndCeiling(map)
     -- Prepare map data for GPU rendering if needed
     self:prepareMapData(map)
     
+    -- Calculate light direction (pointing slightly downwards)
+    local lightDir = {0.2, 0.3, 0.9}
+    local lightDirLength = math.sqrt(lightDir[1]^2 + lightDir[2]^2 + lightDir[3]^2)
+    lightDir[1] = lightDir[1] / lightDirLength
+    lightDir[2] = lightDir[2] / lightDirLength
+    lightDir[3] = lightDir[3] / lightDirLength
+    
     -- Render ceiling
     local start = love.timer.getTime()
     love.graphics.setCanvas(self.canvas)
@@ -783,12 +887,14 @@ function raycaster:renderFloorAndCeiling(map)
     -- Send shader uniforms for ceiling
     self.ceilingShader:send("position", self.cameraPosition)
     self.ceilingShader:send("textures", assetManager.texArrays.ceilings)
+    self.ceilingShader:send("normalMaps", assetManager.texArrays.ceilingNormals)
     self.ceilingShader:send("fov", self.fov)
     self.ceilingShader:send("angle", self.camera.angle)
     self.ceilingShader:send("cameraTilt", self.camera.tilt)
     self.ceilingShader:send("cameraOffset", self.camera.height)
     self.ceilingShader:send("map", map.ceilingsTexture)
     self.ceilingShader:send("mapDimensions", map.dimensions)
+    self.ceilingShader:send("lightDir", lightDir)
     
     -- Send shader uniforms for torch effect
     self.ceilingShader:send("torchTime", self.torchTime)
@@ -810,12 +916,14 @@ function raycaster:renderFloorAndCeiling(map)
     -- Send shader uniforms for floor
     self.floorShader:send("position", self.cameraPosition)
     self.floorShader:send("textures", assetManager.texArrays.floors)
+    self.floorShader:send("normalMaps", assetManager.texArrays.floorNormals)
     self.floorShader:send("fov", self.fov)
     self.floorShader:send("angle", self.camera.angle)
     self.floorShader:send("cameraTilt", self.camera.tilt)
     self.floorShader:send("cameraOffset", self.camera.height)
     self.floorShader:send("map", map.floorsTexture)
     self.floorShader:send("mapDimensions", map.dimensions)
+    self.floorShader:send("lightDir", lightDir)
     
     -- Send shader uniforms for torch effect
     self.floorShader:send("torchTime", self.torchTime)
@@ -844,6 +952,14 @@ function raycaster:renderEntities(entities)
     love.graphics.setCanvas(self.spriteMode)
     love.graphics.setDepthMode("lequal", true)
     love.graphics.setShader(self.spriteShader)
+    
+    -- Calculate light direction (pointing slightly downwards)
+    local lightDir = {0.2, 0.3, 0.9}
+    local lightDirLength = math.sqrt(lightDir[1]^2 + lightDir[2]^2 + lightDir[3]^2)
+    lightDir[1] = lightDir[1] / lightDirLength
+    lightDir[2] = lightDir[2] / lightDirLength
+    lightDir[3] = lightDir[3] / lightDirLength
+    self.spriteShader:send("lightDir", lightDir)
     
     -- Send shader uniforms for torch effect
     self.spriteShader:send("torchTime", self.torchTime)
@@ -879,11 +995,13 @@ function raycaster:renderEntities(entities)
         if visible then
             -- Get sprite texture
             local texture = nil
+            local normalTexture = nil
             
             -- Check for monster sprite - use asset manager
             if entity.type == "monster" and entity.id then
                 if assetManager.images.monsterSprites and assetManager.images.monsterSprites[entity.id] then
                     texture = assetManager.images.monsterSprites[entity.id]
+                    normalTexture = assetManager.normalMaps.monsterSprites[entity.id]
                 end
             elseif entity.texture then
                 texture = assetManager.images.entities[entity.texture]
@@ -913,6 +1031,14 @@ function raycaster:renderEntities(entities)
                     local shade = 1.0 - (perpDistance / self.shadeDepth)
                     shade = math.max(0.0, shade) -- Allow complete darkness at max distance
                     love.graphics.setColor(shade, shade, shade)
+                    
+                    -- Send normal map for this sprite if available
+                    if normalTexture then
+                        self.spriteShader:send("normalMap", normalTexture)
+                        self.spriteShader:send("hasNormalMap", true)
+                    else
+                        self.spriteShader:send("hasNormalMap", false)
+                    end
                     
                     -- Set depth value for this sprite
                     self.spriteShader:send("depth", perpDistance / self.maxDistance)
