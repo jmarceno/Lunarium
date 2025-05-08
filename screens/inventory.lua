@@ -1351,6 +1351,19 @@ function inventory:enter(params)
             if not item.uniqueId then 
                 item.uniqueId = itemSystem:generateUniqueId()
             end
+            
+            -- Clean up any non-equippable items that might have equippedBy or equippedSlot properties
+            if item.type == "monster_part" or item.type == "material" or item.type == "consumable" then
+                if item.equippedBy or item.equippedSlot then
+                    -- Remove incorrect equipped properties
+                    item.equippedBy = nil
+                    item.equippedSlot = nil
+                    
+                    if GAME.debug then
+                        print("Cleaned up incorrectly marked equipped status on " .. item.name)
+                    end
+                end
+            end
         end
     end
     
@@ -1839,6 +1852,11 @@ function inventory:selectItem(item)
 end
 
 function inventory:isItemEquipped(item, character)
+    -- Immediately return false for non-equippable item types
+    if item and (item.type == "monster_part" or item.type == "material" or item.type == "consumable") then
+        return false
+    end
+    
     -- Quick check if item has the equipped properties
     if item and item.equippedBy and item.equippedSlot and character then
         -- Check if this item is equipped by this character
@@ -2236,12 +2254,15 @@ function inventory:dropItem()
         return
     end
     
-    -- Check if item is equipped
-    for _, character in ipairs(GAME.party) do
-        if self:isItemEquipped(self.selectedItem, character) then
-            -- Play error sound
-            assetManager:playSound("hit")
-            return
+    -- Check if item is equipped - only needed for equippable items
+    if self.selectedItem.type == "weapon" or self.selectedItem.type == "armor" or self.selectedItem.type == "accessory" then
+        for _, character in ipairs(GAME.party) do
+            if self:isItemEquipped(self.selectedItem, character) then
+                -- Show error message and play error sound
+                self:showFloatingMessage("Cannot drop equipped items!", {1, 0.3, 0.3, 1})
+                assetManager:playSound("hit")
+                return
+            end
         end
     end
     
@@ -2351,17 +2372,20 @@ end
 function inventory:confirmDropItem()
     if not self.selectedItem then return end
     
-    -- Check if item is equipped
+    -- Check if item is equipped - only for equippable items
     local isEquipped = false
-    for _, character in ipairs(GAME.party) do
-        if self:isItemEquipped(self.selectedItem, character) then
-            isEquipped = true
-            break
+    if self.selectedItem.type == "weapon" or self.selectedItem.type == "armor" or self.selectedItem.type == "accessory" then
+        for _, character in ipairs(GAME.party) do
+            if self:isItemEquipped(self.selectedItem, character) then
+                isEquipped = true
+                break
+            end
         end
     end
     
     if isEquipped then
         -- Cannot drop equipped items
+        self:showFloatingMessage("Cannot drop equipped items!", {1, 0.3, 0.3, 1})
         assetManager:playSound("hit")
         return
     end
@@ -2398,11 +2422,13 @@ function inventory:sellItem()
         return
     end
     
-    -- Check if item is equipped by any character
-    for _, character in ipairs(GAME.party) do
-        if self:isItemEquipped(self.selectedItem, character) then
-            self:showFloatingMessage("You can't sell equipped items!", {1, 0.3, 0.3, 1})
-            return
+    -- Check if item is equipped by any character (only for equippable items)
+    if self.selectedItem.type == "weapon" or self.selectedItem.type == "armor" or self.selectedItem.type == "accessory" then
+        for _, character in ipairs(GAME.party) do
+            if self:isItemEquipped(self.selectedItem, character) then
+                self:showFloatingMessage("You can't sell equipped items!", {1, 0.3, 0.3, 1})
+                return
+            end
         end
     end
     
