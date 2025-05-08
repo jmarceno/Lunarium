@@ -14,7 +14,7 @@ function smith:init()
     self.craftedItem = nil
     self.selectedCategory = "All"
     self.pageOffset = 0
-    self.recipesPerPage = 6
+    self.recipesPerPage = 5
     
     -- Categories
     self.categories = {
@@ -184,14 +184,68 @@ function smith:createUI()
     
     -- Create recipe list panel
     self.elements.recipeListPanel = {
-        x = 50,
-        y = 120,
-        width = 700,
-        height = 400,
+        x = 100,
+        y = 50,
+        width = GAME.width - 200,
+        height = GAME.height - 200,
         
         draw = function(self)
             -- Draw panel background
-            screenManager:drawPanel("Available Recipes", self.x, self.y, self.width, self.height)
+            love.graphics.setColor(0.1, 0.1, 0.15, 0.8)
+            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 10, 10)
+            
+            -- Draw screen title
+            love.graphics.setFont(screenManager.fonts.large)
+            love.graphics.setColor(1, 0.9, 0.7)
+            love.graphics.printf("Blacksmith", self.x, self.y + 20, self.width, "center")
+            
+            -- Draw current gold
+            if GAME.gold then
+                love.graphics.setFont(screenManager.fonts.medium)
+                love.graphics.setColor(1, 1, 0)
+                
+                love.graphics.print(
+                    "Gold: " .. GAME.gold,
+                    self.x + 50, self.y + 70
+                )
+            end
+            
+            -- Draw category buttons
+            local categoryY = self.y + 100
+            local btnWidth = 160
+            local spacing = 10
+            local totalWidth = btnWidth * #smith.categories + spacing * (#smith.categories - 1)
+            local startX = self.x + (self.width - totalWidth) / 2
+            
+            for i, category in ipairs(smith.categories) do
+                local btnX = startX + (i-1) * (btnWidth + spacing)
+                
+                -- Draw button background
+                if category == smith.selectedCategory then
+                    love.graphics.setColor(0.3, 0.4, 0.6)
+                else
+                    love.graphics.setColor(0.2, 0.3, 0.4)
+                end
+                
+                love.graphics.rectangle("fill", btnX, categoryY, btnWidth, 30, 5, 5)
+                
+                -- Draw button text
+                love.graphics.setFont(screenManager.fonts.small)
+                love.graphics.setColor(1, 1, 1)
+                love.graphics.printf(category, btnX, categoryY + 7, btnWidth, "center")
+            end
+            
+            -- Draw "Available Recipes" section label
+            love.graphics.setFont(screenManager.fonts.medium)
+            love.graphics.setColor(0.8, 0.8, 1)
+            love.graphics.printf("Available Recipes", self.x, self.y + 140, self.width, "center")
+            
+            -- Draw divider line
+            love.graphics.setColor(0.5, 0.5, 0.7, 0.7)
+            love.graphics.line(
+                self.x + 50, self.y + 170, 
+                self.x + self.width - 55, self.y + 170
+            )
             
             -- Draw recipes
             local recipeCount = 0
@@ -211,7 +265,7 @@ function smith:createUI()
             -- Draw visible recipes
             for i = startIndex, endIndex do
                 local recipe = displayedRecipes[i]
-                local recipeY = self.y + 50 + (i - startIndex) * 50
+                local recipeY = self.y + 180 + (i - startIndex) * 60
                 
                 -- Draw recipe entry background
                 if recipe == smith.selectedRecipe then
@@ -222,8 +276,8 @@ function smith:createUI()
                 
                 love.graphics.rectangle(
                     "fill",
-                    self.x + 10, recipeY, 
-                    self.width - 20, 45,
+                    self.x + 20, recipeY, 
+                    self.width - 45, 55,
                     5, 5
                 )
                 
@@ -233,7 +287,7 @@ function smith:createUI()
                 
                 love.graphics.print(
                     recipe.name,
-                    self.x + 20, recipeY + 5
+                    self.x + 40, recipeY + 7
                 )
                 
                 -- Draw recipe category
@@ -242,7 +296,7 @@ function smith:createUI()
                 
                 love.graphics.print(
                     recipe.category,
-                    self.x + 20, recipeY + 30
+                    self.x + 40, recipeY + 35
                 )
                 
                 -- Draw recipe gold cost
@@ -251,7 +305,7 @@ function smith:createUI()
                 
                 love.graphics.print(
                     recipe.goldCost .. " gold",
-                    self.x + self.width - 120, recipeY + 5
+                    self.x + self.width - 150, recipeY + 7
                 )
                 
                 -- Check if player has enough materials
@@ -285,7 +339,7 @@ function smith:createUI()
                     
                     love.graphics.print(
                         "Missing materials",
-                        self.x + self.width - 150, recipeY + 30
+                        self.x + self.width - 180, recipeY + 35
                     )
                 else
                     love.graphics.setFont(screenManager.fonts.small)
@@ -293,7 +347,7 @@ function smith:createUI()
                     
                     love.graphics.print(
                         "Available",
-                        self.x + self.width - 150, recipeY + 30
+                        self.x + self.width - 180, recipeY + 35
                     )
                 end
             end
@@ -307,7 +361,7 @@ function smith:createUI()
             
             love.graphics.print(
                 "Page " .. currentPage .. " of " .. totalPages,
-                self.x + self.width / 2 - 40, self.y + self.height - 30
+                self.x + self.width / 2 - 40, self.y + self.height - 29
             )
             
             -- Draw pagination buttons
@@ -316,7 +370,7 @@ function smith:createUI()
                 love.graphics.setColor(0.3, 0.3, 0.5)
                 love.graphics.rectangle(
                     "fill",
-                    self.x + 20, self.y + self.height - 35, 
+                    self.x + 20, self.y + self.height - 44, 
                     100, 25,
                     5, 5
                 )
@@ -324,7 +378,7 @@ function smith:createUI()
                 love.graphics.setColor(1, 1, 1)
                 love.graphics.print(
                     "Previous",
-                    self.x + 40, self.y + self.height - 33
+                    self.x + 40, self.y + self.height - 41
                 )
             end
             
@@ -333,7 +387,7 @@ function smith:createUI()
                 love.graphics.setColor(0.3, 0.3, 0.5)
                 love.graphics.rectangle(
                     "fill",
-                    self.x + self.width - 120, self.y + self.height - 35, 
+                    self.x + self.width - 120, self.y + self.height - 44, 
                     100, 25,
                     5, 5
                 )
@@ -341,7 +395,7 @@ function smith:createUI()
                 love.graphics.setColor(1, 1, 1)
                 love.graphics.print(
                     "Next",
-                    self.x + self.width - 100, self.y + self.height - 33
+                    self.x + self.width - 100, self.y + self.height - 41
                 )
             end
             
@@ -352,8 +406,8 @@ function smith:createUI()
                 
                 love.graphics.printf(
                     "No recipes available in this category.",
-                    self.x + 20, self.y + 150,
-                    self.width - 40, "center"
+                    self.x + 40, self.y + 250,
+                    self.width - 85, "center"
                 )
             end
         end,
@@ -365,8 +419,25 @@ function smith:createUI()
             if x >= self.x and x <= self.x + self.width and
                y >= self.y and y <= self.y + self.height then
                 
+                -- Check category buttons
+                local categoryY = self.y + 100
+                local btnWidth = 160
+                local spacing = 10
+                local totalWidth = btnWidth * #smith.categories + spacing * (#smith.categories - 1)
+                local startX = self.x + (self.width - totalWidth) / 2
+                
+                for i, category in ipairs(smith.categories) do
+                    local btnX = startX + (i-1) * (btnWidth + spacing)
+                    
+                    if x >= btnX and x <= btnX + btnWidth and
+                       y >= categoryY and y <= categoryY + 30 then
+                        smith:selectCategory(category)
+                        return true
+                    end
+                end
+                
                 -- Check pagination buttons
-                if y >= self.y + self.height - 35 and y <= self.y + self.height - 10 then
+                if y >= self.y + self.height - 44 and y <= self.y + self.height - 19 then
                     -- Filter recipes by category
                     local displayedRecipes = {}
                     for _, recipe in ipairs(smith.recipes) do
@@ -406,9 +477,9 @@ function smith:createUI()
                 local endIndex = math.min(startIndex + smith.recipesPerPage - 1, #displayedRecipes)
                 
                 for i = startIndex, endIndex do
-                    local recipeY = self.y + 50 + (i - startIndex) * 50
+                    local recipeY = self.y + 180 + (i - startIndex) * 60
                     
-                    if y >= recipeY and y <= recipeY + 45 then
+                    if y >= recipeY and y <= recipeY + 55 then
                         smith:selectRecipe(displayedRecipes[i])
                         return true
                     end
@@ -423,10 +494,10 @@ function smith:createUI()
     
     -- Create recipe details panel
     self.elements.recipeDetailsPanel = {
-        x = 50,
-        y = 120,
-        width = 700,
-        height = 400,
+        x = 100,
+        y = 50,
+        width = GAME.width - 200,
+        height = GAME.height - 200,
         visible = false,
         
         draw = function(self)
@@ -437,7 +508,36 @@ function smith:createUI()
             local recipe = smith.selectedRecipe
             
             -- Draw panel background
-            screenManager:drawPanel("Recipe Details", self.x, self.y, self.width, self.height)
+            love.graphics.setColor(0.1, 0.1, 0.15, 0.8)
+            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 10, 10)
+            
+            -- Draw screen title
+            love.graphics.setFont(screenManager.fonts.large)
+            love.graphics.setColor(1, 0.9, 0.7)
+            love.graphics.printf("Blacksmith", self.x, self.y + 20, self.width, "center")
+            
+            -- Draw current gold
+            if GAME.gold then
+                love.graphics.setFont(screenManager.fonts.medium)
+                love.graphics.setColor(1, 1, 0)
+                
+                love.graphics.print(
+                    "Gold: " .. GAME.gold,
+                    self.x + 50, self.y + 70
+                )
+            end
+            
+            -- Draw "Recipe Details" section label
+            love.graphics.setFont(screenManager.fonts.medium)
+            love.graphics.setColor(0.8, 0.8, 1)
+            love.graphics.printf("Recipe Details", self.x, self.y + 100, self.width, "center")
+            
+            -- Draw divider line
+            love.graphics.setColor(0.5, 0.5, 0.7, 0.7)
+            love.graphics.line(
+                self.x + 50, self.y + 130, 
+                self.x + self.width - 50, self.y + 130
+            )
             
             -- Draw recipe name
             love.graphics.setFont(screenManager.fonts.large)
@@ -445,7 +545,7 @@ function smith:createUI()
             
             love.graphics.printf(
                 recipe.name,
-                self.x + 20, self.y + 50,
+                self.x + 20, self.y + 150,
                 self.width - 40, "center"
             )
             
@@ -455,8 +555,8 @@ function smith:createUI()
             
             love.graphics.printf(
                 recipe.description,
-                self.x + 30, self.y + 90,
-                self.width - 60, "center"
+                self.x + 50, self.y + 190,
+                self.width - 100, "center"
             )
             
             -- Draw required materials
@@ -465,7 +565,7 @@ function smith:createUI()
             
             love.graphics.print(
                 "Required Materials:",
-                self.x + 30, self.y + 140
+                self.x + 50, self.y + 240
             )
             
             -- Count materials in inventory
@@ -482,7 +582,7 @@ function smith:createUI()
             -- Draw material list
             love.graphics.setFont(screenManager.fonts.medium)
             
-            local materialY = self.y + 170
+            local materialY = self.y + 270
             for material, count in pairs(recipe.materials) do
                 -- Check if player has enough
                 local playerCount = inventoryMaterials[material] or 0
@@ -497,7 +597,7 @@ function smith:createUI()
                 
                 love.graphics.print(
                     material .. " x" .. count .. " (" .. playerCount .. " available)",
-                    self.x + 50, materialY
+                    self.x + 70, materialY
                 )
                 
                 materialY = materialY + 30
@@ -509,7 +609,7 @@ function smith:createUI()
             
             love.graphics.print(
                 "Gold Cost: " .. recipe.goldCost,
-                self.x + 30, self.y + 270
+                self.x + 50, self.y + 370
             )
             
             -- Check if player has enough gold
@@ -519,7 +619,7 @@ function smith:createUI()
                 
                 love.graphics.print(
                     "Not enough gold!",
-                    self.x + 200, self.y + 270
+                    self.x + 220, self.y + 370
                 )
             end
             
@@ -722,27 +822,6 @@ function smith:draw()
     -- Draw smith table
     love.graphics.setColor(0.6, 0.4, 0.2)
     love.graphics.rectangle("fill", 40, 20, 720, 80)
-    
-    -- Draw screen title
-    love.graphics.setFont(screenManager.fonts.large)
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.print("Blacksmith", 50, 30)
-    
-    -- Draw current gold
-    if GAME.gold then
-        love.graphics.setFont(screenManager.fonts.medium)
-        love.graphics.setColor(1, 1, 0)
-        
-        love.graphics.print(
-            "Gold: " .. GAME.gold,
-            600, 30
-        )
-    end
-    
-    -- Draw category buttons
-    for _, button in ipairs(self.elements.categoryButtons) do
-        button:draw()
-    end
     
     -- Draw state-specific UI
     if self.state == "main" then

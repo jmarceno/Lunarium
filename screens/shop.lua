@@ -13,7 +13,7 @@ function shop:init()
     self.selectedItem = nil
     self.selectedCategory = "All"
     self.pageOffset = 0
-    self.itemsPerPage = 8
+    self.itemsPerPage = 6
     
     -- Categories
     self.categories = {
@@ -43,14 +43,68 @@ function shop:createUI()
     
     -- Create item list panel
     self.elements.itemListPanel = {
-        x = 50,
-        y = 120,
-        width = 700,
-        height = 400,
+        x = 100,
+        y = 50,
+        width = GAME.width - 200,
+        height = GAME.height - 200,
         
         draw = function(self)
             -- Draw panel background
-            screenManager:drawPanel("Shop Inventory", self.x, self.y, self.width, self.height)
+            love.graphics.setColor(0.1, 0.1, 0.15, 0.8)
+            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 10, 10)
+            
+            -- Draw screen title
+            love.graphics.setFont(screenManager.fonts.large)
+            love.graphics.setColor(1, 0.9, 0.7)
+            love.graphics.printf("General Store", self.x, self.y + 20, self.width, "center")
+            
+            -- Draw current gold
+            if GAME.gold then
+                love.graphics.setFont(screenManager.fonts.medium)
+                love.graphics.setColor(1, 1, 0)
+                
+                love.graphics.print(
+                    "Gold: " .. GAME.gold,
+                    self.x + 50, self.y + 70
+                )
+            end
+            
+            -- Draw "Shop Inventory" section label
+            love.graphics.setFont(screenManager.fonts.medium)
+            love.graphics.setColor(0.8, 0.8, 1)
+            love.graphics.printf("Shop Inventory", self.x, self.y + 100, self.width, "center")
+            
+            -- Draw divider line
+            love.graphics.setColor(0.5, 0.5, 0.7, 0.7)
+            love.graphics.line(
+                self.x + 50, self.y + 130, 
+                self.x + self.width - 50, self.y + 130
+            )
+            
+            -- Draw category buttons
+            local categoryY = self.y + 140
+            local btnWidth = 130
+            local spacing = 10
+            local totalWidth = btnWidth * #shop.categories + spacing * (#shop.categories - 1)
+            local startX = self.x + (self.width - totalWidth) / 2
+            
+            for i, category in ipairs(shop.categories) do
+                local btnX = startX + (i-1) * (btnWidth + spacing)
+                
+                -- Draw button background
+                if category == shop.selectedCategory then
+                    love.graphics.setColor(0.3, 0.4, 0.6)
+                else
+                    love.graphics.setColor(0.2, 0.3, 0.4)
+                end
+                
+                love.graphics.rectangle("fill", btnX, categoryY, btnWidth, 30, 5, 5)
+                
+                -- Draw button text
+                love.graphics.setFont(screenManager.fonts.small)
+                love.graphics.setColor(1, 1, 1)
+                love.graphics.printf(category, btnX, categoryY + 7, btnWidth, "center")
+            end
             
             -- Draw items
             local itemCount = 0
@@ -75,7 +129,7 @@ function shop:createUI()
             -- Draw visible items
             for i = startIndex, endIndex do
                 local item = displayedItems[i]
-                local itemY = self.y + 50 + (i - startIndex) * 40
+                local itemY = categoryY + 40 + (i - startIndex) * 45
                 
                 -- Draw item entry background
                 if item == shop.selectedItem then
@@ -86,8 +140,8 @@ function shop:createUI()
                 
                 love.graphics.rectangle(
                     "fill",
-                    self.x + 10, itemY, 
-                    self.width - 20, 35,
+                    self.x + 20, itemY, 
+                    self.width - 40, 40,
                     5, 5
                 )
                 
@@ -97,7 +151,7 @@ function shop:createUI()
                 
                 love.graphics.print(
                     item.name,
-                    self.x + 20, itemY + 5
+                    self.x + 40, itemY + 7
                 )
                 
                 -- Draw item price
@@ -106,7 +160,7 @@ function shop:createUI()
                 
                 love.graphics.print(
                     item.value .. " gold",
-                    self.x + self.width - 120, itemY + 5
+                    self.x + self.width - 150, itemY + 7
                 )
             end
             
@@ -119,7 +173,7 @@ function shop:createUI()
             
             love.graphics.print(
                 "Page " .. currentPage .. " of " .. totalPages,
-                self.x + self.width / 2 - 40, self.y + self.height - 30
+                self.x + self.width / 2 - 40, self.y + self.height - 35
             )
             
             -- Draw pagination buttons
@@ -128,7 +182,7 @@ function shop:createUI()
                 love.graphics.setColor(0.3, 0.3, 0.5)
                 love.graphics.rectangle(
                     "fill",
-                    self.x + 20, self.y + self.height - 35, 
+                    self.x + 20, self.y + self.height - 50, 
                     100, 25,
                     5, 5
                 )
@@ -136,7 +190,7 @@ function shop:createUI()
                 love.graphics.setColor(1, 1, 1)
                 love.graphics.print(
                     "Previous",
-                    self.x + 40, self.y + self.height - 33
+                    self.x + 40, self.y + self.height - 47
                 )
             end
             
@@ -145,7 +199,7 @@ function shop:createUI()
                 love.graphics.setColor(0.3, 0.3, 0.5)
                 love.graphics.rectangle(
                     "fill",
-                    self.x + self.width - 120, self.y + self.height - 35, 
+                    self.x + self.width - 120, self.y + self.height - 50, 
                     100, 25,
                     5, 5
                 )
@@ -153,7 +207,7 @@ function shop:createUI()
                 love.graphics.setColor(1, 1, 1)
                 love.graphics.print(
                     "Next",
-                    self.x + self.width - 100, self.y + self.height - 33
+                    self.x + self.width - 100, self.y + self.height - 47
                 )
             end
             
@@ -164,8 +218,8 @@ function shop:createUI()
                 
                 love.graphics.printf(
                     "No items available in this category.",
-                    self.x + 20, self.y + 150,
-                    self.width - 40, "center"
+                    self.x + 40, self.y + 250,
+                    self.width - 80, "center"
                 )
             end
         end,
@@ -177,8 +231,25 @@ function shop:createUI()
             if x >= self.x and x <= self.x + self.width and
                y >= self.y and y <= self.y + self.height then
                 
+                -- Check category buttons
+                local categoryY = self.y + 140
+                local btnWidth = 130
+                local spacing = 10
+                local totalWidth = btnWidth * #shop.categories + spacing * (#shop.categories - 1)
+                local startX = self.x + (self.width - totalWidth) / 2
+                
+                for i, category in ipairs(shop.categories) do
+                    local btnX = startX + (i-1) * (btnWidth + spacing)
+                    
+                    if x >= btnX and x <= btnX + btnWidth and
+                       y >= categoryY and y <= categoryY + 30 then
+                        shop:selectCategory(category)
+                        return true
+                    end
+                end
+                
                 -- Check pagination buttons
-                if y >= self.y + self.height - 35 and y <= self.y + self.height - 10 then
+                if y >= self.y + self.height - 50 and y <= self.y + self.height - 25 then
                     -- Filter items by category
                     local displayedItems = {}
                     for _, item in ipairs(shop.inventory) do
@@ -227,10 +298,12 @@ function shop:createUI()
                 local startIndex = shop.pageOffset + 1
                 local endIndex = math.min(startIndex + shop.itemsPerPage - 1, #displayedItems)
                 
+                local categoryY = self.y + 140
+                
                 for i = startIndex, endIndex do
-                    local itemY = self.y + 50 + (i - startIndex) * 40
+                    local itemY = categoryY + 40 + (i - startIndex) * 45
                     
-                    if y >= itemY and y <= itemY + 35 then
+                    if y >= itemY and y <= itemY + 40 then
                         shop:selectItem(displayedItems[i])
                         return true
                     end
@@ -245,10 +318,10 @@ function shop:createUI()
     
     -- Create item details panel
     self.elements.itemDetailsPanel = {
-        x = 50,
-        y = 120,
-        width = 700,
-        height = 400,
+        x = 100,
+        y = 50,
+        width = GAME.width - 200,
+        height = GAME.height - 200,
         visible = false,
         
         draw = function(self)
@@ -259,7 +332,36 @@ function shop:createUI()
             local item = shop.selectedItem
             
             -- Draw panel background
-            screenManager:drawPanel("Item Details", self.x, self.y, self.width, self.height)
+            love.graphics.setColor(0.1, 0.1, 0.15, 0.8)
+            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 10, 10)
+            
+            -- Draw screen title
+            love.graphics.setFont(screenManager.fonts.large)
+            love.graphics.setColor(1, 0.9, 0.7)
+            love.graphics.printf("General Store", self.x, self.y + 20, self.width, "center")
+            
+            -- Draw current gold
+            if GAME.gold then
+                love.graphics.setFont(screenManager.fonts.medium)
+                love.graphics.setColor(1, 1, 0)
+                
+                love.graphics.print(
+                    "Gold: " .. GAME.gold,
+                    self.x + 50, self.y + 70
+                )
+            end
+            
+            -- Draw "Item Details" section label
+            love.graphics.setFont(screenManager.fonts.medium)
+            love.graphics.setColor(0.8, 0.8, 1)
+            love.graphics.printf("Item Details", self.x, self.y + 100, self.width, "center")
+            
+            -- Draw divider line
+            love.graphics.setColor(0.5, 0.5, 0.7, 0.7)
+            love.graphics.line(
+                self.x + 50, self.y + 130, 
+                self.x + self.width - 50, self.y + 130
+            )
             
             -- Draw item name
             love.graphics.setFont(screenManager.fonts.large)
@@ -267,7 +369,7 @@ function shop:createUI()
             
             love.graphics.printf(
                 item.name,
-                self.x + 20, self.y + 50,
+                self.x + 20, self.y + 150,
                 self.width - 40, "center"
             )
             
@@ -275,7 +377,7 @@ function shop:createUI()
             love.graphics.setColor(0.3, 0.3, 0.4)
             love.graphics.rectangle(
                 "fill",
-                self.x + 30, self.y + 100,
+                self.x + 30, self.y + 200,
                 100, 100
             )
             
@@ -285,7 +387,7 @@ function shop:createUI()
             
             love.graphics.printf(
                 item.description or "No description available.",
-                self.x + 150, self.y + 100,
+                self.x + 150, self.y + 200,
                 self.width - 180, "left"
             )
             
@@ -293,7 +395,7 @@ function shop:createUI()
             love.graphics.setFont(screenManager.fonts.medium)
             love.graphics.setColor(1, 1, 1)
             
-            local statsY = self.y + 210
+            local statsY = self.y + 320
             
             -- Draw stats based on item type
             if item.type == "weapon" then
@@ -349,7 +451,7 @@ function shop:createUI()
             
             love.graphics.print(
                 "Price: " .. item.value .. " gold",
-                self.x + 30, self.y + self.height - 80
+                self.x + 30, self.y + self.height - 120
             )
             
             -- Draw buttons
@@ -463,27 +565,6 @@ function shop:draw()
     -- Draw shop shelves
     love.graphics.setColor(0.5, 0.4, 0.3)
     love.graphics.rectangle("fill", 40, 110, 720, 420)
-    
-    -- Draw screen title
-    love.graphics.setFont(screenManager.fonts.large)
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.print("General Store", 50, 30)
-    
-    -- Draw current gold
-    if GAME.gold then
-        love.graphics.setFont(screenManager.fonts.medium)
-        love.graphics.setColor(1, 1, 0)
-        
-        love.graphics.print(
-            "Gold: " .. GAME.gold,
-            600, 30
-        )
-    end
-    
-    -- Draw category buttons
-    for _, button in ipairs(self.elements.categoryButtons) do
-        button:draw()
-    end
     
     -- Draw state-specific UI
     if self.state == "main" then
