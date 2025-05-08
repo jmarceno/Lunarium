@@ -503,7 +503,7 @@ function overworld:draw()
     -- Draw title
     love.graphics.setFont(screenManager.fonts.large)
     love.graphics.setColor(screenManager.colors.title)
-    love.graphics.print("Town of Ravenholm", 20, 20)
+    love.graphics.print("Town of Delzor", 20, 20)
 end
 
 function overworld:mousepressed(x, y, button, istouch, presses)

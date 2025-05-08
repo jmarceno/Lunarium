@@ -4,6 +4,7 @@ local screenManager = require("screens/screenManager")
 local assetManager = require("assets/assetManager")
 local itemSystem = require("gameplay/item")
 local partyPanel = require("screens/ui_slices/partyPanel")
+local smithRecipes = require("gameplay/smithRecipes_definitions")
 
 local smith = screenManager:createScreen("Smith")
 
@@ -33,128 +34,8 @@ function smith:init()
 end
 
 function smith:createRecipes()
-    -- Create crafting recipes
-    self.recipes = {
-        -- Weapon recipes
-        {
-            name = "Iron Sword",
-            description = "A sturdy iron sword.",
-            result = "ShortSword",
-            materials = {
-                ["Iron Ore"] = 3,
-                ["Wood"] = 1
-            },
-            goldCost = 50,
-            category = "Weapons"
-        },
-        {
-            name = "Steel Dagger",
-            description = "A sharp dagger made of steel.",
-            result = "Dagger",
-            materials = {
-                ["Iron Ore"] = 2,
-                ["Coal"] = 1,
-                ["Wood"] = 1
-            },
-            goldCost = 40,
-            category = "Weapons"
-        },
-        {
-            name = "Enchanted Staff",
-            description = "A staff with magical properties.",
-            result = "ApprenticeStaff",
-            materials = {
-                ["Wood"] = 2,
-                ["Magic Crystal"] = 1
-            },
-            goldCost = 60,
-            category = "Weapons"
-        },
-        {
-            name = "Battle Axe",
-            description = "A heavy battle axe for warriors.",
-            result = "BattleAxe",
-            materials = {
-                ["Iron Ore"] = 4,
-                ["Wood"] = 2,
-                ["Monster Bone"] = 1
-            },
-            goldCost = 80,
-            category = "Weapons"
-        },
-        
-        -- Armor recipes
-        {
-            name = "Leather Armor",
-            description = "Basic protective armor made of leather.",
-            result = "LeatherArmor",
-            materials = {
-                ["Monster Hide"] = 3,
-                ["Cloth"] = 1
-            },
-            goldCost = 45,
-            category = "Armor"
-        },
-        {
-            name = "Chain Mail",
-            description = "Armor made of interlocking metal rings.",
-            result = "ChainMail",
-            materials = {
-                ["Iron Ore"] = 5,
-                ["Coal"] = 2
-            },
-            goldCost = 120,
-            category = "Armor"
-        },
-        {
-            name = "Mage Robe",
-            description = "A robe imbued with magical power.",
-            result = "MageRobe",
-            materials = {
-                ["Cloth"] = 3,
-                ["Magic Crystal"] = 2,
-                ["Spider Silk"] = 1
-            },
-            goldCost = 100,
-            category = "Armor"
-        },
-        
-        -- Accessory recipes
-        {
-            name = "Wooden Shield",
-            description = "A basic wooden shield.",
-            result = "WoodenShield",
-            materials = {
-                ["Wood"] = 3,
-                ["Iron Ore"] = 1
-            },
-            goldCost = 35,
-            category = "Accessories"
-        },
-        {
-            name = "Holy Symbol",
-            description = "A symbol of divine power.",
-            result = "HolySymbol",
-            materials = {
-                ["Silver Ore"] = 2,
-                ["Magic Crystal"] = 1
-            },
-            goldCost = 70,
-            category = "Accessories"
-        },
-        {
-            name = "Kite Shield",
-            description = "A large shield that offers excellent protection.",
-            result = "KiteShield",
-            materials = {
-                ["Iron Ore"] = 4,
-                ["Wood"] = 2,
-                ["Monster Hide"] = 1
-            },
-            goldCost = 100,
-            category = "Accessories"
-        }
-    }
+    -- Use recipes from the imported file
+    self.recipes = smithRecipes
     
     -- Sort recipes by category then by gold cost
     table.sort(self.recipes, function(a, b)
