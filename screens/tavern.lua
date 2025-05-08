@@ -4,6 +4,7 @@ local screenManager = require("screens/screenManager")
 local assetManager = require("assets/assetManager")
 local questSystem = require("gameplay/questSystem")
 local reputationSystem = require("gameplay/reputationSystem")
+local partyPanel = require("screens/ui_slices/partyPanel")
 
 local tavern = screenManager:createScreen("Tavern")
 
@@ -552,13 +553,18 @@ function tavern:createUI()
     
     -- Create refresh button
     self.elements.refreshButton = screenManager.UI.Button(
-        620, 70, 130, 40, "Refresh", 
+        50, 20,
+        150, 40, "Refresh", 
         function() self:refreshQuests() end
     )
     self.elements.refreshButton.visible = true
     
     -- Set initial visibility state for all UI elements
     self:updateElementVisibility()
+    
+    -- Initialize party panel
+    self.elements.partyPanel = partyPanel
+    self.elements.partyPanel.visible = true
 end
 
 function tavern:updateElementVisibility()
@@ -643,16 +649,6 @@ function tavern:draw()
     love.graphics.setColor(0.4, 0.3, 0.2)
     love.graphics.rectangle("fill", 0, 0, GAME.width, GAME.height)
     
-    -- Draw tavern counter
-    love.graphics.setColor(0.6, 0.4, 0.2)
-    love.graphics.rectangle("fill", 50, 20, 700, 80)
-    
-    -- Draw tavern notice board
-    love.graphics.setColor(0.5, 0.4, 0.3)
-    love.graphics.rectangle("fill", 40, 110, 720, 420)
-    
-    love.graphics.setColor(0.3, 0.2, 0.1)
-    love.graphics.rectangle("line", 40, 110, 720, 420, 5, 5)
     
     -- Draw state-specific UI
     if self.state == "main" then
@@ -668,6 +664,11 @@ function tavern:draw()
     
     -- Draw back button
     self.elements.backToTownButton:draw()
+    
+    -- Draw party panel if visible
+    if self.elements.partyPanel and self.elements.partyPanel.visible then
+        self.elements.partyPanel:draw()
+    end
 end
 
 function tavern:mousepressed(x, y, button, istouch, presses)

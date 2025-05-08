@@ -3,6 +3,7 @@
 local screenManager = require("screens/screenManager")
 local assetManager = require("assets/assetManager")
 local questSystem = require("gameplay/questSystem")
+local partyPanel = require("screens/ui_slices/partyPanel")
 
 local guild = screenManager:createScreen("Adventurers' Guild")
 
@@ -373,6 +374,10 @@ function guild:createUI()
     
     -- Set initial visibility state
     self:updateElementVisibility()
+
+    -- Initialize party panel
+    self.elements.partyPanel = partyPanel
+    self.elements.partyPanel.visible = true
 end
 
 function guild:updateElementVisibility()
@@ -437,17 +442,6 @@ function guild:draw()
     love.graphics.setColor(0.3, 0.25, 0.2)
     love.graphics.rectangle("fill", 0, 0, GAME.width, GAME.height)
     
-    -- Draw guild banner
-    love.graphics.setColor(0.7, 0.2, 0.2)
-    love.graphics.rectangle("fill", GAME.width / 2 - 100, 20, 200, 40)
-    
-    -- Draw notice board
-    love.graphics.setColor(0.6, 0.5, 0.4)
-    love.graphics.rectangle("fill", 40, 110, 720, 420)
-    
-    love.graphics.setColor(0.4, 0.3, 0.2)
-    love.graphics.rectangle("line", 40, 110, 720, 420, 5, 5)
-    
     -- Draw state-specific UI
     if self.state == "main" then
         self.elements.questListPanel:draw()
@@ -457,6 +451,11 @@ function guild:draw()
     
     -- Draw back button
     self.elements.backToTownButton:draw()
+
+    -- Draw party panel if visible
+    if self.elements.partyPanel and self.elements.partyPanel.visible then
+        self.elements.partyPanel:draw()
+    end
 end
 
 function guild:mousepressed(x, y, button, istouch, presses)

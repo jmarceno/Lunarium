@@ -3,6 +3,7 @@
 local screenManager = require("screens/screenManager")
 local assetManager = require("assets/assetManager")
 local itemSystem = require("gameplay/item")
+local partyPanel = require("screens/ui_slices/partyPanel")
 
 local shop = screenManager:createScreen("Shop")
 
@@ -503,6 +504,10 @@ function shop:createUI()
     
     -- Set initial visibility state
     self:updateElementVisibility()
+    
+    -- Initialize party panel
+    self.elements.partyPanel = partyPanel
+    self.elements.partyPanel.visible = true
 end
 
 function shop:updateElementVisibility()
@@ -558,14 +563,6 @@ function shop:draw()
     love.graphics.setColor(0.35, 0.35, 0.4)
     love.graphics.rectangle("fill", 0, 0, GAME.width, GAME.height)
     
-    -- Draw shop counter
-    love.graphics.setColor(0.6, 0.5, 0.4)
-    love.graphics.rectangle("fill", 40, 20, 720, 80)
-    
-    -- Draw shop shelves
-    love.graphics.setColor(0.5, 0.4, 0.3)
-    love.graphics.rectangle("fill", 40, 110, 720, 420)
-    
     -- Draw state-specific UI
     if self.state == "main" then
         self.elements.itemListPanel:draw()
@@ -575,6 +572,11 @@ function shop:draw()
     
     -- Draw back button
     self.elements.backToTownButton:draw()
+    
+    -- Draw party panel if visible
+    if self.elements.partyPanel and self.elements.partyPanel.visible then
+        self.elements.partyPanel:draw()
+    end
 end
 
 function shop:mousepressed(x, y, button, istouch, presses)

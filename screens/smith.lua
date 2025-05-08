@@ -3,6 +3,7 @@
 local screenManager = require("screens/screenManager")
 local assetManager = require("assets/assetManager")
 local itemSystem = require("gameplay/item")
+local partyPanel = require("screens/ui_slices/partyPanel")
 
 local smith = screenManager:createScreen("Smith")
 
@@ -744,6 +745,10 @@ function smith:createUI()
     
     -- Set initial visibility
     self:updateElementVisibility()
+    
+    -- Initialize party panel
+    self.elements.partyPanel = partyPanel
+    self.elements.partyPanel.visible = true
 end
 
 function smith:updateElementVisibility()
@@ -811,17 +816,6 @@ function smith:draw()
     love.graphics.setColor(0.4, 0.2, 0.1)
     love.graphics.rectangle("fill", 0, 0, GAME.width, GAME.height)
     
-    -- Draw smith forge
-    love.graphics.setColor(0.8, 0.4, 0.0)
-    love.graphics.rectangle("fill", GAME.width - 200, GAME.height - 200, 150, 150)
-    
-    -- Draw smith anvil
-    love.graphics.setColor(0.5, 0.5, 0.5)
-    love.graphics.rectangle("fill", 40, GAME.height - 140, 120, 80)
-    
-    -- Draw smith table
-    love.graphics.setColor(0.6, 0.4, 0.2)
-    love.graphics.rectangle("fill", 40, 20, 720, 80)
     
     -- Draw state-specific UI
     if self.state == "main" then
@@ -836,6 +830,11 @@ function smith:draw()
     
     -- Draw back button
     self.elements.backToTownButton:draw()
+    
+    -- Draw party panel if visible
+    if self.elements.partyPanel and self.elements.partyPanel.visible then
+        self.elements.partyPanel:draw()
+    end
 end
 
 function smith:mousepressed(x, y, button, istouch, presses)
