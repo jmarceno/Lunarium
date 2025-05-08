@@ -13,7 +13,7 @@ function inventory:init()
     self.selectedCharacter = nil
     self.selectedCategory = "All"
     self.pageOffset = 0
-    self.itemsPerPage = 9
+    self.itemsPerPage = 12 -- Increased from 9 to fill taller panel
     self.sortBy = "type" -- type, name, value
     self.contextMenuVisible = false
     self.confirmDialogVisible = false
@@ -34,33 +34,51 @@ function inventory:init()
 end
 
 function inventory:createUI()
-    -- Create category buttons
+    -- Define column widths and positions
+    self.columnWidths = {
+        characters = 250,  -- Width of character list column
+        details = 280,     -- Width of character details column
+        inventory = 500,   -- Width of inventory panel
+    }
+    
+    -- Calculate X positions for columns
+    self.columnX = {
+        characters = 20,   -- Left margin
+        details = 290,     -- Left margin + characters width + padding
+        inventory = GAME.width - self.columnWidths.inventory - 20, -- Right aligned with margin
+    }
+    
+    -- Create category buttons at the top of inventory column
     self.elements.categoryButtons = {}
     
     for i, category in ipairs(self.categories) do
+        local buttonWidth = 75
+        local totalWidth = #self.categories * buttonWidth
+        local startX = self.columnX.inventory + (self.columnWidths.inventory - totalWidth) / 2
+        
         self.elements.categoryButtons[i] = screenManager.UI.Button(
-            20 + (i-1) * 125, 50, 
-            115, 30, category, 
+            startX + (i-1) * buttonWidth, 50, 
+            buttonWidth - 5, 30, category, 
             function() self:selectCategory(category) end
         )
         self.elements.categoryButtons[i].visible = true
     end
     
-    -- Create sort buttons
+    -- Create sort buttons below categories
     self.elements.sortButtons = {
         screenManager.UI.Button(
-            20, 90, 
-            115, 25, "Sort by Type", 
+            self.columnX.inventory, 90, 
+            150, 25, "Sort by Type", 
             function() self:setSortMethod("type") end
         ),
         screenManager.UI.Button(
-            145, 90, 
-            115, 25, "Sort by Name", 
+            self.columnX.inventory + 160, 90, 
+            150, 25, "Sort by Name", 
             function() self:setSortMethod("name") end
         ),
         screenManager.UI.Button(
-            270, 90, 
-            115, 25, "Sort by Value", 
+            self.columnX.inventory + 320, 90, 
+            150, 25, "Sort by Value", 
             function() self:setSortMethod("value") end
         )
     }
@@ -69,73 +87,133 @@ function inventory:createUI()
     for _, button in ipairs(self.elements.sortButtons) do
         button.visible = true
     end
-    
-    -- Create character selection tabs
-    self.elements.characterTabs = {
-        x = GAME.width - 300,
-        y = 50,
-        width = 280,
-        height = 30,
+
+    -- Create character list panel (similar to characterInfo screen)
+    self.elements.characterList = {
+        x = self.columnX.characters,
+        y = 90,
+        width = self.columnWidths.characters,
+        height = 500, -- Taller to fit stacked characters
         
         draw = function(self)
-            -- Draw background
-            love.graphics.setColor(0.2, 0.2, 0.3)
-            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height)
+            if not GAME.party or #GAME.party == 0 then
+                love.graphics.setFont(screenManager.fonts.medium)
+                love.graphics.setColor(0.7, 0.7, 0.7)
+                love.graphics.printf("No characters in party", self.x, self.y + 30, self.width, "center")
+                return
+            end
             
-            -- Draw character tabs
-            if GAME.party then
-                local tabWidth = self.width / #GAME.party
+            -- Draw character slots stacked vertically
+            local charHeight = 120 -- Height per character slot
+            local padding = 10 -- Padding between character slots
+            
+            for i, character in ipairs(GAME.party) do
+                local y = self.y + (i-1) * (charHeight + padding)
                 
-                for i, character in ipairs(GAME.party) do
-                    local x = self.x + (i-1) * tabWidth
-                    
-                    -- Draw tab background
-                    if inventory.selectedCharacter == character then
-                        love.graphics.setColor(0.3, 0.5, 0.8)
-                    else
-                        love.graphics.setColor(0.3, 0.3, 0.5)
-                    end
-                    
-                    love.graphics.rectangle("fill", x, self.y, tabWidth - 2, self.height, 5, 5)
-                    
-                    -- Draw character name
-                    love.graphics.setFont(screenManager.fonts.small)
-                    love.graphics.setColor(1, 1, 1)
-                    
-                    local nameWidth = screenManager.fonts.small:getWidth(character.name)
-                    love.graphics.print(
-                        character.name,
-                        x + (tabWidth - nameWidth) / 2,
-                        self.y + 5
+                -- Draw selection background if selected
+                if character == inventory.selectedCharacter then
+                    love.graphics.setColor(0.3, 0.3, 0.6)
+                else
+                    love.graphics.setColor(0.2, 0.2, 0.3)
+                end
+                
+                love.graphics.rectangle("fill", self.x, y, self.width, charHeight, 5, 5)
+                
+                -- Set up portrait area
+                local portraitScale = 0.5
+                local portraitX = self.x + 15
+                local portraitY = y + 15
+                local textX = portraitX + 100 -- Start text after portrait
+                local barWidth = self.width - 130 -- Bar width adjusted for left column
+                
+                -- Draw character portrait
+                love.graphics.setColor(1, 1, 1)
+                if character.portraitId and assetManager.images.portraits[character.portraitId] then
+                    love.graphics.draw(
+                        assetManager.images.portraits[character.portraitId],
+                        portraitX, portraitY,
+                        0, portraitScale, portraitScale
+                    )
+                elseif assetManager.images.profiles[character.profileIndex] then
+                    love.graphics.draw(
+                        assetManager.images.profiles[character.profileIndex],
+                        portraitX, portraitY,
+                        0, portraitScale, portraitScale
                     )
                 end
+                
+                -- Draw character name
+                love.graphics.setFont(screenManager.fonts.small)
+                love.graphics.setColor(1, 1, 1)
+                
+                local nameWidth = screenManager.fonts.small:getWidth(character.name)
+                if nameWidth > barWidth then
+                    -- Truncate name if too long
+                    local truncName = ""
+                    local j = 1
+                    while screenManager.fonts.small:getWidth(truncName .. "...") < barWidth and j <= #character.name do
+                        truncName = truncName .. character.name:sub(j, j)
+                        j = j + 1
+                    end
+                    love.graphics.print(truncName .. "...", textX, y + 20)
+                else
+                    love.graphics.print(character.name, textX, y + 20)
+                end
+                
+                -- Draw character job and level
+                love.graphics.setColor(0.8, 0.8, 1)
+                local jobText = character.job .. " Lv." .. (character.jobLevels[character.job] or 1)
+                love.graphics.print(jobText, textX, y + 40)
+                
+                -- Draw HP/MP bars with spacing
+                -- HP bar
+                local healthWidth = barWidth * (character.currentHP / character.maxHP)
+                love.graphics.setColor(0.2, 0.2, 0.2)
+                love.graphics.rectangle("fill", textX, y + 73, barWidth, 10)
+                love.graphics.setColor(0.8, 0.2, 0.2)
+                love.graphics.rectangle("fill", textX, y + 73, healthWidth, 10)
+                
+                -- HP values
+                love.graphics.setColor(1, 0.7, 0.7)
+                love.graphics.print(
+                    character.currentHP .. "/" .. character.maxHP,
+                    textX + barWidth - 60, y + 73 - 14
+                )
+                
+                -- MP bar
+                local manaWidth = barWidth * (character.currentMP / character.maxMP)
+                love.graphics.setColor(0.2, 0.2, 0.2)
+                love.graphics.rectangle("fill", textX, y + 95, barWidth, 10)
+                love.graphics.setColor(0.2, 0.2, 0.8)
+                love.graphics.rectangle("fill", textX, y + 95, manaWidth, 10)
+                
+                -- MP values
+                love.graphics.setColor(0.7, 0.7, 1)
+                love.graphics.print(
+                    character.currentMP .. "/" .. character.maxMP,
+                    textX + barWidth - 60, y + 95 - 14
+                )
             end
         end,
         
         clicked = function(self, x, y, button)
             if button ~= 1 then return false end
+            if not GAME.party or #GAME.party == 0 then return false end
             
-            -- Check if click is within tabs
+            -- Check if click is within list
             if x >= self.x and x <= self.x + self.width and
                y >= self.y and y <= self.y + self.height then
                 
-                -- Check character tabs
-                if GAME.party then
-                    local tabWidth = self.width / #GAME.party
+                -- Find which character was clicked
+                local charHeight = 120
+                local padding = 10
+                
+                for i, character in ipairs(GAME.party) do
+                    local charY = self.y + (i-1) * (charHeight + padding)
                     
-                    for i, character in ipairs(GAME.party) do
-                        local tabX = self.x + (i-1) * tabWidth
-                        
-                        if x >= tabX and x <= tabX + tabWidth - 2 then
-                            -- Debug output
-                            if GAME.debug then
-                                local charName = character and character.name or "Unknown Character"
-                                print("Character tab clicked: " .. charName)
-                            end
-                            
-                            inventory:selectCharacter(character)
-                            return true
-                        end
+                    if y >= charY and y <= charY + charHeight then
+                        inventory:selectCharacter(character)
+                        return true
                     end
                 end
                 
@@ -146,12 +224,830 @@ function inventory:createUI()
         end
     }
     
-    -- Create item list panel
+    -- Create character panel (middle column, top)
+    self.elements.characterPanel = {
+        x = self.columnX.details,
+        y = 90,
+        width = self.columnWidths.details,
+        height = 250,
+        
+        draw = function(self)
+            -- Draw panel background
+            screenManager:drawPanel("Character", self.x, self.y, self.width, self.height)
+            
+            -- Draw character info
+            if inventory.selectedCharacter then
+                local char = inventory.selectedCharacter
+                
+                -- Draw character name and job
+                love.graphics.setFont(screenManager.fonts.medium)
+                love.graphics.setColor(1, 1, 1)
+                
+                love.graphics.print(
+                    char.name,
+                    self.x + 20, self.y + 50
+                )
+                
+                love.graphics.setFont(screenManager.fonts.small)
+                love.graphics.setColor(0.8, 0.8, 1)
+                
+                -- Calculate character level as sum of job levels
+                local totalLevel = 0
+                if char.jobLevels then
+                    for _, level in pairs(char.jobLevels) do
+                        totalLevel = totalLevel + level
+                    end
+                end
+                
+                love.graphics.print(
+                    "Level " .. totalLevel .. " " .. char.job,
+                    self.x + 20, self.y + 75
+                )
+                
+                -- Draw equipped items
+                love.graphics.setFont(screenManager.fonts.medium)
+                love.graphics.setColor(1, 1, 1)
+                
+                love.graphics.print(
+                    "Equipment",
+                    self.x + 20, self.y + 100
+                )
+                
+                love.graphics.setFont(screenManager.fonts.small)
+                
+                -- Draw weapon slot
+                love.graphics.setColor(0.7, 0.7, 0.7)
+                love.graphics.print(
+                    "Weapon:",
+                    self.x + 30, self.y + 125
+                )
+                
+                if char.equipment.weapon then
+                    love.graphics.setColor(1, 1, 1)
+                    love.graphics.print(
+                        char.equipment.weapon.name,
+                        self.x + 90, self.y + 125
+                    )
+                else
+                    love.graphics.setColor(0.5, 0.5, 0.5)
+                    love.graphics.print(
+                        "None",
+                        self.x + 90, self.y + 125
+                    )
+                end
+                
+                -- Draw armor slot
+                love.graphics.setColor(0.7, 0.7, 0.7)
+                love.graphics.print(
+                    "Armor:",
+                    self.x + 30, self.y + 145
+                )
+                
+                if char.equipment.body then
+                    love.graphics.setColor(1, 1, 1)
+                    love.graphics.print(
+                        char.equipment.body.name,
+                        self.x + 90, self.y + 145
+                    )
+                else
+                    love.graphics.setColor(0.5, 0.5, 0.5)
+                    love.graphics.print(
+                        "None",
+                        self.x + 90, self.y + 145
+                    )
+                end
+                
+                -- Draw offhand slot
+                love.graphics.setColor(0.7, 0.7, 0.7)
+                love.graphics.print(
+                    "Offhand:",
+                    self.x + 30, self.y + 165
+                )
+                
+                if char.equipment.offhand then
+                    love.graphics.setColor(1, 1, 1)
+                    love.graphics.print(
+                        char.equipment.offhand.name,
+                        self.x + 90, self.y + 165
+                    )
+                else
+                    love.graphics.setColor(0.5, 0.5, 0.5)
+                    love.graphics.print(
+                        "None",
+                        self.x + 90, self.y + 165
+                    )
+                end
+                
+                -- Draw accessory 1 slot
+                love.graphics.setColor(0.7, 0.7, 0.7)
+                love.graphics.print(
+                    "Amulet:",
+                    self.x + 30, self.y + 185
+                )
+                
+                if char.equipment.amulet then
+                    love.graphics.setColor(1, 1, 1)
+                    love.graphics.print(
+                        char.equipment.amulet.name,
+                        self.x + 110, self.y + 185
+                    )
+                else
+                    love.graphics.setColor(0.5, 0.5, 0.5)
+                    love.graphics.print(
+                        "None",
+                        self.x + 110, self.y + 185
+                    )
+                end
+                
+                -- Draw accessory 2 slot
+                love.graphics.setColor(0.7, 0.7, 0.7)
+                love.graphics.print(
+                    "Ring:",
+                    self.x + 30, self.y + 205
+                )
+                
+                if char.equipment.ring then
+                    love.graphics.setColor(1, 1, 1)
+                    love.graphics.print(
+                        char.equipment.ring.name,
+                        self.x + 110, self.y + 205
+                    )
+                else
+                    love.graphics.setColor(0.5, 0.5, 0.5)
+                    love.graphics.print(
+                        "None",
+                        self.x + 110, self.y + 205
+                    )
+                end
+            end
+        end
+    }
+    
+    -- Create item details panel (middle column, bottom)
+    self.elements.itemDetailsPanel = {
+        x = self.columnX.details,
+        y = 350, -- Just below character panel
+        width = self.columnWidths.details,
+        height = 280,
+        
+        draw = function(self)
+            -- Draw panel background
+            screenManager:drawPanel("Item Details", self.x, self.y, self.width, self.height)
+            
+            -- Draw item details
+            if inventory.selectedItem then
+                local item = inventory.selectedItem
+                
+                -- Draw item name
+                love.graphics.setFont(screenManager.fonts.medium)
+                love.graphics.setColor(1, 1, 1)
+                
+                love.graphics.printf(
+                    item.name or "Unknown Item",
+                    self.x + 20, self.y + 50,
+                    self.width - 40, "left"
+                )
+                
+                -- Draw item description
+                love.graphics.setFont(screenManager.fonts.small)
+                love.graphics.setColor(0.9, 0.9, 0.9)
+                
+                love.graphics.printf(
+                    item.description or "No description available.",
+                    self.x + 20, self.y + 80,
+                    self.width - 40, "left"
+                )
+                
+                -- Draw item stats based on type
+                love.graphics.setFont(screenManager.fonts.small)
+                
+                -- Different stats based on item type
+                if item.type == "weapon" then
+                    love.graphics.setColor(1, 1, 1)
+                    love.graphics.print("Type: Weapon", self.x + 20, self.y + 130)
+                    
+                    if item.attack then
+                        love.graphics.print("Attack: " .. item.attack, self.x + 20, self.y + 150)
+                    end
+                    
+                    if item.magicAttack then
+                        love.graphics.print("Magic Attack: " .. item.magicAttack, self.x + 20, self.y + 170)
+                    end
+                elseif item.type == "armor" then
+                    love.graphics.setColor(1, 1, 1)
+                    love.graphics.print("Type: Armor", self.x + 20, self.y + 130)
+                    
+                    if item.defense then
+                        love.graphics.print("Defense: " .. item.defense, self.x + 20, self.y + 150)
+                    end
+                    
+                    if item.magicDefense then
+                        love.graphics.print("Magic Defense: " .. item.magicDefense, self.x + 20, self.y + 170)
+                    end
+                elseif item.type == "accessory" then
+                    love.graphics.setColor(1, 1, 1)
+                    love.graphics.print("Type: Accessory", self.x + 20, self.y + 130)
+                    
+                    -- Print various possible accessory stats
+                    local statY = self.y + 150
+                    if item.defense then
+                        love.graphics.print("Defense: " .. item.defense, self.x + 20, statY)
+                        statY = statY + 20
+                    end
+                    
+                    if item.magicDefense then
+                        love.graphics.print("Magic Defense: " .. item.magicDefense, self.x + 20, statY)
+                        statY = statY + 20
+                    end
+                    
+                    if item.attack then
+                        love.graphics.print("Attack: " .. item.attack, self.x + 20, statY)
+                        statY = statY + 20
+                    end
+                    
+                    if item.magicAttack then
+                        love.graphics.print("Magic Attack: " .. item.magicAttack, self.x + 20, statY)
+                    end
+                elseif item.type == "consumable" then
+                    love.graphics.setColor(1, 1, 1)
+                    love.graphics.print("Type: Consumable", self.x + 20, self.y + 130)
+                    
+                    -- Print effect if available
+                    if item.effect then
+                        if item.effect.type == "heal" then
+                            love.graphics.print("Restores " .. item.effect.amount .. " HP", self.x + 20, self.y + 150)
+                        elseif item.effect.type == "restore_mp" then
+                            love.graphics.print("Restores " .. item.effect.amount .. " MP", self.x + 20, self.y + 150)
+                        elseif item.effect.type == "cure_status" then
+                            love.graphics.print("Cures " .. item.effect.status .. " status", self.x + 20, self.y + 150)
+                        elseif item.effect.type == "full_restore" then
+                            love.graphics.print("Fully restores HP and MP", self.x + 20, self.y + 150)
+                        end
+                    end
+                elseif item.type == "material" or item.type == "monster_part" then
+                    love.graphics.setColor(1, 1, 1)
+                    love.graphics.print("Type: Material", self.x + 20, self.y + 130)
+                    love.graphics.print("Used for crafting", self.x + 20, self.y + 150)
+                end
+                
+                -- Draw value
+                if item.value then
+                    love.graphics.setColor(1, 1, 0)
+                    love.graphics.print("Value: " .. item.value .. " gold", self.x + 20, self.y + self.height - 20)
+                end
+                
+                -- Draw requirements if the item is equipment
+                if item.type == "weapon" or item.type == "armor" or item.type == "accessory" then
+                    -- Draw a separator line
+                    love.graphics.setColor(0.4, 0.4, 0.5)
+                    love.graphics.line(
+                        self.x + 20, self.y + 190, 
+                        self.x + self.width - 20, self.y + 190
+                    )
+                    
+                    -- Left column - Requirements
+                    if item.requirements then
+                        local reqX = self.x + 20
+                        local reqY = self.y + 200
+                        
+                        love.graphics.setColor(1, 0.8, 0.2)
+                        love.graphics.print("Requirements:", reqX, reqY)
+                        reqY = reqY + 20
+                        
+                        -- List each requirement
+                        love.graphics.setColor(0.9, 0.9, 0.9)
+                        for attr, value in pairs(item.requirements) do
+                            love.graphics.print(attr .. ": " .. value, reqX + 10, reqY)
+                            reqY = reqY + 15
+                        end
+                    end
+                    
+                    -- Right column - Jobs
+                    if item.jobs and #item.jobs > 0 then
+                        local jobsX = self.x + (self.width / 2)
+                        local jobsY = self.y + 200
+                        
+                        love.graphics.setColor(0.2, 0.8, 0.5)
+                        love.graphics.print("Usable by:", jobsX, jobsY)
+                        jobsY = jobsY + 20
+                        
+                        -- Format jobs list with more space
+                        local jobsList = table.concat(item.jobs, ", ")
+                        -- Allow for more text due to wider panel
+                        if #jobsList > 40 then
+                            jobsList = string.sub(jobsList, 1, 40) .. "..."
+                        end
+                        
+                        love.graphics.setColor(0.8, 1, 0.8)
+                        love.graphics.printf(jobsList, jobsX, jobsY, self.width/2 - 30, "left")
+                        jobsY = jobsY + 25
+                        
+                        -- If inventory.selectedCharacter exists, indicate if they can use it
+                        if inventory.selectedCharacter then
+                            local canEquip = false
+                            for _, job in ipairs(item.jobs) do
+                                if job == inventory.selectedCharacter.job then
+                                    canEquip = true
+                                    break
+                                end
+                            end
+                            
+                            if canEquip then
+                                love.graphics.setColor(0.2, 1, 0.2)
+                                love.graphics.print("Can equip", jobsX, jobsY)
+                            else
+                                love.graphics.setColor(1, 0.2, 0.2)
+                                love.graphics.print("Cannot equip", jobsX, jobsY)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    }
+    
+    -- Create action buttons (keep these at the same position)
+    self.elements.actionButtons = {
+        useButton = screenManager.UI.Button(
+            GAME.width - 280, GAME.height - 60, 
+            80, 40, "Use", 
+            function() inventory:useItem() end
+        ),
+        
+        equipButton = screenManager.UI.Button(
+            GAME.width - 280, GAME.height - 60, 
+            80, 40, "Equip", 
+            function() inventory:equipItem() end
+        ),
+        
+        sellButton = screenManager.UI.Button(
+            GAME.width - 190, GAME.height - 60, 
+            80, 40, "Sell", 
+            function() inventory:sellItem() end
+        ),
+        
+        dropButton = screenManager.UI.Button(
+            GAME.width - 100, GAME.height - 60, 
+            80, 40, "Drop", 
+            function() inventory:dropItem() end
+        )
+    }
+    
+    -- Set visibility for action buttons
+    self.elements.actionButtons.useButton.visible = true
+    self.elements.actionButtons.equipButton.visible = true
+    self.elements.actionButtons.sellButton.visible = true
+    self.elements.actionButtons.dropButton.visible = true
+    
+    -- Create back button
+    self.elements.backButton = screenManager.UI.Button(
+        20, GAME.height - 60, 
+        100, 40, "Back", 
+        function() self:close() end
+    )
+    self.elements.backButton.visible = true
+    
+    -- Create context menu (keep as is)
+    self.elements.contextMenu = {
+        x = 0,
+        y = 0,
+        width = 150,
+        height = 0,
+        options = {},
+        visible = false,
+        
+        setPosition = function(self, x, y)
+            -- Ensure menu stays on screen
+            self.x = math.min(x, GAME.width - self.width)
+            self.y = math.min(y, GAME.height - self.height)
+        end,
+        
+        setOptions = function(self, options)
+            self.options = options
+            self.height = #options * 30 + 10
+        end,
+        
+        draw = function(self)
+            if not self.visible then return end
+            
+            -- Draw background
+            love.graphics.setColor(0.2, 0.2, 0.3, 0.95)
+            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 5, 5)
+            love.graphics.setColor(0.8, 0.8, 0.8)
+            love.graphics.rectangle("line", self.x, self.y, self.width, self.height, 5, 5)
+            
+            -- Draw options
+            love.graphics.setFont(screenManager.fonts.small)
+            for i, option in ipairs(self.options) do
+                -- Hover effect
+                if option.hover then
+                    love.graphics.setColor(0.4, 0.4, 0.6)
+                    love.graphics.rectangle("fill", self.x + 5, self.y + (i-1) * 30 + 5, self.width - 10, 25, 3, 3)
+                end
+                
+                -- Option text
+                love.graphics.setColor(1, 1, 1)
+                love.graphics.print(option.text, self.x + 15, self.y + (i-1) * 30 + 10)
+            end
+        end,
+        
+        update = function(self, x, y)
+            if not self.visible then return end
+            
+            -- Update hover states
+            for i, option in ipairs(self.options) do
+                local optionY = self.y + (i-1) * 30 + 5
+                option.hover = x >= self.x + 5 and x <= self.x + self.width - 5 and
+                               y >= optionY and y <= optionY + 25
+            end
+        end,
+        
+        clicked = function(self, x, y, button)
+            if not self.visible then return false end
+            
+            for i, option in ipairs(self.options) do
+                local optionY = self.y + (i-1) * 30 + 5
+                if x >= self.x + 5 and x <= self.x + self.width - 5 and
+                   y >= optionY and y <= optionY + 25 then
+                    -- Execute callback
+                    if option.callback then
+                        option.callback()
+                    end
+                    
+                    -- Hide menu after clicking an option
+                    self.visible = false
+                    return true
+                end
+            end
+            
+            -- Check if click is outside menu (to close it)
+            if x < self.x or x > self.x + self.width or
+               y < self.y or y > self.y + self.height then
+                self.visible = false
+                return true
+            end
+            
+            return true
+        end
+    }
+    
+    -- Create confirmation dialog (keep as is)
+    self.elements.confirmDialog = {
+        x = GAME.width / 2 - 150,
+        y = GAME.height / 2 - 100,
+        width = 300,
+        height = 200,
+        message = "",
+        confirmCallback = nil,
+        cancelCallback = nil,
+        visible = false,
+        
+        draw = function(self)
+            if not self.visible then return end
+            
+            -- Dim background
+            love.graphics.setColor(0, 0, 0, 0.7)
+            love.graphics.rectangle("fill", 0, 0, GAME.width, GAME.height)
+            
+            -- Draw panel
+            love.graphics.setColor(0.2, 0.2, 0.3, 0.95)
+            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 8, 8)
+            love.graphics.setColor(0.8, 0.8, 0.8)
+            love.graphics.rectangle("line", self.x, self.y, self.width, self.height, 8, 8)
+            
+            -- Draw message
+            love.graphics.setFont(screenManager.fonts.medium)
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.printf(self.message, self.x + 20, self.y + 40, self.width - 40, "center")
+            
+            -- Draw buttons
+            -- Yes button
+            love.graphics.setColor(0.2, 0.5, 0.2)
+            love.graphics.rectangle("fill", self.x + self.width - 110, self.y + self.height - 60, 90, 40, 5, 5)
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.print("Yes", self.x + self.width - 85, self.y + self.height - 50)
+            
+            -- No button
+            love.graphics.setColor(0.5, 0.2, 0.2)
+            love.graphics.rectangle("fill", self.x + 20, self.y + self.height - 60, 90, 40, 5, 5)
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.print("No", self.x + 50, self.y + self.height - 50)
+        end,
+        
+        clicked = function(self, x, y, button)
+            if not self.visible then return false end
+            
+            -- Yes button
+            if x >= self.x + self.width - 110 and x <= self.x + self.width - 20 and
+               y >= self.y + self.height - 60 and y <= self.y + self.height - 20 then
+                if self.confirmCallback then
+                    self.confirmCallback()
+                end
+                self.visible = false
+                return true
+            end
+            
+            -- No button
+            if x >= self.x + 20 and x <= self.x + 110 and
+               y >= self.y + self.height - 60 and y <= self.y + self.height - 20 then
+                if self.cancelCallback then
+                    self.cancelCallback()
+                end
+                self.visible = false
+                return true
+            end
+            
+            return true
+        end
+    }
+    
+    -- Create quantity selector dialog (keep as is)
+    self.elements.quantitySelector = {
+        x = GAME.width / 2 - 150,
+        y = GAME.height / 2 - 120,
+        width = 300,
+        height = 240,
+        message = "",
+        quantity = 1,
+        maxQuantity = 1,
+        confirmCallback = nil,
+        cancelCallback = nil,
+        visible = false,
+        item = nil,
+        
+        draw = function(self)
+            if not self.visible then return end
+            
+            -- Dim background
+            love.graphics.setColor(0, 0, 0, 0.7)
+            love.graphics.rectangle("fill", 0, 0, GAME.width, GAME.height)
+            
+            -- Draw panel
+            love.graphics.setColor(0.2, 0.2, 0.3, 0.95)
+            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 8, 8)
+            love.graphics.setColor(0.8, 0.8, 0.8)
+            love.graphics.rectangle("line", self.x, self.y, self.width, self.height, 8, 8)
+            
+            -- Draw item name and message
+            love.graphics.setFont(screenManager.fonts.medium)
+            love.graphics.setColor(1, 1, 1)
+            
+            if self.item then
+                love.graphics.printf(
+                    self.item.name or "Unknown Item", 
+                    self.x + 20, self.y + 20, 
+                    self.width - 40, "center"
+                )
+            end
+            
+            love.graphics.setFont(screenManager.fonts.small)
+            love.graphics.printf(self.message, self.x + 20, self.y + 50, self.width - 40, "center")
+            
+            -- Draw quantity selector
+            love.graphics.setColor(0.3, 0.3, 0.4)
+            love.graphics.rectangle("fill", self.x + 60, self.y + 90, self.width - 120, 40, 5, 5)
+            
+            -- Draw quantity value
+            love.graphics.setFont(screenManager.fonts.large)
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.printf(tostring(self.quantity), self.x + 60, self.y + 95, self.width - 120, "center")
+            
+            -- Draw decrement button
+            love.graphics.setColor(0.7, 0.3, 0.3)
+            love.graphics.rectangle("fill", self.x + 20, self.y + 90, 30, 40, 5, 5)
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.setFont(screenManager.fonts.large)
+            love.graphics.print("-", self.x + 28, self.y + 95)
+            
+            -- Draw increment button
+            love.graphics.setColor(0.3, 0.7, 0.3)
+            love.graphics.rectangle("fill", self.x + self.width - 50, self.y + 90, 30, 40, 5, 5)
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.print("+", self.x + self.width - 42, self.y + 95)
+            
+            -- Draw slider
+            local sliderWidth = self.width - 40
+            local sliderX = self.x + 20
+            local sliderY = self.y + 140
+            
+            love.graphics.setColor(0.3, 0.3, 0.4)
+            love.graphics.rectangle("fill", sliderX, sliderY, sliderWidth, 10, 3, 3)
+            
+            local handlePos = sliderX + (self.quantity - 1) / (self.maxQuantity - 1) * sliderWidth
+            if self.maxQuantity == 1 then
+                handlePos = sliderX + sliderWidth / 2
+            end
+            
+            love.graphics.setColor(0.7, 0.7, 0.8)
+            love.graphics.rectangle("fill", handlePos - 5, sliderY - 5, 10, 20, 3, 3)
+            
+            -- Draw value if selling
+            if self.value then
+                love.graphics.setFont(screenManager.fonts.medium)
+                love.graphics.setColor(1, 0.8, 0.2)
+                love.graphics.printf(
+                    "Value: " .. (self.value * self.quantity) .. " gold",
+                    self.x + 20, self.y + 170, self.width - 40, "center"
+                )
+            end
+            
+            -- Draw buttons
+            -- Confirm button
+            love.graphics.setColor(0.2, 0.5, 0.2)
+            love.graphics.rectangle("fill", self.x + self.width - 110, self.y + self.height - 60, 90, 40, 5, 5)
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.setFont(screenManager.fonts.small)
+            love.graphics.print("Confirm", self.x + self.width - 100, self.y + self.height - 45)
+            
+            -- Cancel button
+            love.graphics.setColor(0.5, 0.2, 0.2)
+            love.graphics.rectangle("fill", self.x + 20, self.y + self.height - 60, 90, 40, 5, 5)
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.print("Cancel", self.x + 35, self.y + self.height - 45)
+        end,
+        
+        clicked = function(self, x, y, button)
+            if not self.visible then return false end
+            
+            -- Decrement button
+            if x >= self.x + 20 and x <= self.x + 50 and
+               y >= self.y + 90 and y <= self.y + 130 then
+                self.quantity = math.max(1, self.quantity - 1)
+                assetManager:playSound("click")
+                return true
+            end
+            
+            -- Increment button
+            if x >= self.x + self.width - 50 and x <= self.x + self.width - 20 and
+               y >= self.y + 90 and y <= self.y + 130 then
+                self.quantity = math.min(self.maxQuantity, self.quantity + 1)
+                assetManager:playSound("click")
+                return true
+            end
+            
+            -- Slider
+            local sliderWidth = self.width - 40
+            local sliderX = self.x + 20
+            local sliderY = self.y + 140
+            
+            if x >= sliderX and x <= sliderX + sliderWidth and
+               y >= sliderY - 10 and y <= sliderY + 20 then
+                local percentage = (x - sliderX) / sliderWidth
+                self.quantity = math.max(1, math.min(self.maxQuantity, math.floor(percentage * self.maxQuantity + 0.5)))
+                return true
+            end
+            
+            -- Confirm button
+            if x >= self.x + self.width - 110 and x <= self.x + self.width - 20 and
+               y >= self.y + self.height - 60 and y <= self.y + self.height - 20 then
+                if self.confirmCallback then
+                    self.confirmCallback(self.quantity)
+                end
+                self.visible = false
+                assetManager:playSound("click")
+                return true
+            end
+            
+            -- Cancel button
+            if x >= self.x + 20 and x <= self.x + 110 and
+               y >= self.y + self.height - 60 and y <= self.y + self.height - 20 then
+                if self.cancelCallback then
+                    self.cancelCallback()
+                end
+                self.visible = false
+                assetManager:playSound("click")
+                return true
+            end
+            
+            return true
+        end,
+        
+        show = function(self, item, message, maxQuantity, callback, cancelCallback, value)
+            self.item = item
+            self.message = message or "Select quantity:"
+            self.maxQuantity = maxQuantity or 1
+            self.quantity = 1
+            self.confirmCallback = callback
+            self.cancelCallback = cancelCallback
+            self.visible = true
+            self.value = value
+        end
+    }
+    
+    -- Create hand selection dialog for dual-wield (keep as is)
+    self.elements.handSelector = {
+        x = GAME.width / 2 - 150,
+        y = GAME.height / 2 - 100,
+        width = 300,
+        height = 180,
+        message = "",
+        item = nil,
+        confirmCallback = nil,
+        cancelCallback = nil,
+        visible = false,
+        
+        draw = function(self)
+            if not self.visible then return end
+            
+            -- Dim background
+            love.graphics.setColor(0, 0, 0, 0.7)
+            love.graphics.rectangle("fill", 0, 0, GAME.width, GAME.height)
+            
+            -- Draw panel
+            love.graphics.setColor(0.2, 0.2, 0.3, 0.95)
+            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 8, 8)
+            love.graphics.setColor(0.8, 0.8, 0.8)
+            love.graphics.rectangle("line", self.x, self.y, self.width, self.height, 8, 8)
+            
+            -- Draw item name and message
+            love.graphics.setFont(screenManager.fonts.medium)
+            love.graphics.setColor(1, 1, 1)
+            
+            if self.item then
+                love.graphics.printf(
+                    self.item.name or "Unknown Item", 
+                    self.x + 20, self.y + 20, 
+                    self.width - 40, "center"
+                )
+            end
+            
+            love.graphics.setFont(screenManager.fonts.small)
+            love.graphics.printf(self.message, self.x + 20, self.y + 50, self.width - 40, "center")
+            
+            -- Draw main hand button
+            love.graphics.setColor(0.3, 0.6, 0.3)
+            love.graphics.rectangle("fill", self.x + 40, self.y + 80, 100, 40, 5, 5)
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.setFont(screenManager.fonts.small)
+            love.graphics.printf("Main Hand", self.x + 40, self.y + 92, 100, "center")
+            
+            -- Draw off-hand button
+            love.graphics.setColor(0.6, 0.3, 0.3)
+            love.graphics.rectangle("fill", self.x + self.width - 140, self.y + 80, 100, 40, 5, 5)
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.printf("Off Hand", self.x + self.width - 140, self.y + 92, 100, "center")
+            
+            -- Draw cancel button
+            love.graphics.setColor(0.4, 0.4, 0.4)
+            love.graphics.rectangle("fill", self.x + self.width/2 - 50, self.y + self.height - 50, 100, 30, 5, 5)
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.printf("Cancel", self.x + self.width/2 - 50, self.y + self.height - 42, 100, "center")
+        end,
+        
+        clicked = function(self, x, y, button)
+            if not self.visible then return false end
+            
+            -- Main hand button
+            if x >= self.x + 40 and x <= self.x + 140 and
+               y >= self.y + 80 and y <= self.y + 120 then
+                if self.confirmCallback then
+                    self.confirmCallback("weapon")
+                end
+                self.visible = false
+                assetManager:playSound("click")
+                return true
+            end
+            
+            -- Off-hand button
+            if x >= self.x + self.width - 140 and x <= self.x + self.width - 40 and
+               y >= self.y + 80 and y <= self.y + 120 then
+                if self.confirmCallback then
+                    self.confirmCallback("offhand")
+                end
+                self.visible = false
+                assetManager:playSound("click")
+                return true
+            end
+            
+            -- Cancel button
+            if x >= self.x + self.width/2 - 50 and x <= self.x + self.width/2 + 50 and
+               y >= self.y + self.height - 50 and y <= self.y + self.height - 20 then
+                if self.cancelCallback then
+                    self.cancelCallback()
+                end
+                self.visible = false
+                assetManager:playSound("click")
+                return true
+            end
+            
+            return true
+        end,
+        
+        show = function(self, item, message, callback, cancelCallback)
+            self.item = item
+            self.message = message or "Select hand to equip:"
+            self.confirmCallback = callback
+            self.cancelCallback = cancelCallback
+            self.visible = true
+        end
+    }
+    
+    -- Create item list panel (right column)
     self.elements.itemListPanel = {
-        x = 20,
+        x = self.columnX.inventory,
         y = 130,
-        width = 500,
-        height = 400,
+        width = self.columnWidths.inventory,
+        height = GAME.height - 210, -- Make taller, leaving space for buttons
         
         draw = function(self)
             -- Draw panel background
@@ -427,825 +1323,6 @@ function inventory:createUI()
             return false
         end
     }
-    
-    -- Create character panel
-    self.elements.characterPanel = {
-        x = GAME.width - 300,
-        y = 90,
-        width = 280,
-        height = 250,
-        
-        draw = function(self)
-            -- Draw panel background
-            screenManager:drawPanel("Character", self.x, self.y, self.width, self.height)
-            
-            -- Draw character info
-            if inventory.selectedCharacter then
-                local char = inventory.selectedCharacter
-                
-                -- Draw character name and job
-                love.graphics.setFont(screenManager.fonts.medium)
-                love.graphics.setColor(1, 1, 1)
-                
-                love.graphics.print(
-                    char.name,
-                    self.x + 20, self.y + 50
-                )
-                
-                love.graphics.setFont(screenManager.fonts.small)
-                love.graphics.setColor(0.8, 0.8, 1)
-                
-                -- Calculate character level as sum of job levels
-                local totalLevel = 0
-                if char.jobLevels then
-                    for _, level in pairs(char.jobLevels) do
-                        totalLevel = totalLevel + level
-                    end
-                end
-                
-                love.graphics.print(
-                    "Level " .. totalLevel .. " " .. char.job,
-                    self.x + 20, self.y + 75
-                )
-                
-                -- Draw equipped items
-                love.graphics.setFont(screenManager.fonts.medium)
-                love.graphics.setColor(1, 1, 1)
-                
-                love.graphics.print(
-                    "Equipment",
-                    self.x + 20, self.y + 100
-                )
-                
-                love.graphics.setFont(screenManager.fonts.small)
-                
-                -- Draw weapon slot
-                love.graphics.setColor(0.7, 0.7, 0.7)
-                love.graphics.print(
-                    "Weapon:",
-                    self.x + 30, self.y + 125
-                )
-                
-                if char.equipment.weapon then
-                    love.graphics.setColor(1, 1, 1)
-                    love.graphics.print(
-                        char.equipment.weapon.name,
-                        self.x + 90, self.y + 125
-                    )
-                else
-                    love.graphics.setColor(0.5, 0.5, 0.5)
-                    love.graphics.print(
-                        "None",
-                        self.x + 90, self.y + 125
-                    )
-                end
-                
-                -- Draw armor slot
-                love.graphics.setColor(0.7, 0.7, 0.7)
-                love.graphics.print(
-                    "Armor:",
-                    self.x + 30, self.y + 145
-                )
-                
-                if char.equipment.body then
-                    love.graphics.setColor(1, 1, 1)
-                    love.graphics.print(
-                        char.equipment.body.name,
-                        self.x + 90, self.y + 145
-                    )
-                else
-                    love.graphics.setColor(0.5, 0.5, 0.5)
-                    love.graphics.print(
-                        "None",
-                        self.x + 90, self.y + 145
-                    )
-                end
-                
-                -- Draw offhand slot
-                love.graphics.setColor(0.7, 0.7, 0.7)
-                love.graphics.print(
-                    "Offhand:",
-                    self.x + 30, self.y + 165
-                )
-                
-                if char.equipment.offhand then
-                    love.graphics.setColor(1, 1, 1)
-                    love.graphics.print(
-                        char.equipment.offhand.name,
-                        self.x + 90, self.y + 165
-                    )
-                else
-                    love.graphics.setColor(0.5, 0.5, 0.5)
-                    love.graphics.print(
-                        "None",
-                        self.x + 90, self.y + 165
-                    )
-                end
-                
-                -- Draw accessory 1 slot
-                love.graphics.setColor(0.7, 0.7, 0.7)
-                love.graphics.print(
-                    "Amulet:",
-                    self.x + 30, self.y + 185
-                )
-                
-                if char.equipment.amulet then
-                    love.graphics.setColor(1, 1, 1)
-                    love.graphics.print(
-                        char.equipment.amulet.name,
-                        self.x + 110, self.y + 185
-                    )
-                else
-                    love.graphics.setColor(0.5, 0.5, 0.5)
-                    love.graphics.print(
-                        "None",
-                        self.x + 110, self.y + 185
-                    )
-                end
-                
-                -- Draw accessory 2 slot
-                love.graphics.setColor(0.7, 0.7, 0.7)
-                love.graphics.print(
-                    "Ring:",
-                    self.x + 30, self.y + 205
-                )
-                
-                if char.equipment.ring then
-                    love.graphics.setColor(1, 1, 1)
-                    love.graphics.print(
-                        char.equipment.ring.name,
-                        self.x + 110, self.y + 205
-                    )
-                else
-                    love.graphics.setColor(0.5, 0.5, 0.5)
-                    love.graphics.print(
-                        "None",
-                        self.x + 110, self.y + 205
-                    )
-                end
-            end
-        end
-    }
-    
-    -- Create item details panel
-    self.elements.itemDetailsPanel = {
-        x = GAME.width - 300, -- Align with character panel
-        y = 350, -- Positioned below character panel (90 + 250 + 10)
-        width = 280, -- Match character panel width
-        height = 280, -- Keep the same height
-        
-        draw = function(self)
-            -- Draw panel background
-            screenManager:drawPanel("Item Details", self.x, self.y, self.width, self.height)
-            
-            -- Draw item details
-            if inventory.selectedItem then
-                local item = inventory.selectedItem
-                
-                -- Draw item name
-                love.graphics.setFont(screenManager.fonts.medium)
-                love.graphics.setColor(1, 1, 1)
-                
-                love.graphics.printf(
-                    item.name or "Unknown Item",
-                    self.x + 20, self.y + 50,
-                    self.width - 40, "left"
-                )
-                
-                -- Draw item description
-                love.graphics.setFont(screenManager.fonts.small)
-                love.graphics.setColor(0.9, 0.9, 0.9)
-                
-                love.graphics.printf(
-                    item.description or "No description available.",
-                    self.x + 20, self.y + 80,
-                    self.width - 40, "left"
-                )
-                
-                -- Draw item stats based on type
-                love.graphics.setFont(screenManager.fonts.small)
-                
-                -- Different stats based on item type
-                if item.type == "weapon" then
-                    love.graphics.setColor(1, 1, 1)
-                    love.graphics.print("Type: Weapon", self.x + 20, self.y + 130)
-                    
-                    if item.attack then
-                        love.graphics.print("Attack: " .. item.attack, self.x + 20, self.y + 150)
-                    end
-                    
-                    if item.magicAttack then
-                        love.graphics.print("Magic Attack: " .. item.magicAttack, self.x + 20, self.y + 170)
-                    end
-                elseif item.type == "armor" then
-                    love.graphics.setColor(1, 1, 1)
-                    love.graphics.print("Type: Armor", self.x + 20, self.y + 130)
-                    
-                    if item.defense then
-                        love.graphics.print("Defense: " .. item.defense, self.x + 20, self.y + 150)
-                    end
-                    
-                    if item.magicDefense then
-                        love.graphics.print("Magic Defense: " .. item.magicDefense, self.x + 20, self.y + 170)
-                    end
-                elseif item.type == "accessory" then
-                    love.graphics.setColor(1, 1, 1)
-                    love.graphics.print("Type: Accessory", self.x + 20, self.y + 130)
-                    
-                    -- Print various possible accessory stats
-                    local statY = self.y + 150
-                    if item.defense then
-                        love.graphics.print("Defense: " .. item.defense, self.x + 20, statY)
-                        statY = statY + 20
-                    end
-                    
-                    if item.magicDefense then
-                        love.graphics.print("Magic Defense: " .. item.magicDefense, self.x + 20, statY)
-                        statY = statY + 20
-                    end
-                    
-                    if item.attack then
-                        love.graphics.print("Attack: " .. item.attack, self.x + 20, statY)
-                        statY = statY + 20
-                    end
-                    
-                    if item.magicAttack then
-                        love.graphics.print("Magic Attack: " .. item.magicAttack, self.x + 20, statY)
-                    end
-                elseif item.type == "consumable" then
-                    love.graphics.setColor(1, 1, 1)
-                    love.graphics.print("Type: Consumable", self.x + 20, self.y + 130)
-                    
-                    -- Print effect if available
-                    if item.effect then
-                        if item.effect.type == "heal" then
-                            love.graphics.print("Restores " .. item.effect.amount .. " HP", self.x + 20, self.y + 150)
-                        elseif item.effect.type == "restore_mp" then
-                            love.graphics.print("Restores " .. item.effect.amount .. " MP", self.x + 20, self.y + 150)
-                        elseif item.effect.type == "cure_status" then
-                            love.graphics.print("Cures " .. item.effect.status .. " status", self.x + 20, self.y + 150)
-                        elseif item.effect.type == "full_restore" then
-                            love.graphics.print("Fully restores HP and MP", self.x + 20, self.y + 150)
-                        end
-                    end
-                elseif item.type == "material" or item.type == "monster_part" then
-                    love.graphics.setColor(1, 1, 1)
-                    love.graphics.print("Type: Material", self.x + 20, self.y + 130)
-                    love.graphics.print("Used for crafting", self.x + 20, self.y + 150)
-                end
-                
-                -- Draw value
-                if item.value then
-                    love.graphics.setColor(1, 1, 0)
-                    love.graphics.print("Value: " .. item.value .. " gold", self.x + 20, self.y + self.height - 20)
-                end
-                
-                -- Draw requirements if the item is equipment
-                if item.type == "weapon" or item.type == "armor" or item.type == "accessory" then
-                    -- Draw a separator line
-                    love.graphics.setColor(0.4, 0.4, 0.5)
-                    love.graphics.line(
-                        self.x + 20, self.y + 190, 
-                        self.x + self.width - 20, self.y + 190
-                    )
-                    
-                    -- Left column - Requirements
-                    if item.requirements then
-                        local reqX = self.x + 20
-                        local reqY = self.y + 200
-                        
-                        love.graphics.setColor(1, 0.8, 0.2)
-                        love.graphics.print("Requirements:", reqX, reqY)
-                        reqY = reqY + 20
-                        
-                        -- List each requirement
-                        love.graphics.setColor(0.9, 0.9, 0.9)
-                        for attr, value in pairs(item.requirements) do
-                            love.graphics.print(attr .. ": " .. value, reqX + 10, reqY)
-                            reqY = reqY + 15
-                        end
-                    end
-                    
-                    -- Right column - Jobs
-                    if item.jobs and #item.jobs > 0 then
-                        local jobsX = self.x + (self.width / 2)
-                        local jobsY = self.y + 200
-                        
-                        love.graphics.setColor(0.2, 0.8, 0.5)
-                        love.graphics.print("Usable by:", jobsX, jobsY)
-                        jobsY = jobsY + 20
-                        
-                        -- Format jobs list with more space
-                        local jobsList = table.concat(item.jobs, ", ")
-                        -- Allow for more text due to wider panel
-                        if #jobsList > 40 then
-                            jobsList = string.sub(jobsList, 1, 40) .. "..."
-                        end
-                        
-                        love.graphics.setColor(0.8, 1, 0.8)
-                        love.graphics.printf(jobsList, jobsX, jobsY, self.width/2 - 30, "left")
-                        jobsY = jobsY + 25
-                        
-                        -- If inventory.selectedCharacter exists, indicate if they can use it
-                        if inventory.selectedCharacter then
-                            local canEquip = false
-                            for _, job in ipairs(item.jobs) do
-                                if job == inventory.selectedCharacter.job then
-                                    canEquip = true
-                                    break
-                                end
-                            end
-                            
-                            if canEquip then
-                                love.graphics.setColor(0.2, 1, 0.2)
-                                love.graphics.print("Can equip", jobsX, jobsY)
-                            else
-                                love.graphics.setColor(1, 0.2, 0.2)
-                                love.graphics.print("Cannot equip", jobsX, jobsY)
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    }
-    
-    -- Create action buttons
-    self.elements.actionButtons = {
-        useButton = screenManager.UI.Button(
-            GAME.width - 280, GAME.height - 60, 
-            80, 40, "Use", 
-            function() inventory:useItem() end
-        ),
-        
-        equipButton = screenManager.UI.Button(
-            GAME.width - 280, GAME.height - 60, 
-            80, 40, "Equip", 
-            function() inventory:equipItem() end
-        ),
-        
-        sellButton = screenManager.UI.Button(
-            GAME.width - 190, GAME.height - 60, 
-            80, 40, "Sell", 
-            function() inventory:sellItem() end
-        ),
-        
-        dropButton = screenManager.UI.Button(
-            GAME.width - 100, GAME.height - 60, 
-            80, 40, "Drop", 
-            function() inventory:dropItem() end
-        )
-    }
-    
-    
-    -- Set visibility for action buttons
-    self.elements.actionButtons.useButton.visible = true
-    self.elements.actionButtons.equipButton.visible = true
-    self.elements.actionButtons.sellButton.visible = true
-    self.elements.actionButtons.dropButton.visible = true
-    
-    -- Create back button
-    self.elements.backButton = screenManager.UI.Button(
-        20, GAME.height - 60, 
-        100, 40, "Back", 
-        function() self:close() end
-    )
-    self.elements.backButton.visible = true
-    
-    -- Create context menu
-    self.elements.contextMenu = {
-        x = 0,
-        y = 0,
-        width = 150,
-        height = 0,
-        options = {},
-        visible = false,
-        
-        setPosition = function(self, x, y)
-            -- Ensure menu stays on screen
-            self.x = math.min(x, GAME.width - self.width)
-            self.y = math.min(y, GAME.height - self.height)
-        end,
-        
-        setOptions = function(self, options)
-            self.options = options
-            self.height = #options * 30 + 10
-        end,
-        
-        draw = function(self)
-            if not self.visible then return end
-            
-            -- Draw background
-            love.graphics.setColor(0.2, 0.2, 0.3, 0.95)
-            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 5, 5)
-            love.graphics.setColor(0.8, 0.8, 0.8)
-            love.graphics.rectangle("line", self.x, self.y, self.width, self.height, 5, 5)
-            
-            -- Draw options
-            love.graphics.setFont(screenManager.fonts.small)
-            for i, option in ipairs(self.options) do
-                -- Hover effect
-                if option.hover then
-                    love.graphics.setColor(0.4, 0.4, 0.6)
-                    love.graphics.rectangle("fill", self.x + 5, self.y + (i-1) * 30 + 5, self.width - 10, 25, 3, 3)
-                end
-                
-                -- Option text
-                love.graphics.setColor(1, 1, 1)
-                love.graphics.print(option.text, self.x + 15, self.y + (i-1) * 30 + 10)
-            end
-        end,
-        
-        update = function(self, x, y)
-            if not self.visible then return end
-            
-            -- Update hover states
-            for i, option in ipairs(self.options) do
-                local optionY = self.y + (i-1) * 30 + 5
-                option.hover = x >= self.x + 5 and x <= self.x + self.width - 5 and
-                               y >= optionY and y <= optionY + 25
-            end
-        end,
-        
-        clicked = function(self, x, y, button)
-            if not self.visible then return false end
-            
-            for i, option in ipairs(self.options) do
-                local optionY = self.y + (i-1) * 30 + 5
-                if x >= self.x + 5 and x <= self.x + self.width - 5 and
-                   y >= optionY and y <= optionY + 25 then
-                    -- Execute callback
-                    if option.callback then
-                        option.callback()
-                    end
-                    
-                    -- Hide menu after clicking an option
-                    self.visible = false
-                    return true
-                end
-            end
-            
-            -- Check if click is outside menu (to close it)
-            if x < self.x or x > self.x + self.width or
-               y < self.y or y > self.y + self.height then
-                self.visible = false
-                return true
-            end
-            
-            return true
-        end
-    }
-    
-    -- Create confirmation dialog
-    self.elements.confirmDialog = {
-        x = GAME.width / 2 - 150,
-        y = GAME.height / 2 - 100,
-        width = 300,
-        height = 200,
-        message = "",
-        confirmCallback = nil,
-        cancelCallback = nil,
-        visible = false,
-        
-        draw = function(self)
-            if not self.visible then return end
-            
-            -- Dim background
-            love.graphics.setColor(0, 0, 0, 0.7)
-            love.graphics.rectangle("fill", 0, 0, GAME.width, GAME.height)
-            
-            -- Draw panel
-            love.graphics.setColor(0.2, 0.2, 0.3, 0.95)
-            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 8, 8)
-            love.graphics.setColor(0.8, 0.8, 0.8)
-            love.graphics.rectangle("line", self.x, self.y, self.width, self.height, 8, 8)
-            
-            -- Draw message
-            love.graphics.setFont(screenManager.fonts.medium)
-            love.graphics.setColor(1, 1, 1)
-            love.graphics.printf(self.message, self.x + 20, self.y + 40, self.width - 40, "center")
-            
-            -- Draw buttons
-            -- Yes button
-            love.graphics.setColor(0.2, 0.5, 0.2)
-            love.graphics.rectangle("fill", self.x + self.width - 110, self.y + self.height - 60, 90, 40, 5, 5)
-            love.graphics.setColor(1, 1, 1)
-            love.graphics.print("Yes", self.x + self.width - 85, self.y + self.height - 50)
-            
-            -- No button
-            love.graphics.setColor(0.5, 0.2, 0.2)
-            love.graphics.rectangle("fill", self.x + 20, self.y + self.height - 60, 90, 40, 5, 5)
-            love.graphics.setColor(1, 1, 1)
-            love.graphics.print("No", self.x + 50, self.y + self.height - 50)
-        end,
-        
-        clicked = function(self, x, y, button)
-            if not self.visible then return false end
-            
-            -- Yes button
-            if x >= self.x + self.width - 110 and x <= self.x + self.width - 20 and
-               y >= self.y + self.height - 60 and y <= self.y + self.height - 20 then
-                if self.confirmCallback then
-                    self.confirmCallback()
-                end
-                self.visible = false
-                return true
-            end
-            
-            -- No button
-            if x >= self.x + 20 and x <= self.x + 110 and
-               y >= self.y + self.height - 60 and y <= self.y + self.height - 20 then
-                if self.cancelCallback then
-                    self.cancelCallback()
-                end
-                self.visible = false
-                return true
-            end
-            
-            return true
-        end
-    }
-    
-    -- Create quantity selector dialog
-    self.elements.quantitySelector = {
-        x = GAME.width / 2 - 150,
-        y = GAME.height / 2 - 120,
-        width = 300,
-        height = 240,
-        message = "",
-        quantity = 1,
-        maxQuantity = 1,
-        confirmCallback = nil,
-        cancelCallback = nil,
-        visible = false,
-        item = nil,
-        
-        draw = function(self)
-            if not self.visible then return end
-            
-            -- Dim background
-            love.graphics.setColor(0, 0, 0, 0.7)
-            love.graphics.rectangle("fill", 0, 0, GAME.width, GAME.height)
-            
-            -- Draw panel
-            love.graphics.setColor(0.2, 0.2, 0.3, 0.95)
-            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 8, 8)
-            love.graphics.setColor(0.8, 0.8, 0.8)
-            love.graphics.rectangle("line", self.x, self.y, self.width, self.height, 8, 8)
-            
-            -- Draw item name and message
-            love.graphics.setFont(screenManager.fonts.medium)
-            love.graphics.setColor(1, 1, 1)
-            
-            if self.item then
-                love.graphics.printf(
-                    self.item.name or "Unknown Item", 
-                    self.x + 20, self.y + 20, 
-                    self.width - 40, "center"
-                )
-            end
-            
-            love.graphics.setFont(screenManager.fonts.small)
-            love.graphics.printf(self.message, self.x + 20, self.y + 50, self.width - 40, "center")
-            
-            -- Draw quantity selector
-            love.graphics.setColor(0.3, 0.3, 0.4)
-            love.graphics.rectangle("fill", self.x + 60, self.y + 90, self.width - 120, 40, 5, 5)
-            
-            -- Draw quantity value
-            love.graphics.setFont(screenManager.fonts.large)
-            love.graphics.setColor(1, 1, 1)
-            love.graphics.printf(tostring(self.quantity), self.x + 60, self.y + 95, self.width - 120, "center")
-            
-            -- Draw decrement button
-            love.graphics.setColor(0.7, 0.3, 0.3)
-            love.graphics.rectangle("fill", self.x + 20, self.y + 90, 30, 40, 5, 5)
-            love.graphics.setColor(1, 1, 1)
-            love.graphics.setFont(screenManager.fonts.large)
-            love.graphics.print("-", self.x + 28, self.y + 95)
-            
-            -- Draw increment button
-            love.graphics.setColor(0.3, 0.7, 0.3)
-            love.graphics.rectangle("fill", self.x + self.width - 50, self.y + 90, 30, 40, 5, 5)
-            love.graphics.setColor(1, 1, 1)
-            love.graphics.print("+", self.x + self.width - 42, self.y + 95)
-            
-            -- Draw slider
-            local sliderWidth = self.width - 40
-            local sliderX = self.x + 20
-            local sliderY = self.y + 140
-            
-            love.graphics.setColor(0.3, 0.3, 0.4)
-            love.graphics.rectangle("fill", sliderX, sliderY, sliderWidth, 10, 3, 3)
-            
-            local handlePos = sliderX + (self.quantity - 1) / (self.maxQuantity - 1) * sliderWidth
-            if self.maxQuantity == 1 then
-                handlePos = sliderX + sliderWidth / 2
-            end
-            
-            love.graphics.setColor(0.7, 0.7, 0.8)
-            love.graphics.rectangle("fill", handlePos - 5, sliderY - 5, 10, 20, 3, 3)
-            
-            -- Draw value if selling
-            if self.value then
-                love.graphics.setFont(screenManager.fonts.medium)
-                love.graphics.setColor(1, 0.8, 0.2)
-                love.graphics.printf(
-                    "Value: " .. (self.value * self.quantity) .. " gold",
-                    self.x + 20, self.y + 170, self.width - 40, "center"
-                )
-            end
-            
-            -- Draw buttons
-            -- Confirm button
-            love.graphics.setColor(0.2, 0.5, 0.2)
-            love.graphics.rectangle("fill", self.x + self.width - 110, self.y + self.height - 60, 90, 40, 5, 5)
-            love.graphics.setColor(1, 1, 1)
-            love.graphics.setFont(screenManager.fonts.small)
-            love.graphics.print("Confirm", self.x + self.width - 100, self.y + self.height - 45)
-            
-            -- Cancel button
-            love.graphics.setColor(0.5, 0.2, 0.2)
-            love.graphics.rectangle("fill", self.x + 20, self.y + self.height - 60, 90, 40, 5, 5)
-            love.graphics.setColor(1, 1, 1)
-            love.graphics.print("Cancel", self.x + 35, self.y + self.height - 45)
-        end,
-        
-        clicked = function(self, x, y, button)
-            if not self.visible then return false end
-            
-            -- Decrement button
-            if x >= self.x + 20 and x <= self.x + 50 and
-               y >= self.y + 90 and y <= self.y + 130 then
-                self.quantity = math.max(1, self.quantity - 1)
-                assetManager:playSound("click")
-                return true
-            end
-            
-            -- Increment button
-            if x >= self.x + self.width - 50 and x <= self.x + self.width - 20 and
-               y >= self.y + 90 and y <= self.y + 130 then
-                self.quantity = math.min(self.maxQuantity, self.quantity + 1)
-                assetManager:playSound("click")
-                return true
-            end
-            
-            -- Slider
-            local sliderWidth = self.width - 40
-            local sliderX = self.x + 20
-            local sliderY = self.y + 140
-            
-            if x >= sliderX and x <= sliderX + sliderWidth and
-               y >= sliderY - 10 and y <= sliderY + 20 then
-                local percentage = (x - sliderX) / sliderWidth
-                self.quantity = math.max(1, math.min(self.maxQuantity, math.floor(percentage * self.maxQuantity + 0.5)))
-                return true
-            end
-            
-            -- Confirm button
-            if x >= self.x + self.width - 110 and x <= self.x + self.width - 20 and
-               y >= self.y + self.height - 60 and y <= self.y + self.height - 20 then
-                if self.confirmCallback then
-                    self.confirmCallback(self.quantity)
-                end
-                self.visible = false
-                assetManager:playSound("click")
-                return true
-            end
-            
-            -- Cancel button
-            if x >= self.x + 20 and x <= self.x + 110 and
-               y >= self.y + self.height - 60 and y <= self.y + self.height - 20 then
-                if self.cancelCallback then
-                    self.cancelCallback()
-                end
-                self.visible = false
-                assetManager:playSound("click")
-                return true
-            end
-            
-            return true
-        end,
-        
-        show = function(self, item, message, maxQuantity, callback, cancelCallback, value)
-            self.item = item
-            self.message = message or "Select quantity:"
-            self.maxQuantity = maxQuantity or 1
-            self.quantity = 1
-            self.confirmCallback = callback
-            self.cancelCallback = cancelCallback
-            self.visible = true
-            self.value = value
-        end
-    }
-    
-    -- Create hand selection dialog for dual-wield
-    self.elements.handSelector = {
-        x = GAME.width / 2 - 150,
-        y = GAME.height / 2 - 100,
-        width = 300,
-        height = 180,
-        message = "",
-        item = nil,
-        confirmCallback = nil,
-        cancelCallback = nil,
-        visible = false,
-        
-        draw = function(self)
-            if not self.visible then return end
-            
-            -- Dim background
-            love.graphics.setColor(0, 0, 0, 0.7)
-            love.graphics.rectangle("fill", 0, 0, GAME.width, GAME.height)
-            
-            -- Draw panel
-            love.graphics.setColor(0.2, 0.2, 0.3, 0.95)
-            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 8, 8)
-            love.graphics.setColor(0.8, 0.8, 0.8)
-            love.graphics.rectangle("line", self.x, self.y, self.width, self.height, 8, 8)
-            
-            -- Draw item name and message
-            love.graphics.setFont(screenManager.fonts.medium)
-            love.graphics.setColor(1, 1, 1)
-            
-            if self.item then
-                love.graphics.printf(
-                    self.item.name or "Unknown Item", 
-                    self.x + 20, self.y + 20, 
-                    self.width - 40, "center"
-                )
-            end
-            
-            love.graphics.setFont(screenManager.fonts.small)
-            love.graphics.printf(self.message, self.x + 20, self.y + 50, self.width - 40, "center")
-            
-            -- Draw main hand button
-            love.graphics.setColor(0.3, 0.6, 0.3)
-            love.graphics.rectangle("fill", self.x + 40, self.y + 80, 100, 40, 5, 5)
-            love.graphics.setColor(1, 1, 1)
-            love.graphics.setFont(screenManager.fonts.small)
-            love.graphics.printf("Main Hand", self.x + 40, self.y + 92, 100, "center")
-            
-            -- Draw off-hand button
-            love.graphics.setColor(0.6, 0.3, 0.3)
-            love.graphics.rectangle("fill", self.x + self.width - 140, self.y + 80, 100, 40, 5, 5)
-            love.graphics.setColor(1, 1, 1)
-            love.graphics.printf("Off Hand", self.x + self.width - 140, self.y + 92, 100, "center")
-            
-            -- Draw cancel button
-            love.graphics.setColor(0.4, 0.4, 0.4)
-            love.graphics.rectangle("fill", self.x + self.width/2 - 50, self.y + self.height - 50, 100, 30, 5, 5)
-            love.graphics.setColor(1, 1, 1)
-            love.graphics.printf("Cancel", self.x + self.width/2 - 50, self.y + self.height - 42, 100, "center")
-        end,
-        
-        clicked = function(self, x, y, button)
-            if not self.visible then return false end
-            
-            -- Main hand button
-            if x >= self.x + 40 and x <= self.x + 140 and
-               y >= self.y + 80 and y <= self.y + 120 then
-                if self.confirmCallback then
-                    self.confirmCallback("weapon")
-                end
-                self.visible = false
-                assetManager:playSound("click")
-                return true
-            end
-            
-            -- Off-hand button
-            if x >= self.x + self.width - 140 and x <= self.x + self.width - 40 and
-               y >= self.y + 80 and y <= self.y + 120 then
-                if self.confirmCallback then
-                    self.confirmCallback("offhand")
-                end
-                self.visible = false
-                assetManager:playSound("click")
-                return true
-            end
-            
-            -- Cancel button
-            if x >= self.x + self.width/2 - 50 and x <= self.x + self.width/2 + 50 and
-               y >= self.y + self.height - 50 and y <= self.y + self.height - 20 then
-                if self.cancelCallback then
-                    self.cancelCallback()
-                end
-                self.visible = false
-                assetManager:playSound("click")
-                return true
-            end
-            
-            return true
-        end,
-        
-        show = function(self, item, message, callback, cancelCallback)
-            self.item = item
-            self.message = message or "Select hand to equip:"
-            self.confirmCallback = callback
-            self.cancelCallback = cancelCallback
-            self.visible = true
-        end
-    }
 end
 
 function inventory:enter(params)
@@ -1309,16 +1386,46 @@ end
 
 -- Adjust UI panel sizes and positions
 function inventory:adjustLayout()
-    -- Increase character panel height to accommodate accessory slots
-    if self.elements and self.elements.characterPanel then
-        self.elements.characterPanel.height = 250
-    end
+    -- Calculate column positions based on screen size
+    self.columnWidths = {
+        characters = 250,  -- Width of character list column
+        details = 280,     -- Width of character details column
+        inventory = 500,   -- Width of inventory panel
+    }
     
-    -- Position item details panel below character panel
-    if self.elements and self.elements.itemDetailsPanel then
-        self.elements.itemDetailsPanel.x = GAME.width - 300
-        self.elements.itemDetailsPanel.y = 350
-        self.elements.itemDetailsPanel.width = 280
+    -- Calculate X positions for columns
+    self.columnX = {
+        characters = 20,   -- Left margin
+        details = 290,     -- Left margin + characters width + padding
+        inventory = GAME.width - self.columnWidths.inventory - 20, -- Right aligned with margin
+    }
+    
+    -- Update panel positions
+    if self.elements then
+        -- Character list (left column)
+        if self.elements.characterList then
+            self.elements.characterList.x = self.columnX.characters
+            self.elements.characterList.width = self.columnWidths.characters
+        end
+        
+        -- Character panel (middle column, top)
+        if self.elements.characterPanel then
+            self.elements.characterPanel.x = self.columnX.details
+            self.elements.characterPanel.width = self.columnWidths.details
+        end
+        
+        -- Item details panel (middle column, bottom)
+        if self.elements.itemDetailsPanel then
+            self.elements.itemDetailsPanel.x = self.columnX.details
+            self.elements.itemDetailsPanel.width = self.columnWidths.details
+        end
+        
+        -- Inventory panel (right column)
+        if self.elements.itemListPanel then
+            self.elements.itemListPanel.x = self.columnX.inventory
+            self.elements.itemListPanel.width = self.columnWidths.inventory
+            self.elements.itemListPanel.height = GAME.height - 210 -- Taller panel
+        end
     end
 end
 
@@ -1341,13 +1448,11 @@ function inventory:draw()
         button:draw()
     end
     
-    -- Draw character tabs
-    self.elements.characterTabs:draw()
-    
     -- Draw main panels
-    self.elements.itemListPanel:draw()
-    self.elements.characterPanel:draw()
-    self.elements.itemDetailsPanel:draw()
+    self.elements.characterList:draw()     -- Left column
+    self.elements.characterPanel:draw()    -- Middle column, top
+    self.elements.itemDetailsPanel:draw()  -- Middle column, bottom
+    self.elements.itemListPanel:draw()     -- Right column
     
     -- Draw context menu if visible
     if self.elements.contextMenu.visible then
@@ -1448,83 +1553,84 @@ function inventory:mousepressed(x, y, button, istouch, presses)
     
     -- Right-click to open context menu for items
     if button == 2 then
-        -- Pass to item list panel to show context menu
-        local itemClicked = false
-        local displayedItems = {}
-        
-        if GAME.inventory then
-            -- Filter items by category
-            for _, item in ipairs(GAME.inventory) do
-                if self.selectedCategory == "All" or
-                   (self.selectedCategory == "Weapons" and item.type == "weapon") or
-                   (self.selectedCategory == "Armor" and item.type == "armor") or
-                   (self.selectedCategory == "Accessories" and item.type == "accessory") or
-                   (self.selectedCategory == "Consumables" and item.type == "consumable") or
-                   (self.selectedCategory == "Materials" and (item.type == "material" or item.type == "monster_part")) then
-                    
-                    table.insert(displayedItems, item)
-                end
-            end
+        -- Check if click is within item list panel
+        if x >= self.elements.itemListPanel.x and 
+           x <= self.elements.itemListPanel.x + self.elements.itemListPanel.width and
+           y >= self.elements.itemListPanel.y and 
+           y <= self.elements.itemListPanel.y + self.elements.itemListPanel.height then
             
-            -- Sort items
-            if self.sortBy == "type" then
-                table.sort(displayedItems, function(a, b)
-                    -- Check if types exist, default to empty string if nil
-                    local aType = a.type or ""
-                    local bType = b.type or ""
-                    
-                    if aType == bType then
+            local displayedItems = {}
+            
+            if GAME.inventory then
+                -- Filter items by category
+                for _, item in ipairs(GAME.inventory) do
+                    if self.selectedCategory == "All" or
+                       (self.selectedCategory == "Weapons" and item.type == "weapon") or
+                       (self.selectedCategory == "Armor" and item.type == "armor") or
+                       (self.selectedCategory == "Accessories" and item.type == "accessory") or
+                       (self.selectedCategory == "Consumables" and item.type == "consumable") or
+                       (self.selectedCategory == "Materials" and (item.type == "material" or item.type == "monster_part")) then
+                        
+                        table.insert(displayedItems, item)
+                    end
+                end
+                
+                -- Sort items
+                if self.sortBy == "type" then
+                    table.sort(displayedItems, function(a, b)
+                        -- Check if types exist, default to empty string if nil
+                        local aType = a.type or ""
+                        local bType = b.type or ""
+                        
+                        if aType == bType then
+                            -- Check if names exist, default to empty string if nil
+                            local aName = a.name or ""
+                            local bName = b.name or ""
+                            return aName < bName
+                        else
+                            return self:getTypeOrder(aType) < self:getTypeOrder(bType)
+                        end
+                    end)
+                elseif self.sortBy == "name" then
+                    table.sort(displayedItems, function(a, b)
                         -- Check if names exist, default to empty string if nil
                         local aName = a.name or ""
                         local bName = b.name or ""
                         return aName < bName
-                    else
-                        return self:getTypeOrder(aType) < self:getTypeOrder(bType)
-                    end
-                end)
-            elseif self.sortBy == "name" then
-                table.sort(displayedItems, function(a, b)
-                    -- Check if names exist, default to empty string if nil
-                    local aName = a.name or ""
-                    local bName = b.name or ""
-                    return aName < bName
-                end)
-            elseif self.sortBy == "value" then
-                table.sort(displayedItems, function(a, b)
-                    local aValue = a.value or 0
-                    local bValue = b.value or 0
-                    return aValue > bValue
-                end)
-            end
-            
-            -- Apply pagination
-            local startIndex = self.pageOffset + 1
-            local endIndex = math.min(startIndex + self.itemsPerPage - 1, #displayedItems)
-            
-            for i = startIndex, endIndex do
-                local itemY = self.elements.itemListPanel.y + 50 + (i - startIndex) * 30
+                    end)
+                elseif self.sortBy == "value" then
+                    table.sort(displayedItems, function(a, b)
+                        local aValue = a.value or 0
+                        local bValue = b.value or 0
+                        return aValue > bValue
+                    end)
+                end
                 
-                if x >= self.elements.itemListPanel.x + 10 and x <= self.elements.itemListPanel.x + self.elements.itemListPanel.width - 10 and
-                   y >= itemY and y <= itemY + 25 then
-                    -- Select item and show context menu
-                    self:selectItem(displayedItems[i])
-                    self:showContextMenu(x, y)
-                    itemClicked = true
-                    break
+                -- Apply pagination
+                local startIndex = self.pageOffset + 1
+                local endIndex = math.min(startIndex + self.itemsPerPage - 1, #displayedItems)
+                
+                for i = startIndex, endIndex do
+                    local itemY = self.elements.itemListPanel.y + 50 + (i - startIndex) * 30
+                    
+                    if y >= itemY and y <= itemY + 25 then
+                        -- Select item and show context menu
+                        self:selectItem(displayedItems[i])
+                        self:showContextMenu(x, y)
+                        return true
+                    end
                 end
             end
         end
         
-        if itemClicked then
-            return true
-        end
+        return false
     end
     
     -- Flag to track if click was handled
     local clickHandled = false
     
-    -- Pass to character tabs first
-    if self.elements.characterTabs:clicked(x, y, button) then
+    -- Pass to character list
+    if self.elements.characterList:clicked(x, y, button) then
         -- Play click sound
         assetManager:playSound("click")
         clickHandled = true
