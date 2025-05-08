@@ -48,6 +48,16 @@ local raycaster = {
     torchRedTint = 0.5, -- Amount of red tint in the torch light (0-1)
     globalDarkness = 0.6, -- Global darkness level (0-1, higher = darker)
     
+    -- Normal map blur effect
+    normalMapBlur = 1.0, -- Intensity of blur effect applied to normal maps (0-1, higher = more blur)
+    
+    -- Enemy normal map blur settings
+    enemyNormalMapBlurEnabled = false, -- Whether to apply blur to enemy normal maps
+    enemyNormalMapBlur = 0.5, -- Intensity of blur effect for enemy normal maps (0-1, higher = more blur)
+    
+    -- Light direction for lighting calculations
+    lightDirection = {0.9, 0.9, 0.9},
+    
     -- Camera properties
     camera = {
         x = 0,
@@ -72,6 +82,12 @@ local raycaster = {
     -- Torch light time tracker
     torchTime = 0
 }
+
+-- Normalize the light direction vector
+local lightDirLength = math.sqrt(raycaster.lightDirection[1]^2 + raycaster.lightDirection[2]^2 + raycaster.lightDirection[3]^2)
+raycaster.lightDirection[1] = raycaster.lightDirection[1] / lightDirLength
+raycaster.lightDirection[2] = raycaster.lightDirection[2] / lightDirLength
+raycaster.lightDirection[3] = raycaster.lightDirection[3] / lightDirLength
 
 -- Load the shaders for hardware-accelerated rendering
 local function loadShaders()
@@ -100,7 +116,42 @@ local function loadShaders()
     uniform float torchRedTint;
     uniform float globalDarkness;
     uniform bool torchEnabled;
+    uniform float normalMapBlur;
     uniform vec3 lightDir;
+
+    // Gaussian blur function for normal maps
+    vec3 blurNormal(ArrayImage normalMap, vec3 texCoord, float blurAmount) {
+        // Skip blur if amount is very small
+        if (blurAmount < 0.01) {
+            return Texel(normalMap, texCoord).rgb;
+        }
+        
+        // Calculate blur radius based on blur amount (0-1)
+        float radius = 0.005 * blurAmount;
+        
+        // Sample points for Gaussian 3x3 kernel
+        vec2 offsets[9] = vec2[9](
+            vec2(-radius, -radius), vec2(0, -radius), vec2(radius, -radius),
+            vec2(-radius, 0),       vec2(0, 0),       vec2(radius, 0),
+            vec2(-radius, radius),  vec2(0, radius),  vec2(radius, radius)
+        );
+        
+        // Gaussian weights (normalized)
+        float weights[9] = float[9](
+            0.0625, 0.125, 0.0625,
+            0.125,  0.25,  0.125,
+            0.0625, 0.125, 0.0625
+        );
+        
+        // Accumulate blurred result
+        vec3 result = vec3(0.0);
+        for(int i = 0; i < 9; i++) {
+            vec3 sampleCoord = vec3(texCoord.xy + offsets[i], texCoord.z);
+            result += Texel(normalMap, sampleCoord).rgb * weights[i];
+        }
+        
+        return result;
+    }
 
     RenderData extractRenderData(float screenU) {
         RenderData result;
@@ -134,8 +185,8 @@ local function loadShaders()
             // Get diffuse color from texture
             vec4 diffuseColor = Texel(textures, vec3(rd.u, v, rd.textureId));
             
-            // Get normal from normal map
-            vec3 normal = Texel(normalMaps, vec3(rd.u, v, rd.textureId)).rgb;
+            // Get normal from normal map with Gaussian blur applied
+            vec3 normal = blurNormal(normalMaps, vec3(rd.u, v, rd.textureId), normalMapBlur);
             
             // Transform normal from [0,1] to [-1,1] range
             normal = normal * 2.0 - 1.0;
@@ -208,7 +259,42 @@ local function loadShaders()
     uniform float torchRedTint;
     uniform float globalDarkness;
     uniform bool torchEnabled;
+    uniform float normalMapBlur;
     uniform vec3 lightDir;
+
+    // Gaussian blur function for normal maps
+    vec3 blurNormal(ArrayImage normalMap, vec3 texCoord, float blurAmount) {
+        // Skip blur if amount is very small
+        if (blurAmount < 0.01) {
+            return Texel(normalMap, texCoord).rgb;
+        }
+        
+        // Calculate blur radius based on blur amount (0-1)
+        float radius = 0.005 * blurAmount;
+        
+        // Sample points for Gaussian 3x3 kernel
+        vec2 offsets[9] = vec2[9](
+            vec2(-radius, -radius), vec2(0, -radius), vec2(radius, -radius),
+            vec2(-radius, 0),       vec2(0, 0),       vec2(radius, 0),
+            vec2(-radius, radius),  vec2(0, radius),  vec2(radius, radius)
+        );
+        
+        // Gaussian weights (normalized)
+        float weights[9] = float[9](
+            0.0625, 0.125, 0.0625,
+            0.125,  0.25,  0.125,
+            0.0625, 0.125, 0.0625
+        );
+        
+        // Accumulate blurred result
+        vec3 result = vec3(0.0);
+        for(int i = 0; i < 9; i++) {
+            vec3 sampleCoord = vec3(texCoord.xy + offsets[i], texCoord.z);
+            result += Texel(normalMap, sampleCoord).rgb * weights[i];
+        }
+        
+        return result;
+    }
 
     vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords)
     {
@@ -235,8 +321,8 @@ local function loadShaders()
             // Get diffuse color from texture
             vec4 diffuseColor = Texel(textures, vec3(u, v, tileId));
             
-            // Get normal from normal map
-            vec3 normal = Texel(normalMaps, vec3(u, v, tileId)).rgb;
+            // Get normal from normal map with Gaussian blur applied
+            vec3 normal = blurNormal(normalMaps, vec3(u, v, tileId), normalMapBlur);
             
             // Transform normal from [0,1] to [-1,1] range
             normal = normal * 2.0 - 1.0;
@@ -298,7 +384,42 @@ local function loadShaders()
     uniform float torchRedTint;
     uniform float globalDarkness;
     uniform bool torchEnabled;
+    uniform float normalMapBlur;
     uniform vec3 lightDir;
+
+    // Gaussian blur function for normal maps
+    vec3 blurNormal(ArrayImage normalMap, vec3 texCoord, float blurAmount) {
+        // Skip blur if amount is very small
+        if (blurAmount < 0.01) {
+            return Texel(normalMap, texCoord).rgb;
+        }
+        
+        // Calculate blur radius based on blur amount (0-1)
+        float radius = 0.005 * blurAmount;
+        
+        // Sample points for Gaussian 3x3 kernel
+        vec2 offsets[9] = vec2[9](
+            vec2(-radius, -radius), vec2(0, -radius), vec2(radius, -radius),
+            vec2(-radius, 0),       vec2(0, 0),       vec2(radius, 0),
+            vec2(-radius, radius),  vec2(0, radius),  vec2(radius, radius)
+        );
+        
+        // Gaussian weights (normalized)
+        float weights[9] = float[9](
+            0.0625, 0.125, 0.0625,
+            0.125,  0.25,  0.125,
+            0.0625, 0.125, 0.0625
+        );
+        
+        // Accumulate blurred result
+        vec3 result = vec3(0.0);
+        for(int i = 0; i < 9; i++) {
+            vec3 sampleCoord = vec3(texCoord.xy + offsets[i], texCoord.z);
+            result += Texel(normalMap, sampleCoord).rgb * weights[i];
+        }
+        
+        return result;
+    }
 
     vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords)
     {
@@ -330,8 +451,8 @@ local function loadShaders()
             // Get diffuse color from texture
             vec4 diffuseColor = Texel(textures, vec3(u, v, tileId));
             
-            // Get normal from normal map
-            vec3 normal = Texel(normalMaps, vec3(u, v, tileId)).rgb;
+            // Get normal from normal map with Gaussian blur applied
+            vec3 normal = blurNormal(normalMaps, vec3(u, v, tileId), normalMapBlur);
             
             // Transform normal from [0,1] to [-1,1] range
             normal = normal * 2.0 - 1.0;
@@ -399,6 +520,42 @@ local function loadShaders()
     uniform vec3 lightDir;
     uniform Image normalMap;
     uniform bool hasNormalMap;
+    uniform bool enemyNormalMapBlurEnabled;
+    uniform float enemyNormalMapBlur;
+    
+    // Gaussian blur function for normal maps
+    vec3 blurNormal(Image normalMap, vec2 texCoord, float blurAmount, bool blurEnabled) {
+        // Skip blur if amount is very small or blur is disabled
+        if (blurAmount < 0.01 || !hasNormalMap || !blurEnabled) {
+            return Texel(normalMap, texCoord).rgb;
+        }
+        
+        // Calculate blur radius based on blur amount (0-1)
+        float radius = 0.005 * blurAmount;
+        
+        // Sample points for Gaussian 3x3 kernel
+        vec2 offsets[9] = vec2[9](
+            vec2(-radius, -radius), vec2(0, -radius), vec2(radius, -radius),
+            vec2(-radius, 0),       vec2(0, 0),       vec2(radius, 0),
+            vec2(-radius, radius),  vec2(0, radius),  vec2(radius, radius)
+        );
+        
+        // Gaussian weights (normalized)
+        float weights[9] = float[9](
+            0.0625, 0.125, 0.0625,
+            0.125,  0.25,  0.125,
+            0.0625, 0.125, 0.0625
+        );
+        
+        // Accumulate blurred result
+        vec3 result = vec3(0.0);
+        for(int i = 0; i < 9; i++) {
+            vec2 sampleCoord = texCoord + offsets[i];
+            result += Texel(normalMap, sampleCoord).rgb * weights[i];
+        }
+        
+        return result;
+    }
     
     vec4 effect(vec4 color, Image texture, vec2 texture_coords, vec2 screen_coords)
     {
@@ -410,9 +567,9 @@ local function loadShaders()
         
         vec3 normal = vec3(0.0, 0.0, 1.0); // Default forward-facing normal
         
-        // If normal map is available, use it
+        // If normal map is available, use it with blur applied
         if (hasNormalMap) {
-            vec3 normalValue = Texel(normalMap, texture_coords).rgb;
+            vec3 normalValue = blurNormal(normalMap, texture_coords, enemyNormalMapBlur, enemyNormalMapBlurEnabled);
             normal = normalValue * 2.0 - 1.0; // Convert from [0,1] to [-1,1]
         }
         
@@ -840,11 +997,7 @@ function raycaster:renderWalls(map)
     self.wallShader:send("normalMaps", assetManager.texArrays.wallNormals)
     
     -- Calculate light direction (pointing slightly downwards)
-    local lightDir = {0.2, 0.3, 0.9}
-    local lightDirLength = math.sqrt(lightDir[1]^2 + lightDir[2]^2 + lightDir[3]^2)
-    lightDir[1] = lightDir[1] / lightDirLength
-    lightDir[2] = lightDir[2] / lightDirLength
-    lightDir[3] = lightDir[3] / lightDirLength
+    local lightDir = self.lightDirection
     self.wallShader:send("lightDir", lightDir)
     
     -- Update shader uniforms for torch effect
@@ -854,6 +1007,9 @@ function raycaster:renderWalls(map)
     self.wallShader:send("torchRedTint", self.torchRedTint)
     self.wallShader:send("globalDarkness", self.globalDarkness)
     self.wallShader:send("torchEnabled", self.torchEnabled)
+    
+    -- Send normal map blur amount
+    self.wallShader:send("normalMapBlur", self.normalMapBlur)
     
     -- Draw walls
     love.graphics.rectangle("fill", 0, 0, self.viewWidth, self.viewHeight)
@@ -873,11 +1029,7 @@ function raycaster:renderFloorAndCeiling(map)
     self:prepareMapData(map)
     
     -- Calculate light direction (pointing slightly downwards)
-    local lightDir = {0.2, 0.3, 0.9}
-    local lightDirLength = math.sqrt(lightDir[1]^2 + lightDir[2]^2 + lightDir[3]^2)
-    lightDir[1] = lightDir[1] / lightDirLength
-    lightDir[2] = lightDir[2] / lightDirLength
-    lightDir[3] = lightDir[3] / lightDirLength
+    local lightDir = self.lightDirection
     
     -- Render ceiling
     local start = love.timer.getTime()
@@ -903,6 +1055,9 @@ function raycaster:renderFloorAndCeiling(map)
     self.ceilingShader:send("torchRedTint", self.torchRedTint)
     self.ceilingShader:send("globalDarkness", self.globalDarkness)
     self.ceilingShader:send("torchEnabled", self.torchEnabled)
+    
+    -- Send normal map blur amount
+    self.ceilingShader:send("normalMapBlur", self.normalMapBlur)
     
     -- Draw ceiling
     love.graphics.rectangle("fill", 0, 0, self.viewWidth, self.halfHeight + self.camera.tilt)
@@ -933,6 +1088,9 @@ function raycaster:renderFloorAndCeiling(map)
     self.floorShader:send("globalDarkness", self.globalDarkness)
     self.floorShader:send("torchEnabled", self.torchEnabled)
     
+    -- Send normal map blur amount
+    self.floorShader:send("normalMapBlur", self.normalMapBlur)
+    
     -- Draw floor
     love.graphics.rectangle("fill", 0, self.halfHeight + self.camera.tilt, self.viewWidth, self.halfHeight - self.camera.tilt)
     
@@ -953,13 +1111,8 @@ function raycaster:renderEntities(entities)
     love.graphics.setDepthMode("lequal", true)
     love.graphics.setShader(self.spriteShader)
     
-    -- Calculate light direction (pointing slightly downwards)
-    local lightDir = {0.2, 0.3, 0.9}
-    local lightDirLength = math.sqrt(lightDir[1]^2 + lightDir[2]^2 + lightDir[3]^2)
-    lightDir[1] = lightDir[1] / lightDirLength
-    lightDir[2] = lightDir[2] / lightDirLength
-    lightDir[3] = lightDir[3] / lightDirLength
-    self.spriteShader:send("lightDir", lightDir)
+
+    self.spriteShader:send("lightDir", self.lightDirection)
     
     -- Send shader uniforms for torch effect
     self.spriteShader:send("torchTime", self.torchTime)
@@ -968,6 +1121,10 @@ function raycaster:renderEntities(entities)
     self.spriteShader:send("torchRedTint", self.torchRedTint)
     self.spriteShader:send("globalDarkness", self.globalDarkness)
     self.spriteShader:send("torchEnabled", self.torchEnabled)
+    
+    -- Send enemy-specific normal map blur settings
+    self.spriteShader:send("enemyNormalMapBlurEnabled", self.enemyNormalMapBlurEnabled)
+    self.spriteShader:send("enemyNormalMapBlur", self.enemyNormalMapBlur)
     
     -- Sort entities by distance (farthest to closest for correct drawing order)
     table.sort(entities, function(a, b)
