@@ -393,7 +393,7 @@ function shop:createUI()
     
     -- Create back button
     self.elements.backToTownButton = screenManager.UI.Button(
-        GAME.width - 170, GAME.height - 70, 
+        GAME.width - 200, 20, 
         150, 40, "Back to Town", 
         function() self:returnToTown() end
     )

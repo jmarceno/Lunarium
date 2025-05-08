@@ -20,21 +20,50 @@ end
 function guild:createUI()
     -- Create quest list panel
     self.elements.questListPanel = {
-        x = 50,
-        y = 120,
-        width = 700,
-        height = 400,
+        x = 100,
+        y = 50,
+        width = GAME.width - 200,
+        height = GAME.height - 200,
         
         draw = function(self)
             -- Draw panel background
-            screenManager:drawPanel("Available Quests", self.x, self.y, self.width, self.height)
+            love.graphics.setColor(0.1, 0.1, 0.15, 0.8)
+            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 10, 10)
+            
+            -- Draw screen title
+            love.graphics.setFont(screenManager.fonts.large)
+            love.graphics.setColor(1, 0.9, 0.7)
+            love.graphics.printf("Adventurers' Guild", self.x, self.y + 20, self.width, "center")
+            
+            -- Draw current gold
+            if GAME.gold then
+                love.graphics.setFont(screenManager.fonts.medium)
+                love.graphics.setColor(1, 1, 0)
+                
+                love.graphics.print(
+                    "Gold: " .. GAME.gold,
+                    self.x + 50, self.y + 70
+                )
+            end
+            
+            -- Draw "Available Quests" section label
+            love.graphics.setFont(screenManager.fonts.medium)
+            love.graphics.setColor(0.8, 0.8, 1)
+            love.graphics.printf("Available Quests", self.x, self.y + 100, self.width, "center")
+            
+            -- Draw divider line
+            love.graphics.setColor(0.5, 0.5, 0.7, 0.7)
+            love.graphics.line(
+                self.x + 50, self.y + 130, 
+                self.x + self.width - 50, self.y + 130
+            )
             
             -- Draw quests
             for i, quest in ipairs(guild.questList) do
-                local questY = self.y + 50 + (i-1) * 70
+                local questY = self.y + 150 + (i-1) * 80
                 
                 -- Skip if out of view
-                if questY > self.y + self.height - 20 then
+                if questY > self.y + self.height - 80 then
                     break
                 end
                 
@@ -47,8 +76,8 @@ function guild:createUI()
                 
                 love.graphics.rectangle(
                     "fill",
-                    self.x + 10, questY, 
-                    self.width - 20, 60,
+                    self.x + 20, questY, 
+                    self.width - 40, 70,
                     5, 5
                 )
                 
@@ -58,7 +87,7 @@ function guild:createUI()
                 
                 love.graphics.print(
                     quest.name,
-                    self.x + 20, questY + 10
+                    self.x + 40, questY + 10
                 )
                 
                 -- Draw quest difficulty
@@ -85,7 +114,7 @@ function guild:createUI()
                 
                 love.graphics.print(
                     diffText,
-                    self.x + 20, questY + 35
+                    self.x + 40, questY + 40
                 )
                 
                 -- Draw reward preview
@@ -93,7 +122,7 @@ function guild:createUI()
                 
                 love.graphics.print(
                     "Reward: " .. quest.rewards.gold .. " gold",
-                    self.x + 500, questY + 35
+                    self.x + self.width - 250, questY + 40
                 )
             end
             
@@ -104,8 +133,8 @@ function guild:createUI()
                 
                 love.graphics.printf(
                     "No quests available at the moment.\nCheck back later!",
-                    self.x + 20, self.y + 150,
-                    self.width - 40, "center"
+                    self.x + 40, self.y + 200,
+                    self.width - 80, "center"
                 )
             end
         end,
@@ -119,14 +148,14 @@ function guild:createUI()
                 
                 -- Check quest entries
                 for i, quest in ipairs(guild.questList) do
-                    local questY = self.y + 50 + (i-1) * 70
+                    local questY = self.y + 150 + (i-1) * 80
                     
                     -- Skip if out of view
-                    if questY > self.y + self.height - 20 then
+                    if questY > self.y + self.height - 80 then
                         break
                     end
                     
-                    if y >= questY and y <= questY + 60 then
+                    if y >= questY and y <= questY + 70 then
                         guild:selectQuest(quest)
                         return true
                     end
@@ -141,10 +170,10 @@ function guild:createUI()
     
     -- Create quest details panel
     self.elements.questDetailsPanel = {
-        x = 50,
-        y = 120,
-        width = 700,
-        height = 400,
+        x = 100,
+        y = 50,
+        width = GAME.width - 200,
+        height = GAME.height - 200,
         visible = false,
         
         draw = function(self)
@@ -155,7 +184,36 @@ function guild:createUI()
             local quest = guild.selectedQuest
             
             -- Draw panel background
-            screenManager:drawPanel("Quest Details", self.x, self.y, self.width, self.height)
+            love.graphics.setColor(0.1, 0.1, 0.15, 0.8)
+            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 10, 10)
+            
+            -- Draw screen title
+            love.graphics.setFont(screenManager.fonts.large)
+            love.graphics.setColor(1, 0.9, 0.7)
+            love.graphics.printf("Adventurers' Guild", self.x, self.y + 20, self.width, "center")
+            
+            -- Draw current gold
+            if GAME.gold then
+                love.graphics.setFont(screenManager.fonts.medium)
+                love.graphics.setColor(1, 1, 0)
+                
+                love.graphics.print(
+                    "Gold: " .. GAME.gold,
+                    self.x + 50, self.y + 70
+                )
+            end
+            
+            -- Draw "Quest Details" section label
+            love.graphics.setFont(screenManager.fonts.medium)
+            love.graphics.setColor(0.8, 0.8, 1)
+            love.graphics.printf("Quest Details", self.x, self.y + 100, self.width, "center")
+            
+            -- Draw divider line
+            love.graphics.setColor(0.5, 0.5, 0.7, 0.7)
+            love.graphics.line(
+                self.x + 50, self.y + 130, 
+                self.x + self.width - 50, self.y + 130
+            )
             
             -- Draw quest name
             love.graphics.setFont(screenManager.fonts.large)
@@ -163,7 +221,7 @@ function guild:createUI()
             
             love.graphics.printf(
                 quest.name,
-                self.x + 20, self.y + 50,
+                self.x + 20, self.y + 150,
                 self.width - 40, "center"
             )
             
@@ -173,8 +231,8 @@ function guild:createUI()
             
             love.graphics.printf(
                 quest.description,
-                self.x + 30, self.y + 100,
-                self.width - 60, "center"
+                self.x + 50, self.y + 200,
+                self.width - 100, "center"
             )
             
             -- Draw quest details
@@ -203,7 +261,7 @@ function guild:createUI()
             
             love.graphics.print(
                 diffText,
-                self.x + 30, self.y + 170
+                self.x + 50, self.y + 280
             )
             
             -- Draw level
@@ -211,7 +269,7 @@ function guild:createUI()
             
             love.graphics.print(
                 "Recommended Level: " .. quest.level,
-                self.x + 30, self.y + 200
+                self.x + 50, self.y + 310
             )
             
             -- Draw rewards section
@@ -220,7 +278,7 @@ function guild:createUI()
             
             love.graphics.print(
                 "Rewards:",
-                self.x + 30, self.y + 240
+                self.x + 50, self.y + 350
             )
             
             -- Draw gold reward
@@ -229,7 +287,7 @@ function guild:createUI()
             
             love.graphics.print(
                 quest.rewards.gold .. " Gold",
-                self.x + 50, self.y + 270
+                self.x + 70, self.y + 380
             )
             
             -- Draw item rewards
@@ -239,7 +297,7 @@ function guild:createUI()
                 
                 love.graphics.print(
                     "Items:",
-                    self.x + 50, self.y + 300
+                    self.x + 70, self.y + 410
                 )
                 
                 for i, item in ipairs(quest.rewards.items) do
@@ -253,7 +311,7 @@ function guild:createUI()
                     
                     love.graphics.print(
                         itemText,
-                        self.x + 70, self.y + 300 + i * 25
+                        self.x + 90, self.y + 410 + i * 25
                     )
                 end
             end
@@ -281,14 +339,14 @@ function guild:createUI()
         init = function(self)
             -- Create buttons
             self.acceptButton = screenManager.UI.Button(
-                self.x + self.width / 2 - 120, self.y + self.height - 70, 
-                100, 40, "Accept", 
+                self.x + self.width / 2 - 160, self.y + self.height - 70, 
+                140, 40, "Accept Quest", 
                 function() guild:acceptQuest() end
             )
             
             self.backButton = screenManager.UI.Button(
                 self.x + self.width / 2 + 20, self.y + self.height - 70, 
-                100, 40, "Back", 
+                140, 40, "Back", 
                 function() guild:showMainScreen() end
             )
         end
@@ -299,7 +357,7 @@ function guild:createUI()
     
     -- Create back button
     self.elements.backToTownButton = screenManager.UI.Button(
-        GAME.width - 170, GAME.height - 70, 
+        GAME.width - 200, 20, 
         150, 40, "Back to Town", 
         function() self:returnToTown() end
     )
@@ -307,7 +365,8 @@ function guild:createUI()
     
     -- Create refresh button
     self.elements.refreshButton = screenManager.UI.Button(
-        620, 70, 130, 40, "Refresh", 
+        GAME.width / 2 + 100, GAME.height - 100, 
+        150, 40, "Refresh Quests", 
         function() self:refreshQuests() end
     )
     self.elements.refreshButton.visible = true
@@ -388,22 +447,6 @@ function guild:draw()
     
     love.graphics.setColor(0.4, 0.3, 0.2)
     love.graphics.rectangle("line", 40, 110, 720, 420, 5, 5)
-    
-    -- Draw screen title
-    love.graphics.setFont(screenManager.fonts.large)
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.print("Adventurers' Guild", 50, 30)
-    
-    -- Draw current gold
-    if GAME.gold then
-        love.graphics.setFont(screenManager.fonts.medium)
-        love.graphics.setColor(1, 1, 0)
-        
-        love.graphics.print(
-            "Gold: " .. GAME.gold,
-            50, 70
-        )
-    end
     
     -- Draw state-specific UI
     if self.state == "main" then

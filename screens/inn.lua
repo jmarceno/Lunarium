@@ -486,9 +486,9 @@ function inn:createUI()
     
     -- Back button (common to most sections)
     self.elements.backButton = screenManager.UI.Button(
-        100, GAME.height - 190,
+        GAME.width - 200, 20,
         150, 40,
-        "Back",
+        "Back to Town",
         function()
             if self.currentSection ~= "main" and self.currentSection ~= "event" then
                 self.currentSection = "main"
