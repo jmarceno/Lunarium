@@ -14,6 +14,9 @@ function guild:init()
     self.questList = {}
     self.refreshTimer = 0
     
+    -- Load background image directly using love.graphics
+    self.backgroundImage = love.graphics.newImage("assets/GuildScreen.png")
+    
     -- Create UI elements
     self:createUI()
 end
@@ -28,7 +31,7 @@ function guild:createUI()
         
         draw = function(self)
             -- Draw panel background
-            love.graphics.setColor(0.1, 0.1, 0.15, 0.8)
+            love.graphics.setColor(0.1, 0.1, 0.15, 0.7)
             love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 10, 10)
             
             -- Draw screen title
@@ -185,7 +188,7 @@ function guild:createUI()
             local quest = guild.selectedQuest
             
             -- Draw panel background
-            love.graphics.setColor(0.1, 0.1, 0.15, 0.8)
+            love.graphics.setColor(0.1, 0.1, 0.15, 0.7)
             love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 10, 10)
             
             -- Draw screen title
@@ -412,6 +415,11 @@ function guild:enter()
     -- Start playing guild music
     -- assetManager:playMusic("town") -- Use town music for now
     
+    -- Ensure background image is loaded
+    if not self.backgroundImage then
+        self.backgroundImage = love.graphics.newImage("assets/GuildScreen.png")
+    end
+    
     -- Load quests
     self:loadQuests()
     
@@ -438,9 +446,15 @@ function guild:draw()
     -- Draw background
     love.graphics.clear(screenManager.colors.background)
     
-    -- Draw guild hall interior (placeholder)
-    love.graphics.setColor(0.3, 0.25, 0.2)
-    love.graphics.rectangle("fill", 0, 0, GAME.width, GAME.height)
+    -- Draw guild background image
+    if self.backgroundImage then
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.draw(self.backgroundImage, 0, 0)
+    else
+        -- Fallback if image not loaded
+        love.graphics.setColor(0.3, 0.25, 0.2)
+        love.graphics.rectangle("fill", 0, 0, GAME.width, GAME.height)
+    end
     
     -- Draw state-specific UI
     if self.state == "main" then

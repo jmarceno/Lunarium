@@ -21,6 +21,9 @@ function inn:init()
     self.currentEvent = nil
     self.eventResult = nil
     
+    -- Load background image directly using love.graphics
+    self.backgroundImage = love.graphics.newImage("assets/InnScreen.png")
+    
     -- Create UI elements
     self:createUI()
 end
@@ -31,7 +34,7 @@ function inn:createUI()
         visible = true,
         draw = function()
             -- Draw background
-            love.graphics.setColor(0.1, 0.1, 0.15, 0.8)
+            love.graphics.setColor(0.1, 0.1, 0.15, 0.7)
             love.graphics.rectangle("fill", 100, 50, GAME.width - 200, GAME.height - 200, 10, 10)
             
             -- Draw inn title
@@ -75,7 +78,7 @@ function inn:createUI()
         visible = false,
         draw = function()
             -- Draw background
-            love.graphics.setColor(0.1, 0.1, 0.15, 0.8)
+            love.graphics.setColor(0.1, 0.1, 0.15, 0.7)
             love.graphics.rectangle("fill", 100, 50, GAME.width - 200, GAME.height - 200, 10, 10)
             
             -- Draw title
@@ -158,7 +161,7 @@ function inn:createUI()
         visible = false,
         draw = function()
             -- Draw background
-            love.graphics.setColor(0.1, 0.1, 0.15, 0.8)
+            love.graphics.setColor(0.1, 0.1, 0.15, 0.7)
             love.graphics.rectangle("fill", 100, 50, GAME.width - 200, GAME.height - 200, 10, 10)
             
             -- Draw title
@@ -249,7 +252,7 @@ function inn:createUI()
         visible = false,
         draw = function()
             -- Draw background
-            love.graphics.setColor(0.1, 0.1, 0.15, 0.8)
+            love.graphics.setColor(0.1, 0.1, 0.15, 0.7)
             love.graphics.rectangle("fill", 100, 50, GAME.width - 200, GAME.height - 200, 10, 10)
             
             -- Draw title
@@ -709,6 +712,11 @@ function inn:enter()
     self.currentEvent = nil
     self.eventResult = nil
     
+    -- Ensure background image is loaded
+    if not self.backgroundImage then
+        self.backgroundImage = love.graphics.newImage("assets/InnScreen.png")
+    end
+    
     -- Update panel visibility
     self:updatePanelVisibility()
     
@@ -723,11 +731,12 @@ end
 
 function inn:draw()
     -- Draw background
-    love.graphics.setColor(1, 1, 1)
-    if assetManager.images.backgrounds and assetManager.images.backgrounds.inn then
-        love.graphics.draw(assetManager.images.backgrounds.inn, 0, 0, 0, 
-            GAME.width / assetManager.images.backgrounds.inn:getWidth(),
-            GAME.height / assetManager.images.backgrounds.inn:getHeight())
+    love.graphics.clear(screenManager.colors.background)
+    
+    -- Draw inn background image
+    if self.backgroundImage then
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.draw(self.backgroundImage, 0, 0)
     else
         -- Fallback color if image not available
         love.graphics.setColor(0.2, 0.15, 0.1)

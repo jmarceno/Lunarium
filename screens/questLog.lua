@@ -19,13 +19,13 @@ end
 function questLog:createUI()
     -- Create category tabs
     self.elements.activeTab = screenManager.UI.Button(
-        200, 70, 150, 40, "Active Quests", 
+        150, 70, 170, 40, "Active Quests", 
         function() self:selectCategory("active") end
     )
     self.elements.activeTab.visible = true
     
     self.elements.completedTab = screenManager.UI.Button(
-        450, 70, 150, 40, "Completed Quests", 
+        450, 70, 170, 40, "Completed Quests", 
         function() self:selectCategory("completed") end
     )
     self.elements.completedTab.visible = true
@@ -394,12 +394,12 @@ function questLog:draw()
     love.graphics.clear(screenManager.colors.background)
     
     -- Draw parchment background
-    love.graphics.setColor(0.95, 0.92, 0.85)
+    love.graphics.setColor(screenManager.colors.background)
     love.graphics.rectangle("fill", 0, 0, GAME.width, GAME.height)
     
     -- Draw screen title
     love.graphics.setFont(screenManager.fonts.large)
-    love.graphics.setColor(0.3, 0.2, 0.1)
+    love.graphics.setColor(screenManager.colors.title)
     love.graphics.print("Quest Log", 50, 30)
     
     -- Draw UI elements

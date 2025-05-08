@@ -20,6 +20,9 @@ function tavern:init()
     self.haggleSuccess = false
     self.originalReward = 0
     
+    -- Load background image directly using love.graphics
+    self.backgroundImage = love.graphics.newImage("assets/TavernScreen.png")
+    
     -- Create UI elements
     self:createUI()
 end
@@ -34,7 +37,7 @@ function tavern:createUI()
         
         draw = function(self)
             -- Draw panel background
-            love.graphics.setColor(0.1, 0.1, 0.15, 0.8)
+            love.graphics.setColor(0.1, 0.1, 0.15, 0.7)
             love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 10, 10)
             
             -- Draw screen title
@@ -191,7 +194,7 @@ function tavern:createUI()
             local quest = tavern.selectedQuest
             
             -- Draw panel background
-            love.graphics.setColor(0.1, 0.1, 0.15, 0.8)
+            love.graphics.setColor(0.1, 0.1, 0.15, 0.7)
             love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 10, 10)
             
             -- Draw screen title
@@ -615,6 +618,11 @@ function tavern:enter()
     -- Start playing tavern music
     -- assetManager:playMusic("town") -- Use town music for now
     
+    -- Ensure background image is loaded
+    if not self.backgroundImage then
+        self.backgroundImage = love.graphics.newImage("assets/TavernScreen.png")
+    end
+    
     -- Load quests
     self:loadQuests()
     
@@ -645,10 +653,15 @@ function tavern:draw()
     -- Draw background
     love.graphics.clear(screenManager.colors.background)
     
-    -- Draw tavern interior (placeholder)
-    love.graphics.setColor(0.4, 0.3, 0.2)
-    love.graphics.rectangle("fill", 0, 0, GAME.width, GAME.height)
-    
+    -- Draw tavern background image
+    if self.backgroundImage then
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.draw(self.backgroundImage, 0, 0)
+    else
+        -- Fallback if image not loaded
+        love.graphics.setColor(0.4, 0.3, 0.2)
+        love.graphics.rectangle("fill", 0, 0, GAME.width, GAME.height)
+    end
     
     -- Draw state-specific UI
     if self.state == "main" then

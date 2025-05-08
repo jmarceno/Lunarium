@@ -16,6 +16,9 @@ function shop:init()
     self.pageOffset = 0
     self.itemsPerPage = 6
     
+    -- Load background image directly using love.graphics
+    self.backgroundImage = love.graphics.newImage("assets/ShopScreen.png")
+    
     -- Categories
     self.categories = {
         "All",
@@ -51,7 +54,7 @@ function shop:createUI()
         
         draw = function(self)
             -- Draw panel background
-            love.graphics.setColor(0.1, 0.1, 0.15, 0.8)
+            love.graphics.setColor(0.1, 0.1, 0.15, 0.7)
             love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 10, 10)
             
             -- Draw screen title
@@ -333,7 +336,7 @@ function shop:createUI()
             local item = shop.selectedItem
             
             -- Draw panel background
-            love.graphics.setColor(0.1, 0.1, 0.15, 0.8)
+            love.graphics.setColor(0.1, 0.1, 0.15, 0.7)
             love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 10, 10)
             
             -- Draw screen title
@@ -541,6 +544,11 @@ function shop:enter()
     -- Start playing shop music
     -- assetManager:playMusic("town") -- Use town music for now
     
+    -- Ensure background image is loaded
+    if not self.backgroundImage then
+        self.backgroundImage = love.graphics.newImage("assets/ShopScreen.png")
+    end
+    
     -- Load shop inventory
     self:loadInventory()
     
@@ -559,9 +567,15 @@ function shop:draw()
     -- Draw background
     love.graphics.clear(screenManager.colors.background)
     
-    -- Draw shop interior (placeholder)
-    love.graphics.setColor(0.35, 0.35, 0.4)
-    love.graphics.rectangle("fill", 0, 0, GAME.width, GAME.height)
+    -- Draw shop background image
+    if self.backgroundImage then
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.draw(self.backgroundImage, 0, 0)
+    else
+        -- Fallback if image not loaded
+        love.graphics.setColor(0.35, 0.35, 0.4)
+        love.graphics.rectangle("fill", 0, 0, GAME.width, GAME.height)
+    end
     
     -- Draw state-specific UI
     if self.state == "main" then
