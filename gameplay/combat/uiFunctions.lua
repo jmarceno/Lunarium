@@ -50,12 +50,12 @@ local function createUI(self)
     )
     self.elements.defendButton.visible = true
     
-    -- Skill list (hidden initially)
+    -- Skill list (hidden initially) - Position just above skills button
     self.elements.skillList = {
         visible = false,
         skills = {},
-        x = 20, -- Move to left side of screen
-        y = GAME.height - partyHeight - 250, -- Position above the party UI
+        x = startX + buttonWidth + buttonSpacing, -- Position above skill button
+        y = buttonY - 210, -- Position directly above the skill button
         width = 250,
         height = 200,
         selectedIndex = 1, -- Track the selected index
@@ -257,8 +257,8 @@ local function createUI(self)
     self.elements.itemList = {
         visible = false,
         items = {},
-        x = 20, -- Move to left side of screen
-        y = GAME.height - partyHeight - 250, -- Position above the party UI
+        x = startX + (buttonWidth + buttonSpacing) * 2, -- Position above items button
+        y = buttonY - 210, -- Position directly above the items button
         width = 250,
         height = 200,
         
@@ -333,8 +333,8 @@ local function createUI(self)
     -- Party member selection list (for single_ally targeted skills/items)
     self.elements.partySelectList = {
         visible = false,
-        x = 20, -- Move to left side of screen
-        y = GAME.height - partyHeight - 250, -- Position above the party UI
+        x = startX, -- Position above attack button
+        y = buttonY - 210, -- Position directly above the attack button
         width = 250,
         height = 200,
         selectedIndex = nil,
@@ -423,21 +423,40 @@ local function createUI(self)
         end
     }
     
-    -- Confirm button (for skills/items) - stacked vertically
+    -- Confirm button (for skills/items)
     self.elements.confirmButton = screenManager.UI.Button(
-        280, GAME.height - partyHeight - 200, 
+        self.elements.skillList.x + self.elements.skillList.width + 10, 
+        self.elements.skillList.y, 
         120, 40, "Confirm", 
         function() self:confirmAction() end
     )
     self.elements.confirmButton.visible = false
     
-    -- Back button (for skills/items) - stacked vertically
+    -- Back button (for skills/items)
     self.elements.backButton = screenManager.UI.Button(
-        280, GAME.height - partyHeight - 150, 
+        self.elements.skillList.x + self.elements.skillList.width + 10, 
+        self.elements.skillList.y + 50, -- Keep this position
         120, 40, "Back", 
         function() self:cancelSelection() end
     )
     self.elements.backButton.visible = true
+    
+    -- Store original positions of confirm and back buttons for item panel
+    self.elements.itemConfirmButton = screenManager.UI.Button(
+        self.elements.itemList.x - 130, -- Position to the left of item list
+        self.elements.itemList.y, -- Same y as item list
+        120, 40, "Confirm", 
+        function() self:confirmAction() end
+    )
+    self.elements.itemConfirmButton.visible = false
+    
+    self.elements.itemBackButton = screenManager.UI.Button(
+        self.elements.itemList.x - 130, -- Position to the left of item list
+        self.elements.itemList.y + 50, -- 50px below confirm button
+        120, 40, "Back", 
+        function() self:cancelSelection() end
+    )
+    self.elements.itemBackButton.visible = false
 end
 
 -- Draw combat UI
@@ -518,20 +537,24 @@ end
 -- Draw multiple enemies in a grid layout
 local function drawMultipleEnemies(self)
     -- Calculate grid layout based on number of enemies
-    local columns = math.min(3, #self.enemies)  -- Max 3 enemies per row
-    local rows = math.ceil(#self.enemies / columns)
+    local maxRows = 2 -- Maximum number of rows
+    local maxEnemiesFirstRow = 3 -- Max 3 enemies in the first row
+    
+    local firstRowCount = math.min(maxEnemiesFirstRow, #self.enemies)
+    local secondRowCount = math.min(#self.enemies - firstRowCount, 2) -- Max 2 enemies in second row
     
     -- Calculate dimensions for each enemy display area
-    local enemyWidth = GAME.width / columns
-    local enemyHeight = 300  -- Fixed height for enemy section
+    local enemyWidth = 240 -- Increased from 200 to add more space between enemies
+    local enemyHeight = 300 -- Fixed height for enemy section
     
-    -- Draw each enemy in grid
-    for i, enemy in ipairs(self.enemies) do
-        -- Calculate position in grid
-        local col = (i - 1) % columns
-        local row = math.floor((i - 1) / columns)
-        local x = col * enemyWidth + (enemyWidth / 2) - 100  -- Center in column
-        local y = 30 + row * enemyHeight * 0.7  -- Reduce vertical spacing to fit all rows
+    -- Draw enemies in first row (up to 3)
+    for i = 1, firstRowCount do
+        local enemy = self.enemies[i]
+        -- Center the enemies in first row
+        local rowWidth = firstRowCount * enemyWidth
+        local startX = (GAME.width - rowWidth) / 2
+        local x = startX + (i-1) * enemyWidth + (enemyWidth/2) - 100 -- Center in space
+        local y = 30 -- Top row position
         
         -- Highlight currently active enemy 
         if self.state == combatSystem.STATE.ENEMY_TURN and i == self.activeEnemyIndex then
@@ -547,6 +570,35 @@ local function drawMultipleEnemies(self)
         
         -- Draw individual enemy
         self:drawSingleEnemy(enemy, x, y)
+    end
+    
+    -- Draw enemies in second row (up to 2) - centered
+    if secondRowCount > 0 then
+        local rowWidth = secondRowCount * enemyWidth
+        local startX = (GAME.width - rowWidth) / 2
+        
+        for i = 1, secondRowCount do
+            local enemyIndex = firstRowCount + i
+            local enemy = self.enemies[enemyIndex]
+            
+            local x = startX + (i-1) * enemyWidth + (enemyWidth/2) - 100 -- Center in space
+            local y = 200 -- Second row position (below first row)
+            
+            -- Highlight currently active enemy 
+            if self.state == combatSystem.STATE.ENEMY_TURN and enemyIndex == self.activeEnemyIndex then
+                love.graphics.setColor(0.5, 0.1, 0.1, 0.3)
+                love.graphics.rectangle("fill", x - 10, y - 10, 220, enemyHeight - 20, 5, 5)
+            end
+            
+            -- Highlight selected enemy for targeting
+            if self.selectedTarget == enemy then
+                love.graphics.setColor(0.1, 0.5, 0.1, 0.3)
+                love.graphics.rectangle("fill", x - 10, y - 10, 220, enemyHeight - 20, 5, 5)
+            end
+            
+            -- Draw individual enemy
+            self:drawSingleEnemy(enemy, x, y)
+        end
     end
 end
 
@@ -564,12 +616,12 @@ local function drawSingleEnemy(self, enemy, x, y)
     love.graphics.setColor(0.8, 0.2, 0.2)
     love.graphics.rectangle("fill", x, y + 40, healthWidth, 20)
     
-    -- Draw HP text
+    -- Draw HP text - moved 20px to the right
     love.graphics.setFont(screenManager.fonts.small)
     love.graphics.setColor(1, 1, 1)
     love.graphics.print(
         enemy.currentHP .. " / " .. enemy.maxHP,
-        x + 70, y + 42
+        x + 90, y + 42 -- Moved from x + 70 to x + 90
     )
     
     -- Draw enemy sprite below the health bar
@@ -755,7 +807,7 @@ local function drawCombatLog(self)
     -- Position in bottom right corner, above the party panel
     local panelHeight = 110 -- Should match party panel height (increased from 90)
     local logWidth = 260
-    local logHeight = 180
+    local logHeight = 230 -- Increased from 180 to 230 (added 50px)
     local logX = GAME.width - logWidth - 20 -- 20px margin from right edge
     local logY = GAME.height - panelHeight - logHeight - 20 -- Above party panel with 20px gap
     
@@ -775,16 +827,23 @@ local function drawCombatLog(self)
     -- Draw log entries
     love.graphics.setFont(screenManager.fonts.small)
     
+    -- Calculate line height - double the font height to prevent overlap completely
+    local fontHeight = love.graphics.getFont():getHeight()
+    local lineHeight = fontHeight * 2 -- Double the line height
+    
     -- Calculate how many entries can fit
-    local entriesVisible = math.floor((logHeight - 30) / 18) -- 30px for header, 18px per entry
+    local entriesVisible = math.floor((logHeight - 30) / lineHeight) -- 30px for header
     local startIndex = math.max(1, #self.log - entriesVisible + 1)
     
     for i = startIndex, #self.log do
         local entry = self.log[i]
-        local y = logY + 30 + (i - startIndex) * 18
+        local y = logY + 30 + (i - startIndex) * lineHeight
         
         love.graphics.setColor(entry.color or {1, 1, 1})
-        love.graphics.print(entry.text, logX + 10, y)
+        
+        -- Add text wrapping - max width is logWidth - 20 (for margins)
+        local textWidth = logWidth - 20
+        love.graphics.printf(entry.text, logX + 10, y, textWidth, "left")
     end
 end
 
@@ -845,19 +904,53 @@ local function drawPlayerTurnUI(self)
         end
         
         -- Draw confirm and back buttons for skill/item selection only
-        if self.elements.skillList.visible or 
-           self.elements.itemList.visible then
-            -- Only show confirm/back buttons for skill and item selection
+        if self.elements.skillList.visible then
+            -- For skill selection, use the regular positions
             self.elements.confirmButton.visible = true
             self.elements.backButton.visible = true
+            
+            -- Make sure the back button is in its original position
+            self.elements.backButton.x = self.elements.skillList.x + self.elements.skillList.width + 10
+            self.elements.backButton.y = self.elements.skillList.y + 50
+            
             self.elements.confirmButton:draw()
             self.elements.backButton:draw()
+            
+            -- Hide item-specific buttons
+            self.elements.itemConfirmButton.visible = false
+            self.elements.itemBackButton.visible = false
+        elseif self.elements.itemList.visible then
+            -- For item selection, use the item-specific buttons
+            self.elements.confirmButton.visible = false
+            self.elements.backButton.visible = false
+            
+            -- Show item-specific buttons
+            self.elements.itemConfirmButton.visible = true
+            self.elements.itemBackButton.visible = true
+            
+            -- Draw the item-specific buttons
+            self.elements.itemConfirmButton:draw()
+            self.elements.itemBackButton:draw()
         elseif (self.elements.enemySelectList and self.elements.enemySelectList.visible) or
                 self.elements.partySelectList.visible then
             -- For target selection (enemy or party), show only back button
             self.elements.confirmButton.visible = false
             self.elements.backButton.visible = true
+            
+            -- Update back button position for target selection
+            if self.elements.enemySelectList and self.elements.enemySelectList.visible then
+                self.elements.backButton.x = self.elements.enemySelectList.x - self.elements.backButton.width - 10
+                self.elements.backButton.y = self.elements.enemySelectList.y
+            elseif self.elements.partySelectList.visible then
+                self.elements.backButton.x = self.elements.partySelectList.x - self.elements.backButton.width - 10
+                self.elements.backButton.y = self.elements.partySelectList.y
+            end
+            
             self.elements.backButton:draw()
+            
+            -- Hide item-specific buttons
+            self.elements.itemConfirmButton.visible = false
+            self.elements.itemBackButton.visible = false
         end
     end
 end
@@ -921,8 +1014,8 @@ local function showEnemySelectionUI(self, actionType)
     if not self.elements.enemySelectList then
         self.elements.enemySelectList = {
             visible = false,
-            x = GAME.width - 300, -- Position on right side of screen
-            y = 100, -- Higher on screen
+            x = self.elements.attackButton.x, -- Position above attack button
+            y = self.elements.attackButton.y - 210, -- Position directly above the attack button
             width = 250,
             height = 200,
             selectedIndex = nil,
@@ -965,9 +1058,9 @@ local function showEnemySelectionUI(self, actionType)
                         love.graphics.setColor(1, 1, 1)
                         love.graphics.print(enemy.name, self.x + 10, y)
                         
-                        -- Draw HP info
+                        -- Draw HP info - moved more to the right
                         love.graphics.setColor(0.8, 0.3, 0.3)
-                        love.graphics.print("HP: " .. enemy.currentHP .. "/" .. enemy.maxHP, self.x + 120, y)
+                        love.graphics.print("HP: " .. enemy.currentHP .. "/" .. enemy.maxHP, self.x + 140, y) -- Moved from 120 to 140
                     end
                 end
             end,
@@ -1023,6 +1116,10 @@ local function showEnemySelectionUI(self, actionType)
     
     -- Since we're using auto-confirm, we only need the back button
     self.elements.confirmButton.visible = false
+    
+    -- Position the back button to the left of the enemy selection list
+    self.elements.backButton.x = self.elements.enemySelectList.x - self.elements.backButton.width - 10
+    self.elements.backButton.y = self.elements.enemySelectList.y
     self.elements.backButton.visible = true
 end
 
@@ -1168,7 +1265,20 @@ local function showPartySelectionUI(self, actionType)
 end
 
 -- UI handler for clicks on the UI
-local function handleUIClick(self)
+local function handleUIClick(self, x, y)
+    -- Check for item-specific buttons first if visible
+    if self.elements.itemConfirmButton and self.elements.itemConfirmButton.visible then
+        if self.elements.itemConfirmButton:clicked(x, y) then
+            return true
+        end
+    end
+    
+    if self.elements.itemBackButton and self.elements.itemBackButton.visible then
+        if self.elements.itemBackButton:clicked(x, y) then
+            return true
+        end
+    end
+    
     -- Selection UI for actions that need targets
     if self.selectedAction then
         if self.selectedAction == "skill" then
@@ -1362,6 +1472,43 @@ local function drawMinions(self)
         love.graphics.setFont(screenManager.fonts.small)
         love.graphics.print("No active minions", slotX, slotY)
     end
+end
+
+-- Cancel selection and return to action buttons
+local function cancelSelection(self)
+    -- Hide all selection UIs
+    if self.elements.skillList then
+        self.elements.skillList.visible = false
+    end
+    
+    if self.elements.itemList then
+        self.elements.itemList.visible = false
+    end
+    
+    if self.elements.partySelectList then
+        self.elements.partySelectList.visible = false
+    end
+    
+    if self.elements.enemySelectList then
+        self.elements.enemySelectList.visible = false
+    end
+    
+    -- Hide item-specific buttons
+    if self.elements.itemConfirmButton then
+        self.elements.itemConfirmButton.visible = false
+    end
+    
+    if self.elements.itemBackButton then
+        self.elements.itemBackButton.visible = false
+    end
+    
+    -- Reset selected action and skill
+    self.selectedAction = nil
+    self.selectedSkill = nil
+    self.selectedItem = nil
+    
+    -- Show action buttons
+    self:showActionButtons()
 end
 
 combatSystem.STATE = {
