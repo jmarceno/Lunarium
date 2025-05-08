@@ -8,13 +8,19 @@ local partyPanel = require("screens/ui_slices/partyPanel")
 local overworld = screenManager:createScreen("Overworld")
 
 function overworld:init()
+    -- Load town map image
+    self.townMapImage = assetManager:getImage("townMap") or love.graphics.newImage("assets/TownMap.png")
+    
+    -- Track if hover sound has been played to avoid repetition
+    self.hoverSoundPlayed = false
+    
     -- Initialize locations
     self.locations = {
         {
             name = "Tavern",
             description = "Visit the tavern to find quests, rumors and refreshment.",
-            x = 250,
-            y = 200,
+            x = 600,
+            y = 255,
             width = 120,
             height = 100,
             state = "tavern"
@@ -22,8 +28,8 @@ function overworld:init()
         {
             name = "Guild",
             description = "The adventurers' guild offers official quests and services.",
-            x = 550,
-            y = 200,
+            x = 900,
+            y = 450,
             width = 120,
             height = 100,
             state = "guild"
@@ -31,8 +37,8 @@ function overworld:init()
         {
             name = "Shop",
             description = "Purchase equipment, items and supplies.",
-            x = 250,
-            y = 350,
+            x = 850,
+            y = 250,
             width = 120,
             height = 100,
             state = "shop"
@@ -40,8 +46,8 @@ function overworld:init()
         {
             name = "Smith",
             description = "Craft weapons and armor from monster parts.",
-            x = 550,
-            y = 350,
+            x = 320,
+            y = 460,
             width = 120,
             height = 100,
             state = "smith"
@@ -49,8 +55,8 @@ function overworld:init()
         {
             name = "Dungeon",
             description = "Enter the dungeon to complete quests and find treasure.",
-            x = 400,
-            y = 275,
+            x = 20,
+            y = 170,
             width = 120,
             height = 100,
             state = "dungeon"
@@ -58,8 +64,8 @@ function overworld:init()
         {
             name = "Inn",
             description = "Rest, recover, and enjoy special services at the adventurer's inn.",
-            x = 400,
-            y = 150,
+            x = 300,
+            y = 250,
             width = 120,
             height = 100,
             state = "inn"
@@ -73,31 +79,63 @@ function overworld:init()
     self.elements.popupMessage = {
         visible = false,
         message = "",
-        x = GAME.width / 2 - 150,
-        y = GAME.height / 2 - 50,
-        width = 300,
-        height = 100,
+        title = "Notice",
+        x = GAME.width / 2 - 200,
+        y = GAME.height / 2 - 100,
+        width = 400,
+        height = 200,
         okButton = nil,
         
         init = function(self)
             self.okButton = screenManager.UI.Button(
-                self.x + self.width/2 - 50, self.y + self.height - 55, 
+                self.x + self.width/2 - 50, self.y + self.height - 60, 
                 100, 40, "OK", function() self.visible = false end
             )
+            self.okButton.hovered = false
         end,
         
-        show = function(self, message)
+        show = function(self, message, title)
             if not self.okButton then self:init() end
             self.message = message
+            if title then self.title = title end
             self.visible = true
+        end,
+        
+        update = function(self, dt)
+            if not self.visible then return end
+            if self.okButton and self.okButton.update then
+                self.okButton:update(dt)
+            end
         end,
         
         draw = function(self)
             if not self.visible then return end
-            screenManager:drawPanel(nil, self.x, self.y, self.width, self.height)
+            
+            -- Draw panel background with fancy styling
+            love.graphics.setColor(0.15, 0.15, 0.2, 0.95)
+            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 12, 12)
+            
+            -- Draw fancy border
+            love.graphics.setColor(0.8, 0.7, 0.4, 0.9)
+            love.graphics.rectangle("line", self.x, self.y, self.width, self.height, 12, 12)
+            love.graphics.rectangle("line", self.x+2, self.y+2, self.width-4, self.height-4, 10, 10)
+            
+            -- Draw title
             love.graphics.setFont(screenManager.fonts.medium)
-            love.graphics.setColor(1,1,1)
-            love.graphics.printf(self.message, self.x + 10, self.y + 20, self.width - 20, "center")
+            love.graphics.setColor(1, 0.9, 0.6)
+            local titleWidth = screenManager.fonts.medium:getWidth(self.title)
+            love.graphics.print(
+                self.title,
+                self.x + (self.width - titleWidth) / 2,
+                self.y + 20
+            )
+            
+            -- Draw message text
+            love.graphics.setFont(screenManager.fonts.medium)
+            love.graphics.setColor(1, 1, 1, 0.9)
+            love.graphics.printf(self.message, self.x + 30, self.y + 50, self.width - 60, "center")
+            
+            -- Draw OK button
             self.okButton:draw()
         end,
         
@@ -123,6 +161,7 @@ function overworld:createUI()
         function() self:showMenu() end
     )
     self.elements.menuButton.visible = true
+    self.elements.menuButton.hovered = false
     
     -- Create save button
     self.elements.saveButton = screenManager.UI.Button(
@@ -130,6 +169,7 @@ function overworld:createUI()
         function() self:saveGame() end
     )
     self.elements.saveButton.visible = true
+    self.elements.saveButton.hovered = false
     
     -- Create inventory button (in top bar)
     self.elements.inventoryButton = screenManager.UI.Button(
@@ -137,6 +177,7 @@ function overworld:createUI()
         function() self:openInventory() end
     )
     self.elements.inventoryButton.visible = true
+    self.elements.inventoryButton.hovered = false
     
     -- Create character info button (in top bar)
     self.elements.characterInfoButton = screenManager.UI.Button(
@@ -147,6 +188,7 @@ function overworld:createUI()
         end
     )
     self.elements.characterInfoButton.visible = true
+    self.elements.characterInfoButton.hovered = false
     
     -- Create quest log button (in top bar)
     self.elements.questLogButton = screenManager.UI.Button(
@@ -157,6 +199,7 @@ function overworld:createUI()
         end
     )
     self.elements.questLogButton.visible = true
+    self.elements.questLogButton.hovered = false
     
     -- Create menu panel
     self.elements.menuPanel = {
@@ -178,6 +221,17 @@ function overworld:createUI()
             end
         end,
         
+        update = function(self, dt)
+            if not self.visible then return end
+            
+            -- Update all buttons
+            for _, button in ipairs(self.buttons) do
+                if button.update then
+                    button:update(dt)
+                end
+            end
+        end,
+        
         clicked = function(self, x, y, button)
             if not self.visible then return false end
             
@@ -189,7 +243,7 @@ function overworld:createUI()
                 for _, btn in ipairs(self.buttons) do
                     if btn:clicked(x, y, button) then
                         -- Play click sound
-                        assetManager:playSound("click")
+                        assetManager:playSound("button_click")
                         return true
                     end
                 end
@@ -261,9 +315,10 @@ function overworld:createUI()
                 )
             }
             
-            -- Initialize button visibility
+            -- Initialize button visibility and hover state
             for _, btn in ipairs(self.buttons) do
                 btn.visible = true
+                btn.hovered = false
             end
         end
     }
@@ -367,6 +422,16 @@ function overworld:createUI()
                 100, 40, "Close", 
                 function() self.visible = false end
             )
+            self.closeButton.hovered = false
+        end,
+        
+        update = function(self, dt)
+            if not self.visible then return end
+            
+            -- Update close button
+            if self.closeButton and self.closeButton.update then
+                self.closeButton:update(dt)
+            end
         end,
         
         showQuest = function(self, quest)
@@ -394,15 +459,34 @@ function overworld:enter(params)
 end
 
 function overworld:update(dt)
+    -- Get current mouse position
+    local mx, my = love.mouse.getPosition()
+    
     -- Update UI elements
     for _, element in pairs(self.elements) do
         if element.update then
             element:update(dt)
         end
+        
+        -- Check for button hover (buttons have x, y, width, height, and clicked method)
+        if element.clicked and element.visible ~= false and
+           element.x and element.y and element.width and element.height then
+            -- Check if mouse is over this button
+            local isHovered = mx >= element.x and mx <= element.x + element.width and
+                              my >= element.y and my <= element.y + element.height
+                              
+            -- Play sound when first hovering over a button
+            if isHovered and not element.hovered then
+                assetManager:playSound("button_hover")
+                element.hovered = true
+            elseif not isHovered and element.hovered then
+                element.hovered = false
+            end
+        end
     end
     
     -- Update hover state
-    local mx, my = love.mouse.getPosition()
+    local previousHoverLocation = self.hoverLocation
     self.hoverLocation = nil
     
     for _, location in ipairs(self.locations) do
@@ -412,26 +496,39 @@ function overworld:update(dt)
             break
         end
     end
+    
+    -- Play hover sound when hovering over a new location
+    if self.hoverLocation ~= previousHoverLocation then
+        if self.hoverLocation and not self.hoverSoundPlayed then
+            assetManager:playSound("button_hover")
+            self.hoverSoundPlayed = true
+        elseif not self.hoverLocation then
+            self.hoverSoundPlayed = false
+        end
+    end
 end
 
 function overworld:draw()
     -- Draw background
     love.graphics.clear(screenManager.colors.background)
     
-    -- Draw town map (placeholder for now)
-    love.graphics.setColor(0.3, 0.3, 0.4)
-    love.graphics.rectangle("fill", 180, 150, 440, 250)
+    -- Draw town map
+    love.graphics.setColor(1, 1, 1)
+    local scale = 1 --math.min(GAME.width / self.townMapImage:getWidth(), GAME.height / self.townMapImage:getHeight())
+    local x = (GAME.width - self.townMapImage:getWidth() * scale) / 2
+    local y = ((GAME.height - self.townMapImage:getHeight() * scale) / 2) - 100
+    love.graphics.draw(self.townMapImage, x, y, 0, scale, scale)
     
     -- Draw locations
     for _, location in ipairs(self.locations) do
         -- Determine color based on hover state
         if location == self.hoverLocation then
-            love.graphics.setColor(0.4, 0.5, 0.8)
+            love.graphics.setColor(1, 1, 1, 0.3)  -- White highlight when hovering, but subtle
         else
-            love.graphics.setColor(0.3, 0.3, 0.5)
+            love.graphics.setColor(0.8, 0.8, 1, 0.3)  -- Very subtle indicator when not hovering
         end
         
-        -- Draw location
+        -- Draw location hit area
         love.graphics.rectangle(
             "fill", 
             location.x, location.y, 
@@ -439,16 +536,27 @@ function overworld:draw()
             10, 10
         )
         
-        -- Draw location name
-        love.graphics.setFont(screenManager.fonts.small)
-        love.graphics.setColor(1, 1, 1)
-        
-        local nameWidth = screenManager.fonts.small:getWidth(location.name)
-        love.graphics.print(
-            location.name,
-            location.x + (location.width - nameWidth) / 2,
-            location.y + location.height / 2 - 10
-        )
+        -- Draw border when hovering
+        if location == self.hoverLocation then
+            love.graphics.setColor(1, 1, 1, 0.6)
+            love.graphics.rectangle(
+                "line", 
+                location.x, location.y, 
+                location.width, location.height,
+                10, 10
+            )
+            
+            -- Draw location name when hovering
+            love.graphics.setFont(screenManager.fonts.medium)
+            love.graphics.setColor(0, 0, 0, 0.9)
+            
+            local nameWidth = screenManager.fonts.small:getWidth(location.name)
+            love.graphics.print(
+                location.name,
+                location.x + (location.width - nameWidth) / 2,
+                location.y + location.height / 2 - 10
+            )
+        end
     end
     
     -- Draw hover info
@@ -459,15 +567,18 @@ function overworld:draw()
         local infoX = GAME.width / 2 - infoWidth / 2
         local infoY = 500
         
-        love.graphics.setColor(0.2, 0.2, 0.3, 0.9)
-        love.graphics.rectangle("fill", infoX, infoY, infoWidth, infoHeight, 10, 10)
+        -- Draw background with semi-transparency
+        love.graphics.setColor(0.15, 0.15, 0.2, 0.85)
+        love.graphics.rectangle("fill", infoX, infoY, infoWidth, infoHeight, 12, 12)
         
-        love.graphics.setColor(0.4, 0.4, 0.6)
-        love.graphics.rectangle("line", infoX, infoY, infoWidth, infoHeight, 10, 10)
+        -- Draw fancy border
+        love.graphics.setColor(0.8, 0.7, 0.4, 0.9)
+        love.graphics.rectangle("line", infoX, infoY, infoWidth, infoHeight, 12, 12)
+        love.graphics.rectangle("line", infoX+2, infoY+2, infoWidth-4, infoHeight-4, 10, 10)
         
         -- Draw location name
         love.graphics.setFont(screenManager.fonts.medium)
-        love.graphics.setColor(1, 1, 1)
+        love.graphics.setColor(1, 0.9, 0.6)
         
         local nameWidth = screenManager.fonts.medium:getWidth(self.hoverLocation.name)
         love.graphics.print(
@@ -478,11 +589,20 @@ function overworld:draw()
         
         -- Draw location description
         love.graphics.setFont(screenManager.fonts.small)
-        love.graphics.setColor(0.9, 0.9, 0.9)
+        love.graphics.setColor(0.95, 0.95, 0.95)
         
         love.graphics.printf(
             self.hoverLocation.description,
             infoX + 20, infoY + 50,
+            infoWidth - 40, "center"
+        )
+        
+        -- Draw "Click to enter" text
+        love.graphics.setFont(screenManager.fonts.small)
+        love.graphics.setColor(0.8, 0.9, 1, 0.7)
+        love.graphics.printf(
+            "Click to enter",
+            infoX + 20, infoY + infoHeight - 25,
             infoWidth - 40, "center"
         )
     end
@@ -500,9 +620,11 @@ function overworld:draw()
     -- Draw popup last so it's on top
     self.elements.popupMessage:draw()
     
-    -- Draw title
+    -- Draw title with shadow effect
     love.graphics.setFont(screenManager.fonts.large)
-    love.graphics.setColor(screenManager.colors.title)
+    love.graphics.setColor(0.1, 0.1, 0.1, 0.7)
+    love.graphics.print("Town of Delzor", 22, 22)
+    love.graphics.setColor(1, 0.9, 0.6)
     love.graphics.print("Town of Delzor", 20, 20)
 end
 
@@ -538,7 +660,7 @@ function overworld:mousepressed(x, y, button, istouch, presses)
            element ~= self.elements.questPanel then
             if element:clicked(x, y, button) then
                 -- Play click sound
-                assetManager:playSound("click")
+                assetManager:playSound("button_click")
                 
                 if GAME.debug then
                     print("Button clicked: " .. name)
@@ -552,6 +674,9 @@ function overworld:mousepressed(x, y, button, istouch, presses)
     
     -- Check location clicks if no UI element was clicked
     if not clickHandled and button == 1 and self.hoverLocation then
+        -- Play click sound (moved to here from selectLocation function)
+        assetManager:playSound("button_click")
+        
         self:selectLocation(self.hoverLocation)
         clickHandled = true
     end
@@ -613,9 +738,6 @@ function overworld:saveGame()
 end
 
 function overworld:selectLocation(location)
-    -- Play click sound
-    assetManager:playSound("click")
-    
     -- Change to selected location
     local gameState = require("states/gameState")
     
@@ -626,9 +748,7 @@ function overworld:selectLocation(location)
     if location.state == "dungeon" then
         -- Check for active quests
         if not GAME.activeQuests or #GAME.activeQuests == 0 then
-            -- Show popup message instead of printing
-            self.elements.popupMessage:show("You need an active quest to enter the dungeon!\nVisit the Guild or Tavern.")
-            -- TODO: Replace print with a proper UI message popup
+            self.elements.popupMessage:show("You need an active quest to enter the dungeon!\n\nVisit the Guild or Tavern.", "Dungeon Entry Restricted")            
             return -- Stop execution, don't change state
         end
         

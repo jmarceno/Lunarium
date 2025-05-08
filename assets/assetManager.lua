@@ -101,6 +101,14 @@ function assetManager:loadWallAndFloorTextures()
     self.normalMaps.walls = {}
     self.normalMaps.floors = {}
     
+    -- Load town map
+    if love.filesystem.getInfo("assets/TownMap.png") then
+        self.images.townMap = love.graphics.newImage("assets/TownMap.png")
+        print("  - Loaded town map image")
+    else
+        print("  - Warning: assets/TownMap.png not found")
+    end
+    
     -- Load wall textures
     local wallInfo = love.filesystem.getInfo("assets/Walls")
     if wallInfo and wallInfo.type == "directory" then
@@ -1115,7 +1123,7 @@ function assetManager:loadMonsterSprites()
 end
 
 -- Get an image by type and id
--- Types: "portrait", "monster", "item", "wall", "floor"
+-- Types: "portrait", "monster", "item", "wall", "floor", "townMap"
 -- Returns the image if found, nil otherwise
 function assetManager:getImage(type, id)
     if type == "portrait" then
@@ -1156,6 +1164,9 @@ function assetManager:getImage(type, id)
         if self.images.floors and self.images.floors[id] then
             return self.images.floors[id]
         end
+    elseif type == "townMap" then
+        -- Return town map image
+        return self.images.townMap
     end
     
     -- Image not found
