@@ -40,6 +40,14 @@ local raycaster = {
     entitiesEnabled = true,
     spriteVerticalOffset = 0.2, -- Vertical offset for sprites (higher values = lower position)
     
+    -- CRT effect parameters
+    crtEnabled = true,         -- CRT effect enabled by default
+    crtHardScan = 0,        -- Hardness of scanline
+    crtHardPix = -3.0,         -- Hardness of pixels in scanline
+    crtWarp = {1.0/64.0, 1.0/64.0}, -- Display warp amount
+    crtMaskDark = 0.5,         -- Shadow mask darkness
+    crtMaskLight = 1.0,        -- Shadow mask lightness
+    
     -- Torch light effect parameters
     torchEnabled = false,
     torchIntensity = 0.9, -- Base intensity of the torch (0-1)
@@ -91,6 +99,9 @@ raycaster.lightDirection[3] = raycaster.lightDirection[3] / lightDirLength
 
 -- Load the shaders for hardware-accelerated rendering
 local function loadShaders()
+    -- Load CRT shader
+    raycaster.crtShader = require("engine/shaders/crtShader")
+    
     -- Wall shader for efficient rendering of walls
     raycaster.wallShader = love.graphics.newShader([[
     #ifdef PIXEL
@@ -668,6 +679,17 @@ function raycaster:init(width, height)
     self.depthBuffer = love.graphics.newCanvas(self.viewWidth, self.viewHeight, {type = "2d", format = "depth16", readable = true})
     self.spriteMode = {self.canvas, depthstencil = self.depthBuffer}
     self.justDepthBuffer = {depthstencil = self.depthBuffer}
+    
+    -- Additional canvas for post-processing
+    self.postProcessCanvas = love.graphics.newCanvas(self.viewWidth, self.viewHeight)
+    
+    -- Setup CRT shader parameters
+    self.crtShader:send("hardScan", self.crtHardScan)
+    self.crtShader:send("hardPix", self.crtHardPix)
+    self.crtShader:send("warp", self.crtWarp)
+    self.crtShader:send("maskDark", self.crtMaskDark)
+    self.crtShader:send("maskLight", self.crtMaskLight)
+    self.crtShader:send("textureSize", {self.viewWidth, self.viewHeight})
     
     -- Create data buffer for wall rendering
     -- Data buffer layout:
@@ -1252,10 +1274,27 @@ function raycaster:renderEntities(entities)
     self.stats.spritesRenderTime = love.timer.getTime() - start
 end
 
+-- Toggle CRT effect
+function raycaster:toggleCRT()
+    self.crtEnabled = not self.crtEnabled
+end
+
 -- Update function to handle torch light time
 function raycaster:update(dt)
     -- Update torch light time for pulsating effect
     self.torchTime = self.torchTime + dt * self.torchPulseSpeed
+    
+    -- Remove keyboard input check from here
+    -- (Will be handled by keypressed callback)
+end
+
+-- Handle keypressed events
+function raycaster:keypressed(key)
+    if key == "f5" then
+        self:toggleCRT()
+        return true
+    end
+    return false
 end
 
 -- Render the complete scene
@@ -1296,15 +1335,32 @@ function raycaster:render(map, entities)
         self:renderEntities(entities)
     end
     
+    -- Apply post-processing effects
+    if self.crtEnabled then
+        -- Copy the main canvas to post-process canvas
+        love.graphics.setCanvas(self.postProcessCanvas)
+        love.graphics.clear()
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.setShader(self.crtShader)
+        love.graphics.draw(self.canvas)
+        love.graphics.setShader()
+    end
+    
     -- Reset canvas and draw to screen
     love.graphics.setCanvas()
     love.graphics.setColor(1, 1, 1)
-    love.graphics.draw(self.canvas, 0, 0)
+    
+    -- Draw with CRT effect if enabled, otherwise draw directly
+    if self.crtEnabled then
+        love.graphics.draw(self.postProcessCanvas, 0, 0)
+    else
+        love.graphics.draw(self.canvas, 0, 0)
+    end
     
     -- Update total render time
     self.stats.renderTime = love.timer.getTime() - startTime
     
-    return self.canvas
+    return self.crtEnabled and self.postProcessCanvas or self.canvas
 end
 
 return raycaster

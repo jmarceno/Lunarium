@@ -1230,6 +1230,12 @@ end
 
 function dungeon:keypressed(key, scancode, isrepeat)
 
+    -- Toggle CRT effect with F5
+    if key == "f5" then
+        raycaster:keypressed(key)
+        return true
+    end
+
     -- Toggle texture rendering for debugging
     if key == 't' and GAME.debug then
         self:toggleWallTextures()

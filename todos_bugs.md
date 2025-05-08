@@ -9,8 +9,7 @@
 -- Inn
 -- Shop
 
-- Visual effects for the dungeon - Make it that it get darker
 - Add "Decals" textures over walls and floor textures to make them look older or broken
-- Experiment with lightDir to see the best light direction
+
 
 #Bugs
