@@ -1,5 +1,7 @@
 -- Combat Functions - Core combat functionality
 local screenManager = require("screens/screenManager")
+local minionManager = require("gameplay/minionManager")
+
 local combatSystem = {}  -- Forward declaration
 
 -- Handle enemy being defeated
