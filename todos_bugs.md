@@ -9,4 +9,9 @@
 - Add Unique items - They should have skills or powers that are unique to them - Ex. a mace that gives you detection power of a rogue
 - Add a place to revive characters - This is problematic as we will need some kind o church on overworld map (need to be redraw)
 
+
 #Bugs
+
+
+#Ideias and Experimentation
+- Change bitser for a text based save? Pros and Cons? Viability?
