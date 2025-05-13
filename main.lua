@@ -3,6 +3,7 @@ local gameState = require("states/gameState")
 local screens = require("screens/screenManager")
 local assets = require("assets/assetManager")
 local saveLoad = require("utils/saveLoad")
+local debugConsole = require("utils/debugConsole")
 
 -- Global game configuration
 GAME = {
@@ -11,6 +12,7 @@ GAME = {
     title = "Lunarium - A Simple Clasic Dungeon Crawler",
     version = "0.1",
     debug = false,
+    showFPS = false,
     currentState = nil,
     prevState = nil,
     
@@ -96,6 +98,9 @@ function love.update(dt)
             local minionManager = require("gameplay/minionManager")
             minionManager:init()
             
+            -- Initialize debug console
+            debugConsole:init()
+            
             -- Save/load system
             if love.filesystem.getInfo("savefile.dat") then
                 print("Loading save data...")
@@ -121,6 +126,9 @@ function love.update(dt)
         
         return
     end
+    
+    -- Update debug console
+    debugConsole:update(dt)
     
     -- Update current screen
     if GAME.currentState then
@@ -159,10 +167,30 @@ function love.draw()
         love.graphics.setColor(1, 1, 0)
         love.graphics.print("FPS: " .. love.timer.getFPS(), 10, 10)
         love.graphics.print("State: " .. gameState:getCurrentStateName(), 10, 30)
+    elseif GAME.showFPS then
+        -- Just show FPS if showFPS is enabled without full debug mode
+        love.graphics.setColor(1, 1, 0)
+        love.graphics.print("FPS: " .. love.timer.getFPS(), 10, 10)
     end
+    
+    -- Draw debug console on top of everything else
+    debugConsole:draw()
 end
 
 function love.keypressed(key, scancode, isrepeat)
+    -- Check if debug console is active
+    if debugConsole.visible then
+        -- Pass key presses to console
+        debugConsole.inputField:keyPressed(key)
+        return -- Stop processing other input when console is active
+    end
+    
+    -- Toggle debug console with tilde key
+    if key == "`" or key == "~" or key == "f3" then
+        debugConsole:toggle()
+        return
+    end
+    
     -- Handle key presses
     if key == "escape" then
         -- Handle escape key based on current state
@@ -183,6 +211,12 @@ function love.keypressed(key, scancode, isrepeat)
 end
 
 function love.textinput(text)
+    -- Pass text input to console if visible
+    if debugConsole.visible then
+        debugConsole.inputField:textInput(text)
+        return
+    end
+    
     -- Pass text input to current state
     if GAME.currentState and GAME.currentState.textinput then
         GAME.currentState:textinput(text)
@@ -253,6 +287,9 @@ end
 function love.resize(width, height)
     -- Update game settings for resolution
     GAME.settings.graphics.resolution = width .. "x" .. height
+    
+    -- Update debug console dimensions
+    debugConsole:updateDimensions()
     
     -- Tell the screen manager to handle the resize
     screens:handleResize(width, height)
