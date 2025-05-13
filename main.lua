@@ -186,7 +186,7 @@ function love.keypressed(key, scancode, isrepeat)
     end
     
     -- Toggle debug console with tilde key
-    if key == "`" or key == "~" or key == "f3" then
+    if key == "f3" then
         debugConsole:toggle()
         return
     end

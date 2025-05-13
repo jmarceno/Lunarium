@@ -95,7 +95,7 @@ function debugConsole:init()
                 debugConsole:navigateHistory(-1)
             elseif key == "return" or key == "kpenter" then
                 debugConsole:executeCommand(debugConsole.inputText)
-            elseif key == "escape" then
+            elseif key == "f3" then
                 debugConsole:toggle()
             elseif key == "tab" then
                 debugConsole:autoComplete()
