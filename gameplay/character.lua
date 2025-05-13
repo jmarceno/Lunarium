@@ -625,4 +625,64 @@ function character:removeFromParty(party, index)
     return char
 end
 
+-- Get all active effects of a specific type from equipped items
+function character:getActiveEffectsOfType(char, effectType)
+    local effects = {}
+    if not char or not char.equipment then return effects end
+    
+    for slot, item in pairs(char.equipment) do
+        if item and item.unique and item.uniqueEffects then
+            for _, effectInstance in ipairs(item.uniqueEffects) do
+                if effectInstance.type == effectType then
+                    -- For passive effects, conditions might be checked here or assumed always true if no condition field
+                    table.insert(effects, effectInstance)
+                end
+            end
+        end
+    end
+    
+    -- This could be extended to include active set bonuses of the given type
+    -- using uniqueItemSystem:getEquippedSetBonuses if we had access to it here
+    
+    return effects
+end
+
+-- Get all skills available to a character including those granted by unique items
+function character:getAvailableSkills(char)
+    local allSkills = {}
+    
+    -- First, get all skills the character knows from jobs
+    if char.skills then
+        for skillName, skillData in pairs(char.skills) do
+            if skillSystem:getSkill(skillName) then
+                table.insert(allSkills, skillSystem:getSkill(skillName))
+            end
+        end
+    end
+    
+    -- Then, check for unique item granted skills
+    local grantedSkillEffects = self:getActiveEffectsOfType(char, "grant_skill")
+    for _, effect in ipairs(grantedSkillEffects) do
+        if effect.effect and effect.effect.skillId then
+            local skill = skillSystem:getSkill(effect.effect.skillId)
+            if skill then
+                -- Check if skill already exists in the list
+                local exists = false
+                for _, existingSkill in ipairs(allSkills) do
+                    if existingSkill.name == skill.name then
+                        exists = true
+                        break
+                    end
+                end
+                
+                if not exists then
+                    table.insert(allSkills, skill)
+                end
+            end
+        end
+    end
+    
+    return allSkills
+end
+
 return character

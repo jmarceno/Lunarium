@@ -2,6 +2,7 @@
 local skillSystem = require("gameplay/skill")
 local itemSystem = require("gameplay/item")
 local assetManager = require("assets/assetManager")
+local uniqueItemSystem = require("gameplay/uniqueItemSystem")
 
 -- Execute player's selected action
 local function executePlayerAction(self)
@@ -163,22 +164,63 @@ local function executeSkill(self)
         
         -- Make sure character has this skill before calculating damage
         if currentChar.skills and currentChar.skills[self.selectedSkill.name] then
+            -- Create a mutable copy of the skill for this calculation
+            local skillCopy = {}
+            for k, v in pairs(self.selectedSkill) do
+                skillCopy[k] = v
+            end
+            
             damage, isCritical = skillSystem:calculateDamage(
-                self.selectedSkill,
+                skillCopy,
                 currentChar,
                 self.selectedTarget,
                 currentChar.skills[self.selectedSkill.name].level
             )
+            
+            -- Apply unique item effects to the damage
+            local damageContext = {
+                eventType = "CALCULATE_OUTGOING_DAMAGE",
+                character = currentChar,
+                target = self.selectedTarget,
+                skill = skillCopy, -- Pass the mutable copy
+                value = damage,
+                is_critical = isCritical
+            }
+            damage = uniqueItemSystem:processEffects(damageContext)
+            
+            -- Update isCritical if needed
+            isCritical = damageContext.is_critical
         else
             -- Fallback if skill level is not found
+            -- Create a mutable copy of the skill for this calculation
+            local skillCopy = {}
+            for k, v in pairs(self.selectedSkill) do
+                skillCopy[k] = v
+            end
+            
             damage, isCritical = skillSystem:calculateDamage(
-                self.selectedSkill,
+                skillCopy,
                 currentChar,
                 self.selectedTarget,
                 1
             )
+            
+            -- Apply unique item effects to the damage
+            local damageContext = {
+                eventType = "CALCULATE_OUTGOING_DAMAGE",
+                character = currentChar,
+                target = self.selectedTarget,
+                skill = skillCopy, -- Pass the mutable copy
+                value = damage,
+                is_critical = isCritical
+            }
+            damage = uniqueItemSystem:processEffects(damageContext)
+            
+            -- Update isCritical if needed
+            isCritical = damageContext.is_critical
         end
         
+        -- Apply damage
         self.selectedTarget.currentHP = math.max(0, self.selectedTarget.currentHP - damage)
         
         -- Play appropriate sound
@@ -217,22 +259,42 @@ local function executeSkill(self)
             if enemy.active then
                 local damage, isCritical = 0, false
                 
+                -- Create a mutable copy of the skill for this calculation
+                local skillCopy = {}
+                for k, v in pairs(self.selectedSkill) do
+                    skillCopy[k] = v
+                end
+                
                 -- Calculate damage for each enemy
                 if currentChar.skills and currentChar.skills[self.selectedSkill.name] then
                     damage, isCritical = skillSystem:calculateDamage(
-                        self.selectedSkill,
+                        skillCopy,
                         currentChar,
                         enemy,
                         currentChar.skills[self.selectedSkill.name].level
                     )
                 else
                     damage, isCritical = skillSystem:calculateDamage(
-                        self.selectedSkill,
+                        skillCopy,
                         currentChar,
                         enemy,
                         1
                     )
                 end
+                
+                -- Apply unique item effects to the damage
+                local damageContext = {
+                    eventType = "CALCULATE_OUTGOING_DAMAGE",
+                    character = currentChar,
+                    target = enemy,
+                    skill = skillCopy, -- Pass the mutable copy
+                    value = damage,
+                    is_critical = isCritical
+                }
+                damage = uniqueItemSystem:processEffects(damageContext)
+                
+                -- Update isCritical if needed
+                isCritical = damageContext.is_critical
                 
                 -- Apply damage with AOE reduction
                 local aoeReduction = 0.8 -- Reduce damage for AOE attacks

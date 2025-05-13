@@ -350,6 +350,11 @@ function dungeon:enter(params)
             self.killQuestNotificationShown = false
         end
         
+        -- Refresh character stats to ensure equipment changes are reflected in future combats
+        if params.from == "inventory" then
+            self:refreshCharacterStats()
+        end
+        
         return
     end
     
@@ -1735,6 +1740,30 @@ function dungeon:wheelmoved(x, y)
     end
     
     return false -- Not handled
+end
+
+-- Add this new function to refresh character stats
+function dungeon:refreshCharacterStats()
+    if not GAME.party then return end
+    
+    -- Recalculate derived stats for all party members
+    for _, character in ipairs(GAME.party) do
+        local charSystem = require("gameplay/character")
+        character.attackPower = charSystem:calculateAttackPower(character)
+        character.magicPower = charSystem:calculateMagicPower(character)
+        character.defense = charSystem:calculateDefense(character)
+        character.magicDefense = charSystem:calculateMagicDefense(character)
+        
+        if GAME.debug then
+            print("Refreshed stats for " .. character.name .. ":")
+            print("  Attack: " .. character.attackPower)
+            print("  Magic: " .. character.magicPower)
+            print("  Defense: " .. character.defense)
+            print("  Magic Def: " .. character.magicDefense)
+        end
+    end
+    
+    print("Character stats refreshed to reflect equipment changes")
 end
 
 return dungeon

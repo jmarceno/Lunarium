@@ -567,31 +567,71 @@ function debugConsole:registerBuiltInCommands()
             return "Error: Item system not available"
         end
         
-        -- Try to find the item by name in unique items
-        local uniqueItem = nil
+        -- Try to find the item by name in all item sources
+        local foundItem = nil
+        local itemType = nil
         
-        -- Look through unique items to find matching name
+        -- 1. Look through unique items
         if itemSystem.uniqueItems then
             for id, item in pairs(itemSystem.uniqueItems) do
                 if item.name == itemName then
-                    uniqueItem = item
+                    foundItem = item
+                    itemType = "unique"
                     break
                 end
             end
         end
         
-        -- If we found a unique item, add it to inventory
-        if uniqueItem then
+        -- 2. Look through set items if not found in uniques
+        if not foundItem and itemSystem.setItems then
+            for id, item in pairs(itemSystem.setItems) do
+                if item.name == itemName then
+                    foundItem = item
+                    itemType = "set"
+                    break
+                end
+            end
+        end
+        
+        -- 3. Look through regular items if not found in uniques or sets
+        if not foundItem and itemSystem.items then
+            for id, item in pairs(itemSystem.items) do
+                if item.name == itemName then
+                    foundItem = item
+                    itemType = "regular"
+                    break
+                end
+            end
+        end
+        
+        -- 4. Look through monster parts if not found elsewhere
+        if not foundItem and itemSystem.monsterParts then
+            for id, item in pairs(itemSystem.monsterParts) do
+                if item.name == itemName then
+                    foundItem = item
+                    itemType = "monsterPart"
+                    break
+                end
+            end
+        end
+        
+        -- If we found an item, add it to inventory
+        if foundItem then
             local clonedItem
             if itemSystem.cloneItemWithId then
-                clonedItem = itemSystem:cloneItemWithId(uniqueItem)
+                clonedItem = itemSystem:cloneItemWithId(foundItem)
             else
                 -- Manual clone if function not available
                 clonedItem = {}
-                for k, v in pairs(uniqueItem) do
+                for k, v in pairs(foundItem) do
                     clonedItem[k] = v
                 end
                 clonedItem.uniqueId = os.time() .. "_" .. math.random(1000)
+                
+                -- Set count for stackable items
+                if foundItem.type == "consumable" or foundItem.type == "material" or foundItem.type == "monster_part" then
+                    clonedItem.count = amount
+                end
             end
             
             if itemSystem.addToInventory then
@@ -600,33 +640,18 @@ function debugConsole:registerBuiltInCommands()
                 table.insert(GAME.inventory, clonedItem)
             end
             
-            return "Added unique item: " .. itemName
-        end
-        
-        -- If no unique item found, try regular item creation
-        if itemSystem.createItem then
-            local item = itemSystem:createItem(itemName)
-            if item then
-                if itemSystem.addToInventory then
-                    itemSystem:addToInventory(item)
-                else
-                    table.insert(GAME.inventory, item)
-                end
-                return "Added " .. amount .. "x " .. itemName .. " to inventory"
+            local itemTypeText = ""
+            if itemType == "unique" then
+                itemTypeText = "unique "
+            elseif itemType == "set" then
+                itemTypeText = "set "
             end
+            
+            return "Added " .. itemTypeText .. "item: " .. itemName
+        else
+            -- No item found with that name in any of the item sources
+            return "Error: Item '" .. itemName .. "' does not exist in any item definition table"
         end
-        
-        -- If all else fails, create a generic item
-        local genericItem = {
-            name = itemName,
-            type = "material",
-            count = amount,
-            value = 10,
-            uniqueId = os.time() .. "_" .. math.random(1000)
-        }
-        
-        table.insert(GAME.inventory, genericItem)
-        return "Created generic item: " .. itemName .. " (no existing item definition found)"
     end, "Add items to player inventory. Usage: additem \"<item name>\" [amount]\n" ..
          "For items with spaces in names, use quotes: additem \"healing potion\" 5")
     
@@ -652,31 +677,71 @@ function debugConsole:registerBuiltInCommands()
                 return "Error: Item system not available"
             end
             
-            -- Try to find the item by name in unique items
-            local uniqueItem = nil
+            -- Try to find the item by name in all item sources
+            local foundItem = nil
+            local itemType = nil
             
-            -- Look through unique items to find matching name
+            -- 1. Look through unique items
             if itemSystem.uniqueItems then
                 for id, item in pairs(itemSystem.uniqueItems) do
                     if item.name == name then
-                        uniqueItem = item
+                        foundItem = item
+                        itemType = "unique"
                         break
                     end
                 end
             end
             
-            -- If we found a unique item, add it to inventory
-            if uniqueItem then
+            -- 2. Look through set items if not found in uniques
+            if not foundItem and itemSystem.setItems then
+                for id, item in pairs(itemSystem.setItems) do
+                    if item.name == name then
+                        foundItem = item
+                        itemType = "set"
+                        break
+                    end
+                end
+            end
+            
+            -- 3. Look through regular items if not found in uniques or sets
+            if not foundItem and itemSystem.items then
+                for id, item in pairs(itemSystem.items) do
+                    if item.name == name then
+                        foundItem = item
+                        itemType = "regular"
+                        break
+                    end
+                end
+            end
+            
+            -- 4. Look through monster parts if not found elsewhere
+            if not foundItem and itemSystem.monsterParts then
+                for id, item in pairs(itemSystem.monsterParts) do
+                    if item.name == name then
+                        foundItem = item
+                        itemType = "monsterPart"
+                        break
+                    end
+                end
+            end
+            
+            -- If we found an item, add it to inventory
+            if foundItem then
                 local clonedItem
                 if itemSystem.cloneItemWithId then
-                    clonedItem = itemSystem:cloneItemWithId(uniqueItem)
+                    clonedItem = itemSystem:cloneItemWithId(foundItem)
                 else
                     -- Manual clone if function not available
                     clonedItem = {}
-                    for k, v in pairs(uniqueItem) do
+                    for k, v in pairs(foundItem) do
                         clonedItem[k] = v
                     end
                     clonedItem.uniqueId = os.time() .. "_" .. math.random(1000)
+                    
+                    -- Set count for stackable items
+                    if foundItem.type == "consumable" or foundItem.type == "material" or foundItem.type == "monster_part" then
+                        clonedItem.count = param
+                    end
                 end
                 
                 if itemSystem.addToInventory then
@@ -685,33 +750,18 @@ function debugConsole:registerBuiltInCommands()
                     table.insert(GAME.inventory, clonedItem)
                 end
                 
-                return "Added unique item: " .. name
-            end
-            
-            -- If no unique item found, try regular item creation
-            if itemSystem.createItem then
-                local item = itemSystem:createItem(name)
-                if item then
-                    if itemSystem.addToInventory then
-                        itemSystem:addToInventory(item)
-                    else
-                        table.insert(GAME.inventory, item)
-                    end
-                    return "Added " .. param .. "x " .. name .. " to inventory"
+                local itemTypeText = ""
+                if itemType == "unique" then
+                    itemTypeText = "unique "
+                elseif itemType == "set" then
+                    itemTypeText = "set "
                 end
+                
+                return "Added " .. itemTypeText .. "item: " .. name
+            else
+                -- No item found with that name in any of the item sources
+                return "Error: Item '" .. name .. "' does not exist in any item definition table"
             end
-            
-            -- If all else fails, create a generic item
-            local genericItem = {
-                name = name,
-                type = "material",
-                count = param,
-                value = 10,
-                uniqueId = os.time() .. "_" .. math.random(1000)
-            }
-            
-            table.insert(GAME.inventory, genericItem)
-            return "Created generic item: " .. name .. " (no existing item definition found)"
         elseif GAME.currentState and GAME.currentState.name == "dungeon" then
             -- In dungeon we're spawning an enemy or object
             if GAME.currentState.spawnEntity then
@@ -782,31 +832,71 @@ function debugConsole:registerBuiltInCommands()
                 return "Error: Item system not available"
             end
             
-            -- Try to find the item by name in unique items
-            local uniqueItem = nil
+            -- Try to find the item by name in all item sources
+            local foundItem = nil
+            local itemType = nil
             
-            -- Look through unique items to find matching name
+            -- 1. Look through unique items
             if itemSystem.uniqueItems then
                 for id, item in pairs(itemSystem.uniqueItems) do
                     if item.name == itemName then
-                        uniqueItem = item
+                        foundItem = item
+                        itemType = "unique"
                         break
                     end
                 end
             end
             
-            -- If we found a unique item, add it to inventory
-            if uniqueItem then
+            -- 2. Look through set items if not found in uniques
+            if not foundItem and itemSystem.setItems then
+                for id, item in pairs(itemSystem.setItems) do
+                    if item.name == itemName then
+                        foundItem = item
+                        itemType = "set"
+                        break
+                    end
+                end
+            end
+            
+            -- 3. Look through regular items if not found in uniques or sets
+            if not foundItem and itemSystem.items then
+                for id, item in pairs(itemSystem.items) do
+                    if item.name == itemName then
+                        foundItem = item
+                        itemType = "regular"
+                        break
+                    end
+                end
+            end
+            
+            -- 4. Look through monster parts if not found elsewhere
+            if not foundItem and itemSystem.monsterParts then
+                for id, item in pairs(itemSystem.monsterParts) do
+                    if item.name == itemName then
+                        foundItem = item
+                        itemType = "monsterPart"
+                        break
+                    end
+                end
+            end
+            
+            -- If we found an item, add it to inventory
+            if foundItem then
                 local clonedItem
                 if itemSystem.cloneItemWithId then
-                    clonedItem = itemSystem:cloneItemWithId(uniqueItem)
+                    clonedItem = itemSystem:cloneItemWithId(foundItem)
                 else
                     -- Manual clone if function not available
                     clonedItem = {}
-                    for k, v in pairs(uniqueItem) do
+                    for k, v in pairs(foundItem) do
                         clonedItem[k] = v
                     end
                     clonedItem.uniqueId = os.time() .. "_" .. math.random(1000)
+                    
+                    -- Set count for stackable items
+                    if foundItem.type == "consumable" or foundItem.type == "material" or foundItem.type == "monster_part" then
+                        clonedItem.count = amount
+                    end
                 end
                 
                 if itemSystem.addToInventory then
@@ -815,33 +905,18 @@ function debugConsole:registerBuiltInCommands()
                     table.insert(GAME.inventory, clonedItem)
                 end
                 
-                return "Added unique item: " .. itemName
-            end
-            
-            -- If no unique item found, try regular item creation
-            if itemSystem.createItem then
-                local item = itemSystem:createItem(itemName)
-                if item then
-                    if itemSystem.addToInventory then
-                        itemSystem:addToInventory(item)
-                    else
-                        table.insert(GAME.inventory, item)
-                    end
-                    return "Added " .. amount .. "x " .. itemName .. " to inventory"
+                local itemTypeText = ""
+                if itemType == "unique" then
+                    itemTypeText = "unique "
+                elseif itemType == "set" then
+                    itemTypeText = "set "
                 end
+                
+                return "Added " .. itemTypeText .. "item: " .. itemName
+            else
+                -- No item found with that name in any of the item sources
+                return "Error: Item '" .. itemName .. "' does not exist in any item definition table"
             end
-            
-            -- If all else fails, create a generic item
-            local genericItem = {
-                name = itemName,
-                type = "material",
-                count = amount,
-                value = 10,
-                uniqueId = os.time() .. "_" .. math.random(1000)
-            }
-            
-            table.insert(GAME.inventory, genericItem)
-            return "Created generic item: " .. itemName .. " (no existing item definition found)"
         elseif subcmd == "removeitem" or subcmd == "remove" then
             if #args < 2 then
                 return "Usage: player removeitem \"<item name>\" [amount]"

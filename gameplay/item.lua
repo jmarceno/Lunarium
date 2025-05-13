@@ -4,9 +4,15 @@
 -- Import item definitions from external file
 local itemDefs = require("gameplay/item_definitions")
 
+-- Import unique and set item definitions
+local uniqueItemDefs = require("data/items/unique_items")
+local setItemDefs = require("data/items/set_items")
+
 local itemSystem = {
     items = itemDefs.items,
     monsterParts = itemDefs.monsterParts,
+    uniqueItems = uniqueItemDefs,
+    setItems = setItemDefs,
     nextItemId = 1  -- Initialize ID counter
 }
 
@@ -476,6 +482,36 @@ function itemSystem:addToInventory(item)
     -- Add item to inventory
     table.insert(GAME.inventory, item)
     return true
+end
+
+-- Get a unique item by ID
+function itemSystem:getUniqueItem(uniqueId)
+    return self.uniqueItems[uniqueId]
+end
+
+-- Get a set item by ID
+function itemSystem:getSetItem(setItemId)
+    return self.setItems[setItemId]
+end
+
+-- Get all unique items
+function itemSystem:getAllUniqueItems()
+    local items = {}
+    for id, item in pairs(self.uniqueItems) do
+        table.insert(items, item)
+    end
+    return items
+end
+
+-- Get all items from a specific set
+function itemSystem:getItemsBySet(setName)
+    local items = {}
+    for id, item in pairs(self.setItems) do
+        if item.setName == setName then
+            table.insert(items, item)
+        end
+    end
+    return items
 end
 
 return itemSystem

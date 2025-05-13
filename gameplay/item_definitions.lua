@@ -1,6 +1,16 @@
 -- Item Definitions
 -- Contains all item, equipment, and consumable definitions
 
+-- Define item rarities
+local RARITY = {
+    COMMON = "common",
+    UNCOMMON = "uncommon",
+    RARE = "rare",
+    EPIC = "epic",
+    UNIQUE = "unique",
+    SET = "set"
+}
+
 local itemDefinitions = {
     -- Basic weapons
     ShortSword = {
@@ -724,5 +734,6 @@ local monsterParts = {
 
 return {
     items = itemDefinitions,
-    monsterParts = monsterParts
+    monsterParts = monsterParts,
+    RARITY = RARITY
 } 

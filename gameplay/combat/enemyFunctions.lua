@@ -1,5 +1,6 @@
 -- Enemy Functions - Handling AI and enemy turns
 local assetManager = require("assets/assetManager")
+local uniqueItemSystem = require("gameplay/uniqueItemSystem")
 local combatSystem = {}  -- Forward declaration
 
 -- Execute current enemy's turn
@@ -91,6 +92,16 @@ local function executeEnemyTurn(self)
         -- Basic damage calculation
         damage = math.floor(attackPower - (defense / 2))
         damage = math.max(1, damage) -- Ensure minimum damage
+        
+        -- Process unique item effects that modify incoming damage
+        local damageContext = {
+            eventType = "CHARACTER_TAKES_DAMAGE",
+            character = target,
+            source = enemy,
+            value = damage,
+            damageType = enemy.element or "physical" -- Use enemy's element or default to physical
+        }
+        damage = uniqueItemSystem:processEffects(damageContext)
         
         -- Apply damage to character
         target.currentHP = math.max(0, target.currentHP - damage)
