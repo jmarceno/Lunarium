@@ -1,0 +1,11 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+Create a .md file with this full plan at planning folder or if the plan already exist, change it accordainly
+If changing an existing plan, keep a changelog with history of modifications and why something was modified
+Add the original prompt for context
+Do not implment changes yet, just plan
+
+Make the plan actionable by a LLM

@@ -1,0 +1,12 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+This is First Person Dungeon Crawler game written in Lua using the Love2D framework
+In Lua function finish with the end keyword and not with }
+When adding new UI elements that need callbacks, do not forget to check if the main.lua file has the proper callbacks in place, if not, add it
+If you are using a function/value from another file, do not forget to import it
+Do not try to run any script/program inside the project if you were not explicitly asked to
+
+Do not commit code unless you were specifically asked to
