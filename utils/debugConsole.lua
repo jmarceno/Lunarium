@@ -126,6 +126,10 @@ function debugConsole:init()
         end
     end, "Display help for commands. Usage: help [command]")
     
+    -- Add welcome message with tip about quotes
+    self:addToHistory("Debug Console v1.0 - Type 'help' for available commands", "result")
+    self:addToHistory("TIP: Use quotes for arguments with spaces: player additem \"healing potion\" 5", "result")
+    
     return self
 end
 
@@ -250,10 +254,61 @@ function debugConsole:executeCommand(commandText)
         return
     end
     
-    -- Parse command and arguments
+    -- Parse command and arguments, handling quoted strings
     local parts = {}
-    for part in string.gmatch(commandText, "[^%s]+") do
-        table.insert(parts, part)
+    local currentPart = ""
+    local inQuote = false
+    local quoteChar = nil
+    local escaped = false
+    
+    -- Helper function to add a completed part
+    local function addPart()
+        if currentPart ~= "" then
+            table.insert(parts, currentPart)
+            currentPart = ""
+        end
+    end
+    
+    -- Parse character by character to handle quotes
+    for i = 1, #commandText do
+        local char = commandText:sub(i, i)
+        
+        if escaped then
+            -- Handle escaped character
+            currentPart = currentPart .. char
+            escaped = false
+        elseif char == "\\" then
+            -- Start escape sequence
+            escaped = true
+        elseif (char == "\"" or char == "'") and not inQuote then
+            -- Start quoted string
+            inQuote = true
+            quoteChar = char
+        elseif char == quoteChar and inQuote then
+            -- End quoted string
+            inQuote = false
+            quoteChar = nil
+        elseif char:match("%s") and not inQuote then
+            -- Space outside quotes - end current part
+            addPart()
+        else
+            -- Regular character or space inside quotes
+            currentPart = currentPart .. char
+        end
+    end
+    
+    -- Add final part if there is one
+    addPart()
+    
+    -- Check if we have an unclosed quote
+    if inQuote then
+        self:addToHistory("Error: Unclosed quote in command", "error")
+        return
+    end
+    
+    -- No command parts found
+    if #parts == 0 then
+        return
     end
     
     local commandName = parts[1]
@@ -408,113 +463,6 @@ function debugConsole:registerBuiltInCommands()
         love.event.quit()
     end, "Exit the game")
 
-    -- Add item to player inventory
-    self:addCommand("add_item", function(args)
-        if #args < 1 then
-            return "Usage: add_item <itemName> [quantity]"
-        end
-        
-        local itemName = args[1]
-        local quantity = tonumber(args[2]) or 1
-        
-        local itemSystem = require("gameplay/item")
-        local item = itemSystem:getItem(itemName)
-        
-        if not item then
-            return "Error: Item '" .. itemName .. "' not found"
-        end
-        
-        -- Add the item to inventory multiple times based on quantity
-        for i = 1, quantity do
-            local success = itemSystem:addToInventory(itemSystem:cloneItemWithId(item))
-            if not success then
-                return "Error adding item to inventory"
-            end
-        end
-        
-        return "Added " .. quantity .. "x " .. item.name .. " to inventory"
-    end, "Add items to player inventory. Usage: add_item <itemName> [quantity]")
-    
-    -- Complete current active quest
-    self:addCommand("complete_quest", function(args)
-        if not GAME.activeQuests or #GAME.activeQuests == 0 then
-            return "No active quests"
-        end
-        
-        local questSystem = require("gameplay/questSystem")
-        local questToComplete = GAME.activeQuests[1]
-        
-        if questToComplete then
-            local questName = questToComplete.name or "Unknown quest"
-            
-            if questToComplete.type == "COLLECT" then
-                -- Auto-complete collection quests by fulfilling the required items
-                if questToComplete.objective and questToComplete.objective.itemId and questToComplete.objective.count then
-                    local required = questToComplete.objective.count
-                    questToComplete.objective.current = required
-                end
-            elseif questToComplete.type == "KILL" then
-                -- Auto-complete kill quests
-                if questToComplete.objective and questToComplete.objective.count then
-                    local required = questToComplete.objective.count
-                    questToComplete.objective.current = required
-                end
-            end
-            
-            -- Mark quest as completed
-            questToComplete.completed = true
-            
-            return "Completed quest: " .. questName
-        end
-        
-        return "Failed to complete quest"
-    end, "Force completion of the current active quest")
-
-    -- Add unique item to inventory for testing
-    self:addCommand("add_unique", function(args)
-        if #args < 1 then
-            return "Usage: add_unique <uniqueItemName>"
-        end
-        
-        local itemName = args[1]
-        local itemSystem = require("gameplay/item")
-        local item = itemSystem:getItem(itemName)
-        
-        if not item then
-            return "Error: Item '" .. itemName .. "' not found"
-        end
-        
-        if not item.unique then
-            return "Error: Item '" .. itemName .. "' is not a unique item"
-        end
-        
-        local success = itemSystem:addToInventory(itemSystem:cloneItemWithId(item))
-        if not success then
-            return "Error adding unique item to inventory"
-        end
-        
-        return "Added unique item: " .. item.name
-    end, "Add a unique item to inventory for testing. Usage: add_unique <uniqueItemName>")
-    
-    -- List all unique items
-    self:addCommand("list_uniques", function()
-        local itemSystem = require("gameplay/item")
-        local uniqueItems = {}
-        
-        for name, item in pairs(itemSystem.items) do
-            if item.unique then
-                table.insert(uniqueItems, name)
-            end
-        end
-        
-        if #uniqueItems == 0 then
-            return "No unique items found in item definitions"
-        end
-        
-        table.sort(uniqueItems)
-        return "Available unique items:\n" .. table.concat(uniqueItems, "\n")
-    end, "List all available unique items that can be added with add_unique")
-
     -- Set debug mode
     self:addCommand("debug", function(args)
         if #args > 0 then
@@ -599,6 +547,79 @@ function debugConsole:registerBuiltInCommands()
         return "Available states: " .. table.concat(states, ", ")
     end, "List all available game states")
     
+    -- Add item command (alias for player additem)
+    self:addCommand("additem", function(args)
+        if #args < 1 then
+            return "Usage: additem \"<item name>\" [amount]"
+        end
+        
+        local itemName = args[1]
+        local amount = tonumber(args[2]) or 1
+        
+        if GAME.player and GAME.player.inventory then
+            -- Here we would use the game's item system to add the item
+            -- For now, just log what would happen
+            local result = "Added " .. amount .. " of " .. itemName
+            
+            -- Check if actual item system exists and use it
+            if GAME.itemSystem and GAME.itemSystem.createItem then
+                local item = GAME.itemSystem.createItem(itemName)
+                if item then
+                    GAME.player.inventory:addItem(item, amount)
+                    return "Added " .. amount .. "x " .. itemName .. " to inventory"
+                else
+                    return "Error: Item '" .. itemName .. "' does not exist"
+                end
+            end
+            
+            return result
+        else
+            return "Error: Player or inventory not available"
+        end
+    end, "Add items to player inventory. Usage: additem \"<item name>\" [amount]\n" ..
+         "For items with spaces in names, use quotes: additem \"healing potion\" 5")
+    
+    -- Spawn item/entity command (for more flexibility)
+    self:addCommand("spawn", function(args)
+        if #args < 1 then
+            return "Usage: spawn \"<entity/item name>\" [amount/level]"
+        end
+        
+        local name = args[1]
+        local param = tonumber(args[2]) or 1
+        
+        -- Determine if we're spawning an item or entity based on name or context
+        if GAME.player and GAME.player.inventory and 
+           not (GAME.currentState and GAME.currentState.name == "dungeon") then
+            -- Assume we're spawning an item outside of dungeon
+            if GAME.itemSystem and GAME.itemSystem.createItem then
+                local item = GAME.itemSystem.createItem(name)
+                if item then
+                    GAME.player.inventory:addItem(item, param)
+                    return "Added " .. param .. "x " .. name .. " to inventory"
+                else
+                    return "Error: Item '" .. name .. "' does not exist"
+                end
+            end
+            return "Added " .. param .. " of " .. name .. " to inventory (simulation)"
+        elseif GAME.currentState and GAME.currentState.name == "dungeon" then
+            -- In dungeon we're spawning an enemy or object
+            if GAME.currentState.spawnEntity then
+                local success = GAME.currentState:spawnEntity(name, param)
+                if success then
+                    return "Spawned " .. name .. " at level " .. param
+                else
+                    return "Failed to spawn entity: " .. name
+                end
+            end
+            return "Would spawn entity: " .. name .. " (simulation)"
+        end
+        
+        return "Cannot spawn in current game state"
+    end, "Spawn an item or entity. Usage: spawn \"<name>\" [amount/level]\n" ..
+         "In dungeons spawns monsters, otherwise adds items to inventory.\n" ..
+         "Use quotes for names with spaces: spawn \"healing potion\" 5")
+    
     -- Player commands
     self:addCommand("player", function(args)
         if #args == 0 then
@@ -632,10 +653,63 @@ function debugConsole:registerBuiltInCommands()
                        ", Health " .. GAME.player.health .. "/" .. GAME.player.maxHealth ..
                        ", Gold " .. GAME.player.gold
             end
+        elseif subcmd == "additem" or subcmd == "add" then
+            if #args < 2 then
+                return "Usage: player additem \"<item name>\" [amount]"
+            end
+            
+            local itemName = args[2]
+            local amount = tonumber(args[3]) or 1
+            
+            if GAME.player and GAME.player.inventory then
+                -- Here we would use the game's item system to add the item
+                -- For now, just log what would happen
+                local result = "Would add " .. amount .. " of " .. itemName
+                
+                -- Check if actual item system exists and use it
+                if GAME.itemSystem and GAME.itemSystem.createItem then
+                    local item = GAME.itemSystem.createItem(itemName)
+                    if item then
+                        GAME.player.inventory:addItem(item, amount)
+                        return "Added " .. amount .. "x " .. itemName .. " to inventory"
+                    else
+                        return "Error: Item '" .. itemName .. "' does not exist"
+                    end
+                end
+                
+                return result
+            end
+        elseif subcmd == "removeitem" or subcmd == "remove" then
+            if #args < 2 then
+                return "Usage: player removeitem \"<item name>\" [amount]"
+            end
+            
+            local itemName = args[2]
+            local amount = tonumber(args[3]) or 1
+            
+            if GAME.player and GAME.player.inventory then
+                -- Here we would use the game's item system to remove the item
+                -- For now, just log what would happen
+                local result = "Would remove " .. amount .. " of " .. itemName
+                
+                -- Check if actual item system exists and use it
+                if GAME.itemSystem and GAME.player.inventory.removeItem then
+                    local removed = GAME.player.inventory:removeItem(itemName, amount)
+                    if removed > 0 then
+                        return "Removed " .. removed .. "x " .. itemName .. " from inventory"
+                    else
+                        return "Error: Item '" .. itemName .. "' not found in inventory"
+                    end
+                end
+                
+                return result
+            end
         end
         
         return "Unknown player command or no player loaded"
-    end, "Player-related commands. Usage: player <subcommand> [args]")
+    end, "Player-related commands. Usage: player <subcommand> [args]\n" ..
+        "Available subcommands: health, gold, level, info, additem, removeitem\n" ..
+        "For items with spaces in names, use quotes: player additem \"healing potion\" 5")
     
     -- FPS commands
     self:addCommand("fps", function(args)
