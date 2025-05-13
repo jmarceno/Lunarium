@@ -561,51 +561,72 @@ function debugConsole:registerBuiltInCommands()
             GAME.inventory = {}
         end
         
-        -- Here we would use the game's item system to add the item
-        local result = "Added " .. amount .. " of " .. itemName
-        
-        -- Check if actual item system exists and use it
+        -- Get the item system
         local itemSystem = require("gameplay/item")
-        if itemSystem then
-            -- Create a basic item if createItem doesn't exist
-            local item = itemSystem.createItem and itemSystem:createItem(itemName) or {
-                name = itemName,
-                type = "material",
-                count = amount,
-                value = 10
-            }
+        if not itemSystem then
+            return "Error: Item system not available"
+        end
+        
+        -- Try to find the item by name in unique items
+        local uniqueItem = nil
+        
+        -- Look through unique items to find matching name
+        if itemSystem.uniqueItems then
+            for id, item in pairs(itemSystem.uniqueItems) do
+                if item.name == itemName then
+                    uniqueItem = item
+                    break
+                end
+            end
+        end
+        
+        -- If we found a unique item, add it to inventory
+        if uniqueItem then
+            local clonedItem
+            if itemSystem.cloneItemWithId then
+                clonedItem = itemSystem:cloneItemWithId(uniqueItem)
+            else
+                -- Manual clone if function not available
+                clonedItem = {}
+                for k, v in pairs(uniqueItem) do
+                    clonedItem[k] = v
+                end
+                clonedItem.uniqueId = os.time() .. "_" .. math.random(1000)
+            end
             
+            if itemSystem.addToInventory then
+                itemSystem:addToInventory(clonedItem)
+            else
+                table.insert(GAME.inventory, clonedItem)
+            end
+            
+            return "Added unique item: " .. itemName
+        end
+        
+        -- If no unique item found, try regular item creation
+        if itemSystem.createItem then
+            local item = itemSystem:createItem(itemName)
             if item then
                 if itemSystem.addToInventory then
                     itemSystem:addToInventory(item)
                 else
-                    -- Manual fallback if addToInventory doesn't exist
                     table.insert(GAME.inventory, item)
                 end
                 return "Added " .. amount .. "x " .. itemName .. " to inventory"
-            else
-                -- Create a basic item as fallback
-                table.insert(GAME.inventory, {
-                    name = itemName,
-                    type = "material",
-                    count = amount,
-                    value = 10,
-                    uniqueId = os.time() .. "_" .. math.random(1000)
-                })
-                return "Created basic item: " .. itemName
             end
         end
         
-        -- Manual fallback if itemSystem doesn't exist
-        table.insert(GAME.inventory, {
+        -- If all else fails, create a generic item
+        local genericItem = {
             name = itemName,
             type = "material",
             count = amount,
             value = 10,
             uniqueId = os.time() .. "_" .. math.random(1000)
-        })
+        }
         
-        return result
+        table.insert(GAME.inventory, genericItem)
+        return "Created generic item: " .. itemName .. " (no existing item definition found)"
     end, "Add items to player inventory. Usage: additem \"<item name>\" [amount]\n" ..
          "For items with spaces in names, use quotes: additem \"healing potion\" 5")
     
@@ -627,36 +648,70 @@ function debugConsole:registerBuiltInCommands()
         if not (GAME.currentState and GAME.currentState.name == "dungeon") then
             -- We're spawning an item outside of dungeon
             local itemSystem = require("gameplay/item")
-            if itemSystem then
-                -- Create a basic item if createItem doesn't exist
-                local item = itemSystem.createItem and itemSystem:createItem(name) or {
-                    name = name,
-                    type = "material",
-                    count = param,
-                    value = 10
-                }
+            if not itemSystem then
+                return "Error: Item system not available"
+            end
+            
+            -- Try to find the item by name in unique items
+            local uniqueItem = nil
+            
+            -- Look through unique items to find matching name
+            if itemSystem.uniqueItems then
+                for id, item in pairs(itemSystem.uniqueItems) do
+                    if item.name == name then
+                        uniqueItem = item
+                        break
+                    end
+                end
+            end
+            
+            -- If we found a unique item, add it to inventory
+            if uniqueItem then
+                local clonedItem
+                if itemSystem.cloneItemWithId then
+                    clonedItem = itemSystem:cloneItemWithId(uniqueItem)
+                else
+                    -- Manual clone if function not available
+                    clonedItem = {}
+                    for k, v in pairs(uniqueItem) do
+                        clonedItem[k] = v
+                    end
+                    clonedItem.uniqueId = os.time() .. "_" .. math.random(1000)
+                end
                 
+                if itemSystem.addToInventory then
+                    itemSystem:addToInventory(clonedItem)
+                else
+                    table.insert(GAME.inventory, clonedItem)
+                end
+                
+                return "Added unique item: " .. name
+            end
+            
+            -- If no unique item found, try regular item creation
+            if itemSystem.createItem then
+                local item = itemSystem:createItem(name)
                 if item then
                     if itemSystem.addToInventory then
                         itemSystem:addToInventory(item)
                     else
-                        -- Manual fallback if addToInventory doesn't exist
                         table.insert(GAME.inventory, item)
                     end
                     return "Added " .. param .. "x " .. name .. " to inventory"
-                else
-                    -- Create a basic item as fallback
-                    table.insert(GAME.inventory, {
-                        name = name,
-                        type = "material",
-                        count = param,
-                        value = 10,
-                        uniqueId = os.time() .. "_" .. math.random(1000)
-                    })
-                    return "Created basic item: " .. name
                 end
             end
-            return "Added " .. param .. " of " .. name .. " to inventory"
+            
+            -- If all else fails, create a generic item
+            local genericItem = {
+                name = name,
+                type = "material",
+                count = param,
+                value = 10,
+                uniqueId = os.time() .. "_" .. math.random(1000)
+            }
+            
+            table.insert(GAME.inventory, genericItem)
+            return "Created generic item: " .. name .. " (no existing item definition found)"
         elseif GAME.currentState and GAME.currentState.name == "dungeon" then
             -- In dungeon we're spawning an enemy or object
             if GAME.currentState.spawnEntity then
@@ -721,51 +776,72 @@ function debugConsole:registerBuiltInCommands()
                 GAME.inventory = {}
             end
             
-            -- Here we would use the game's item system to add the item
-            local result = "Added " .. amount .. " of " .. itemName
-            
-            -- Check if actual item system exists and use it
+            -- Get the item system
             local itemSystem = require("gameplay/item")
-            if itemSystem then
-                -- Create a basic item if createItem doesn't exist
-                local item = itemSystem.createItem and itemSystem:createItem(itemName) or {
-                    name = itemName,
-                    type = "material",
-                    count = amount,
-                    value = 10
-                }
+            if not itemSystem then
+                return "Error: Item system not available"
+            end
+            
+            -- Try to find the item by name in unique items
+            local uniqueItem = nil
+            
+            -- Look through unique items to find matching name
+            if itemSystem.uniqueItems then
+                for id, item in pairs(itemSystem.uniqueItems) do
+                    if item.name == itemName then
+                        uniqueItem = item
+                        break
+                    end
+                end
+            end
+            
+            -- If we found a unique item, add it to inventory
+            if uniqueItem then
+                local clonedItem
+                if itemSystem.cloneItemWithId then
+                    clonedItem = itemSystem:cloneItemWithId(uniqueItem)
+                else
+                    -- Manual clone if function not available
+                    clonedItem = {}
+                    for k, v in pairs(uniqueItem) do
+                        clonedItem[k] = v
+                    end
+                    clonedItem.uniqueId = os.time() .. "_" .. math.random(1000)
+                end
                 
+                if itemSystem.addToInventory then
+                    itemSystem:addToInventory(clonedItem)
+                else
+                    table.insert(GAME.inventory, clonedItem)
+                end
+                
+                return "Added unique item: " .. itemName
+            end
+            
+            -- If no unique item found, try regular item creation
+            if itemSystem.createItem then
+                local item = itemSystem:createItem(itemName)
                 if item then
                     if itemSystem.addToInventory then
                         itemSystem:addToInventory(item)
                     else
-                        -- Manual fallback if addToInventory doesn't exist
                         table.insert(GAME.inventory, item)
                     end
                     return "Added " .. amount .. "x " .. itemName .. " to inventory"
-                else
-                    -- Create a basic item as fallback
-                    table.insert(GAME.inventory, {
-                        name = itemName,
-                        type = "material",
-                        count = amount,
-                        value = 10,
-                        uniqueId = os.time() .. "_" .. math.random(1000)
-                    })
-                    return "Created basic item: " .. itemName
                 end
             end
             
-            -- Manual fallback if itemSystem doesn't exist
-            table.insert(GAME.inventory, {
+            -- If all else fails, create a generic item
+            local genericItem = {
                 name = itemName,
                 type = "material",
                 count = amount,
                 value = 10,
                 uniqueId = os.time() .. "_" .. math.random(1000)
-            })
+            }
             
-            return result
+            table.insert(GAME.inventory, genericItem)
+            return "Created generic item: " .. itemName .. " (no existing item definition found)"
         elseif subcmd == "removeitem" or subcmd == "remove" then
             if #args < 2 then
                 return "Usage: player removeitem \"<item name>\" [amount]"
