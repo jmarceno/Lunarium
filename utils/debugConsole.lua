@@ -556,26 +556,56 @@ function debugConsole:registerBuiltInCommands()
         local itemName = args[1]
         local amount = tonumber(args[2]) or 1
         
-        if GAME.player and GAME.player.inventory then
-            -- Here we would use the game's item system to add the item
-            -- For now, just log what would happen
-            local result = "Added " .. amount .. " of " .. itemName
-            
-            -- Check if actual item system exists and use it
-            if GAME.itemSystem and GAME.itemSystem.createItem then
-                local item = GAME.itemSystem.createItem(itemName)
-                if item then
-                    GAME.player.inventory:addItem(item, amount)
-                    return "Added " .. amount .. "x " .. itemName .. " to inventory"
-                else
-                    return "Error: Item '" .. itemName .. "' does not exist"
-                end
-            end
-            
-            return result
-        else
-            return "Error: Player or inventory not available"
+        -- Check if inventory exists
+        if not GAME.inventory then
+            GAME.inventory = {}
         end
+        
+        -- Here we would use the game's item system to add the item
+        local result = "Added " .. amount .. " of " .. itemName
+        
+        -- Check if actual item system exists and use it
+        local itemSystem = require("gameplay/item")
+        if itemSystem then
+            -- Create a basic item if createItem doesn't exist
+            local item = itemSystem.createItem and itemSystem:createItem(itemName) or {
+                name = itemName,
+                type = "material",
+                count = amount,
+                value = 10
+            }
+            
+            if item then
+                if itemSystem.addToInventory then
+                    itemSystem:addToInventory(item)
+                else
+                    -- Manual fallback if addToInventory doesn't exist
+                    table.insert(GAME.inventory, item)
+                end
+                return "Added " .. amount .. "x " .. itemName .. " to inventory"
+            else
+                -- Create a basic item as fallback
+                table.insert(GAME.inventory, {
+                    name = itemName,
+                    type = "material",
+                    count = amount,
+                    value = 10,
+                    uniqueId = os.time() .. "_" .. math.random(1000)
+                })
+                return "Created basic item: " .. itemName
+            end
+        end
+        
+        -- Manual fallback if itemSystem doesn't exist
+        table.insert(GAME.inventory, {
+            name = itemName,
+            type = "material",
+            count = amount,
+            value = 10,
+            uniqueId = os.time() .. "_" .. math.random(1000)
+        })
+        
+        return result
     end, "Add items to player inventory. Usage: additem \"<item name>\" [amount]\n" ..
          "For items with spaces in names, use quotes: additem \"healing potion\" 5")
     
@@ -588,20 +618,45 @@ function debugConsole:registerBuiltInCommands()
         local name = args[1]
         local param = tonumber(args[2]) or 1
         
+        -- Ensure inventory exists
+        if not GAME.inventory then
+            GAME.inventory = {}
+        end
+        
         -- Determine if we're spawning an item or entity based on name or context
-        if GAME.player and GAME.player.inventory and 
-           not (GAME.currentState and GAME.currentState.name == "dungeon") then
-            -- Assume we're spawning an item outside of dungeon
-            if GAME.itemSystem and GAME.itemSystem.createItem then
-                local item = GAME.itemSystem.createItem(name)
+        if not (GAME.currentState and GAME.currentState.name == "dungeon") then
+            -- We're spawning an item outside of dungeon
+            local itemSystem = require("gameplay/item")
+            if itemSystem then
+                -- Create a basic item if createItem doesn't exist
+                local item = itemSystem.createItem and itemSystem:createItem(name) or {
+                    name = name,
+                    type = "material",
+                    count = param,
+                    value = 10
+                }
+                
                 if item then
-                    GAME.player.inventory:addItem(item, param)
+                    if itemSystem.addToInventory then
+                        itemSystem:addToInventory(item)
+                    else
+                        -- Manual fallback if addToInventory doesn't exist
+                        table.insert(GAME.inventory, item)
+                    end
                     return "Added " .. param .. "x " .. name .. " to inventory"
                 else
-                    return "Error: Item '" .. name .. "' does not exist"
+                    -- Create a basic item as fallback
+                    table.insert(GAME.inventory, {
+                        name = name,
+                        type = "material",
+                        count = param,
+                        value = 10,
+                        uniqueId = os.time() .. "_" .. math.random(1000)
+                    })
+                    return "Created basic item: " .. name
                 end
             end
-            return "Added " .. param .. " of " .. name .. " to inventory (simulation)"
+            return "Added " .. param .. " of " .. name .. " to inventory"
         elseif GAME.currentState and GAME.currentState.name == "dungeon" then
             -- In dungeon we're spawning an enemy or object
             if GAME.currentState.spawnEntity then
@@ -661,24 +716,56 @@ function debugConsole:registerBuiltInCommands()
             local itemName = args[2]
             local amount = tonumber(args[3]) or 1
             
-            if GAME.player and GAME.player.inventory then
-                -- Here we would use the game's item system to add the item
-                -- For now, just log what would happen
-                local result = "Would add " .. amount .. " of " .. itemName
-                
-                -- Check if actual item system exists and use it
-                if GAME.itemSystem and GAME.itemSystem.createItem then
-                    local item = GAME.itemSystem.createItem(itemName)
-                    if item then
-                        GAME.player.inventory:addItem(item, amount)
-                        return "Added " .. amount .. "x " .. itemName .. " to inventory"
-                    else
-                        return "Error: Item '" .. itemName .. "' does not exist"
-                    end
-                end
-                
-                return result
+            -- Check if inventory exists
+            if not GAME.inventory then
+                GAME.inventory = {}
             end
+            
+            -- Here we would use the game's item system to add the item
+            local result = "Added " .. amount .. " of " .. itemName
+            
+            -- Check if actual item system exists and use it
+            local itemSystem = require("gameplay/item")
+            if itemSystem then
+                -- Create a basic item if createItem doesn't exist
+                local item = itemSystem.createItem and itemSystem:createItem(itemName) or {
+                    name = itemName,
+                    type = "material",
+                    count = amount,
+                    value = 10
+                }
+                
+                if item then
+                    if itemSystem.addToInventory then
+                        itemSystem:addToInventory(item)
+                    else
+                        -- Manual fallback if addToInventory doesn't exist
+                        table.insert(GAME.inventory, item)
+                    end
+                    return "Added " .. amount .. "x " .. itemName .. " to inventory"
+                else
+                    -- Create a basic item as fallback
+                    table.insert(GAME.inventory, {
+                        name = itemName,
+                        type = "material",
+                        count = amount,
+                        value = 10,
+                        uniqueId = os.time() .. "_" .. math.random(1000)
+                    })
+                    return "Created basic item: " .. itemName
+                end
+            end
+            
+            -- Manual fallback if itemSystem doesn't exist
+            table.insert(GAME.inventory, {
+                name = itemName,
+                type = "material",
+                count = amount,
+                value = 10,
+                uniqueId = os.time() .. "_" .. math.random(1000)
+            })
+            
+            return result
         elseif subcmd == "removeitem" or subcmd == "remove" then
             if #args < 2 then
                 return "Usage: player removeitem \"<item name>\" [amount]"
@@ -687,23 +774,28 @@ function debugConsole:registerBuiltInCommands()
             local itemName = args[2]
             local amount = tonumber(args[3]) or 1
             
-            if GAME.player and GAME.player.inventory then
-                -- Here we would use the game's item system to remove the item
-                -- For now, just log what would happen
-                local result = "Would remove " .. amount .. " of " .. itemName
-                
-                -- Check if actual item system exists and use it
-                if GAME.itemSystem and GAME.player.inventory.removeItem then
-                    local removed = GAME.player.inventory:removeItem(itemName, amount)
-                    if removed > 0 then
-                        return "Removed " .. removed .. "x " .. itemName .. " from inventory"
+            -- Check if inventory exists
+            if not GAME.inventory or #GAME.inventory == 0 then
+                return "Inventory is empty"
+            end
+            
+            -- Search for the item by name
+            for i, item in ipairs(GAME.inventory) do
+                if item.name == itemName then
+                    -- Found the item, handle removal
+                    if item.count and item.count > amount then
+                        -- Reduce stack
+                        item.count = item.count - amount
+                        return "Removed " .. amount .. "x " .. itemName .. " from inventory"
                     else
-                        return "Error: Item '" .. itemName .. "' not found in inventory"
+                        -- Remove the item entirely
+                        table.remove(GAME.inventory, i)
+                        return "Removed " .. itemName .. " from inventory"
                     end
                 end
-                
-                return result
             end
+            
+            return "Item '" .. itemName .. "' not found in inventory"
         end
         
         return "Unknown player command or no player loaded"
