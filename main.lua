@@ -230,12 +230,6 @@ function love.wheelmoved(dx, dy)
 end
 
 function love.keyreleased(key)
-    if key == "f1" then
-        -- Toggle debug mode
-        GAME.debug = not GAME.debug
-        print("Debug mode: " .. (GAME.debug and "ON" or "OFF"))
-    end
-    
     -- Pass key release to current state
     if GAME.currentState and GAME.currentState.keyreleased then
         GAME.currentState:keyreleased(key)
