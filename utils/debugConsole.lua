@@ -408,6 +408,113 @@ function debugConsole:registerBuiltInCommands()
         love.event.quit()
     end, "Exit the game")
 
+    -- Add item to player inventory
+    self:addCommand("add_item", function(args)
+        if #args < 1 then
+            return "Usage: add_item <itemName> [quantity]"
+        end
+        
+        local itemName = args[1]
+        local quantity = tonumber(args[2]) or 1
+        
+        local itemSystem = require("gameplay/item")
+        local item = itemSystem:getItem(itemName)
+        
+        if not item then
+            return "Error: Item '" .. itemName .. "' not found"
+        end
+        
+        -- Add the item to inventory multiple times based on quantity
+        for i = 1, quantity do
+            local success = itemSystem:addToInventory(itemSystem:cloneItemWithId(item))
+            if not success then
+                return "Error adding item to inventory"
+            end
+        end
+        
+        return "Added " .. quantity .. "x " .. item.name .. " to inventory"
+    end, "Add items to player inventory. Usage: add_item <itemName> [quantity]")
+    
+    -- Complete current active quest
+    self:addCommand("complete_quest", function(args)
+        if not GAME.activeQuests or #GAME.activeQuests == 0 then
+            return "No active quests"
+        end
+        
+        local questSystem = require("gameplay/questSystem")
+        local questToComplete = GAME.activeQuests[1]
+        
+        if questToComplete then
+            local questName = questToComplete.name or "Unknown quest"
+            
+            if questToComplete.type == "COLLECT" then
+                -- Auto-complete collection quests by fulfilling the required items
+                if questToComplete.objective and questToComplete.objective.itemId and questToComplete.objective.count then
+                    local required = questToComplete.objective.count
+                    questToComplete.objective.current = required
+                end
+            elseif questToComplete.type == "KILL" then
+                -- Auto-complete kill quests
+                if questToComplete.objective and questToComplete.objective.count then
+                    local required = questToComplete.objective.count
+                    questToComplete.objective.current = required
+                end
+            end
+            
+            -- Mark quest as completed
+            questToComplete.completed = true
+            
+            return "Completed quest: " .. questName
+        end
+        
+        return "Failed to complete quest"
+    end, "Force completion of the current active quest")
+
+    -- Add unique item to inventory for testing
+    self:addCommand("add_unique", function(args)
+        if #args < 1 then
+            return "Usage: add_unique <uniqueItemName>"
+        end
+        
+        local itemName = args[1]
+        local itemSystem = require("gameplay/item")
+        local item = itemSystem:getItem(itemName)
+        
+        if not item then
+            return "Error: Item '" .. itemName .. "' not found"
+        end
+        
+        if not item.unique then
+            return "Error: Item '" .. itemName .. "' is not a unique item"
+        end
+        
+        local success = itemSystem:addToInventory(itemSystem:cloneItemWithId(item))
+        if not success then
+            return "Error adding unique item to inventory"
+        end
+        
+        return "Added unique item: " .. item.name
+    end, "Add a unique item to inventory for testing. Usage: add_unique <uniqueItemName>")
+    
+    -- List all unique items
+    self:addCommand("list_uniques", function()
+        local itemSystem = require("gameplay/item")
+        local uniqueItems = {}
+        
+        for name, item in pairs(itemSystem.items) do
+            if item.unique then
+                table.insert(uniqueItems, name)
+            end
+        end
+        
+        if #uniqueItems == 0 then
+            return "No unique items found in item definitions"
+        end
+        
+        table.sort(uniqueItems)
+        return "Available unique items:\n" .. table.concat(uniqueItems, "\n")
+    end, "List all available unique items that can be added with add_unique")
+
     -- Set debug mode
     self:addCommand("debug", function(args)
         if #args > 0 then
