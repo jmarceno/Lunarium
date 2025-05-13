@@ -1,0 +1,8 @@
+---
+description: commit
+globs: 
+alwaysApply: false
+---
+Write a commit message and commit the code
+
+Add the files if any where created
