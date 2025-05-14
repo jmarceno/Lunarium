@@ -57,6 +57,9 @@ function dungeon:init()
         floorTexturesEnabled = true
     }
     
+    -- Entrance entity tracking for dialog
+    self.activeEntranceEntity = nil
+    
     -- UI elements (Initialize the table first!)
     self.elements = {}
     
@@ -102,10 +105,18 @@ function dungeon:init()
 
         draw = function(self)
             if not self.visible then return end
-            screenManager:drawPanel(nil, self.x, self.y, self.width, self.height)
+            -- Draw a semi-transparent panel
+            love.graphics.setColor(0, 0, 0, 0.7) -- Black background with 70% opacity
+            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 5, 5)
+            love.graphics.setColor(0.5, 0.5, 0.8, 0.7) -- Border with 70% opacity
+            love.graphics.rectangle("line", self.x, self.y, self.width, self.height, 5, 5)
+            
+            -- Draw text with slight transparency
             love.graphics.setFont(screenManager.fonts.medium)
-            love.graphics.setColor(1,1,1)
+            love.graphics.setColor(1, 1, 1, 0.9)
             love.graphics.printf(self.message, self.x + 10, self.y + 20, self.width - 20, "center")
+            
+            -- Draw buttons
             self.yesButton:draw()
             self.noButton:draw()
         end,
@@ -871,6 +882,21 @@ function dungeon:update(dt)
             self.map:revealArea(self.playerPos.x, self.playerPos.y, self.fogOfWarRadius)
         end
         
+        -- Check if the entrance dialog should be hidden (player moved away from entrance)
+        if self.elements.confirmDialog.visible and self.activeEntranceEntity then
+            local distToEntrance = math.sqrt(
+                (self.playerPos.x - self.activeEntranceEntity.x)^2 + 
+                (self.playerPos.y - self.activeEntranceEntity.y)^2
+            )
+            
+            -- If player moved away from entrance, hide the dialog
+            if distToEntrance > 1.0 then
+                self.elements.confirmDialog.visible = false
+                self.activeEntranceEntity = nil
+                print("Dialog closed: player moved away from entrance")
+            end
+        end
+        
         -- Check for entity interaction
         self:checkEntityInteraction()
         
@@ -1106,6 +1132,9 @@ function dungeon:checkEntityInteraction()
                 end
                 break
             elseif entity.type == "entrance" then
+                -- Store reference to entrance entity for distance checking
+                self.activeEntranceEntity = entity
+                
                 -- Check if this is an EXPLORE quest and the objective was reached
                 if self.currentQuest and self.currentQuest.type == "EXPLORE" and self.objective.reached then
                     -- Show different message for completed objective
