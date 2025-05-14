@@ -403,7 +403,7 @@ function inventory:createUI()
                 love.graphics.setColor(1, 1, 1)
                 
                 love.graphics.printf(
-                    item.name or "Unknown Item",
+                    item.name,
                     self.x + 20, self.y + 50,
                     self.width - 40, "left"
                 )
@@ -794,7 +794,7 @@ function inventory:createUI()
             
             if self.item then
                 love.graphics.printf(
-                    self.item.name or "Unknown Item", 
+                    self.item.name, 
                     self.x + 20, self.y + 20, 
                     self.width - 40, "center"
                 )
@@ -923,6 +923,11 @@ function inventory:createUI()
         end,
         
         show = function(self, item, message, maxQuantity, callback, cancelCallback, value)
+            -- Verify item has required properties
+            if not item.name then
+                error("Attempted to show quantity selector for item without a name")
+            end
+
             self.item = item
             self.message = message or "Select quantity:"
             self.maxQuantity = maxQuantity or 1
@@ -965,7 +970,7 @@ function inventory:createUI()
             
             if self.item then
                 love.graphics.printf(
-                    self.item.name or "Unknown Item", 
+                    self.item.name, 
                     self.x + 20, self.y + 20, 
                     self.width - 40, "center"
                 )
@@ -1034,6 +1039,11 @@ function inventory:createUI()
         end,
         
         show = function(self, item, message, callback, cancelCallback)
+            -- Verify item has required properties
+            if not item.name then
+                error("Attempted to show hand selector for item without a name")
+            end
+
             self.item = item
             self.message = message or "Select hand to equip:"
             self.confirmCallback = callback
@@ -1130,7 +1140,7 @@ function inventory:createUI()
                     love.graphics.setColor(1, 1, 1)
                     
                     love.graphics.print(
-                        item.name or "Unknown Item",
+                        item.name,
                         self.x + 20, itemY + 5
                     )
                     
@@ -1342,29 +1352,36 @@ function inventory:enter(params)
         self.selectedCharacter = nil
     end
     
-    -- Verify inventory items have necessary fields
+    -- Verify inventory items have necessary fields and remove invalid items
     if GAME.inventory then
+        local validInventory = {}
         for i, item in ipairs(GAME.inventory) do
-            -- Ensure all items have at least basic properties
-            if not item.name then item.name = "Unknown Item" end
-            if not item.type then item.type = "material" end
-            if not item.uniqueId then 
-                item.uniqueId = itemSystem:generateUniqueId()
-            end
-            
-            -- Clean up any non-equippable items that might have equippedBy or equippedSlot properties
-            if item.type == "monster_part" or item.type == "material" or item.type == "consumable" then
-                if item.equippedBy or item.equippedSlot then
-                    -- Remove incorrect equipped properties
-                    item.equippedBy = nil
-                    item.equippedSlot = nil
-                    
-                    if GAME.debug then
+            -- Check for required item properties - if missing, don't add to valid inventory
+            if not item.name then
+                print("ERROR: Item without name found in inventory - removing item")
+            elseif not item.type then
+                print("ERROR: Item without type found in inventory - removing item: " .. item.name)
+            elseif not item.uniqueId then 
+                print("ERROR: Item without uniqueId found in inventory - removing item: " .. item.name)
+            else
+                -- Clean up any non-equippable items that might have equippedBy or equippedSlot properties
+                if item.type == "monster_part" or item.type == "material" or item.type == "consumable" then
+                    if item.equippedBy or item.equippedSlot then
+                        -- Remove incorrect equipped properties
+                        item.equippedBy = nil
+                        item.equippedSlot = nil
+                        
                         print("Cleaned up incorrectly marked equipped status on " .. item.name)
                     end
                 end
+                
+                -- Add valid item to the cleaned inventory
+                table.insert(validInventory, item)
             end
         end
+        
+        -- Replace inventory with cleaned version
+        GAME.inventory = validInventory
     end
     
     -- Adjust UI layout
@@ -1846,6 +1863,14 @@ function inventory:selectCharacter(character)
 end
 
 function inventory:selectItem(item)
+    -- Ensure item has required properties
+    if not item.name then
+        error("Attempted to select item without a name")
+    end
+    if not item.type then
+        error("Attempted to select item without a type: " .. item.name)
+    end
+    
     -- Select item
     self.selectedItem = item
     self.elements.contextMenu.visible = false
@@ -1983,6 +2008,14 @@ function inventory:equipItem()
     if not self.selectedItem or not self.selectedCharacter then
         self:showFloatingMessage("Select a character and an item first!", {1, 0.5, 0.5, 1})
         return
+    end
+    
+    -- Verify item has required properties
+    if not self.selectedItem.name then
+        error("Attempted to equip item without a name")
+    end
+    if not self.selectedItem.type then
+        error("Attempted to equip item without a type: " .. self.selectedItem.name)
     end
     
     -- Check if item is equippable
@@ -2372,6 +2405,11 @@ end
 function inventory:confirmDropItem()
     if not self.selectedItem then return end
     
+    -- Verify item has required properties
+    if not self.selectedItem.name then
+        error("Attempted to drop item without a name")
+    end
+    
     -- Check if item is equipped - only for equippable items
     local isEquipped = false
     if self.selectedItem.type == "weapon" or self.selectedItem.type == "armor" or self.selectedItem.type == "accessory" then
@@ -2391,8 +2429,7 @@ function inventory:confirmDropItem()
     end
     
     local dialog = self.elements.confirmDialog
-    local itemName = self.selectedItem.name or "Unknown Item"
-    dialog.message = "Are you sure you want to drop " .. itemName .. "?\nThis item will be permanently destroyed."
+    dialog.message = "Are you sure you want to drop " .. self.selectedItem.name .. "?\nThis item will be permanently destroyed."
     dialog.confirmCallback = function() self:dropItem() end
     dialog.cancelCallback = function() end
     dialog.visible = true
@@ -2415,6 +2452,14 @@ end
 
 function inventory:sellItem()
     if not self.selectedItem then return end
+    
+    -- Verify item has required properties
+    if not self.selectedItem.name then
+        error("Attempted to sell item without a name")
+    end
+    if not self.selectedItem.type then
+        error("Attempted to sell item without a type: " .. self.selectedItem.name)
+    end
     
     -- Check if inventory was opened from overworld
     if self.openedFrom ~= "overworld" then
@@ -2457,8 +2502,7 @@ function inventory:sellItem()
         )
     else
         -- Single item, confirm sale
-        local itemName = self.selectedItem.name or "Unknown Item"
-        self.elements.confirmDialog.message = "Sell " .. itemName .. " to the " .. sellLocation .. " for " .. sellPrice .. " gold?"
+        self.elements.confirmDialog.message = "Sell " .. self.selectedItem.name .. " to the " .. sellLocation .. " for " .. sellPrice .. " gold?"
         self.elements.confirmDialog.confirmCallback = function()
             self:completeSale(1, sellPrice, sellLocation)
         end
@@ -2469,6 +2513,11 @@ end
 function inventory:completeSale(quantity, price, location)
     if not self.selectedItem then return end
     
+    -- Verify item has required properties
+    if not self.selectedItem.name then
+        error("Attempted to sell item without a name")
+    end
+    
     -- Calculate total gold from sale
     local totalGold = price * quantity
     
@@ -2476,8 +2525,7 @@ function inventory:completeSale(quantity, price, location)
     GAME.gold = (GAME.gold or 0) + totalGold
     
     -- Show feedback message
-    local itemName = self.selectedItem.name or "Unknown Item"
-    self:showFloatingMessage("Sold " .. quantity .. " " .. itemName .. " for " .. totalGold .. " gold!", {1, 1, 0, 1})
+    self:showFloatingMessage("Sold " .. quantity .. " " .. self.selectedItem.name .. " for " .. totalGold .. " gold!", {1, 1, 0, 1})
     
     -- Remove sold items from inventory
     for i, item in ipairs(GAME.inventory) do

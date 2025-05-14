@@ -137,6 +137,136 @@ function combatSystem:createCombat(party, enemy)
         })
     end
     
+    -- Add item validation function to ensure proper items
+    combat.validateItem = function(self, item)
+        if not item then
+            error("Null item reference found in combat")
+            return false
+        end
+        if not item.name then
+            error("Item without name found in combat")
+            return false
+        end
+        if not item.type then
+            error("Item without type found in combat: " .. item.name)
+            return false
+        end
+        if not item.uniqueId then 
+            error("Item without uniqueId found in combat: " .. item.name)
+            return false
+        end
+        return true
+    end
+    
+    -- Override getLoot to validate items before adding them to inventory
+    combat.getLoot = function(self)
+        if not self.loot then
+            self.loot = {}
+        end
+        
+        -- Validate all loot items before returning
+        local validLoot = {}
+        for i, item in ipairs(self.loot) do
+            -- Only add valid items to loot
+            if self:validateItem(item) then
+                table.insert(validLoot, item)
+            else
+                print("ERROR: Invalid item removed from loot")
+            end
+        end
+        
+        return validLoot
+    end
+    
+    -- Override showItemList to filter invalid items
+    combat.showItemList = function(self)
+        if not GAME.inventory or #GAME.inventory == 0 then
+            self:addLog("No items available!", {1, 0.5, 0.5})
+            return
+        end
+        
+        -- Filter to only consumable items
+        local consumables = {}
+        for _, item in ipairs(GAME.inventory) do
+            -- Validate each item before adding to consumables list
+            if item.type == "consumable" and self:validateItem(item) then
+                table.insert(consumables, item)
+            end
+        end
+        
+        if #consumables == 0 then
+            self:addLog("No consumables available!", {1, 0.5, 0.5})
+            return
+        end
+        
+        -- Show item list
+        self.selectedAction = "item"
+        self.elements.itemList.visible = true
+        self.elements.itemList.items = consumables
+        
+        -- Hide other UI elements
+        self:hideActionButtons()
+        self:showConfirmBackButtons()
+    end
+    
+    -- Override executeItemUse to ensure item is valid
+    combat.executeItemUse = function(self, item, target)
+        -- Validate the item
+        if not self:validateItem(item) then
+            self:addLog("Invalid item! Cannot use.", {1, 0, 0})
+            return false
+        end
+        
+        -- Check if item is consumable
+        if item.type ~= "consumable" then
+            self:addLog("Only consumable items can be used in combat!", {1, 0.5, 0.5})
+            return false
+        end
+        
+        -- Use item
+        local success, message = itemSystem:useItem(item, target)
+        
+        if success then
+            -- Play sound effect
+            assetManager:playSound("pickup")
+            
+            -- Add log message
+            self:addLog(target.name .. " used " .. item.name, {0.5, 1, 0.5})
+            
+            -- Display effect message if available
+            if message then
+                self:addLog(message, {0.5, 1, 0.5})
+            end
+            
+            -- Remove item from inventory
+            for i, invItem in ipairs(GAME.inventory) do
+                if invItem.uniqueId == item.uniqueId then
+                    if invItem.count and invItem.count > 1 then
+                        invItem.count = invItem.count - 1
+                    else
+                        table.remove(GAME.inventory, i)
+                    end
+                    break
+                end
+            end
+            
+            return true
+        else
+            -- Play error sound
+            assetManager:playSound("hit")
+            
+            -- Add log message
+            self:addLog("Failed to use " .. item.name, {1, 0.5, 0.5})
+            
+            -- Display error message if available
+            if message then
+                self:addLog(message, {1, 0.5, 0.5})
+            end
+            
+            return false
+        end
+    end
+    
     -- Initialize combat
     combat.init = function(self)
         -- Handle backward compatibility - convert single enemy to enemies array

@@ -2,6 +2,9 @@
 local skillSystem = require("gameplay/skill")
 local assetManager = require("assets/assetManager")
 local minionManager = require("gameplay/minionManager")
+local monsterAttackSystem = require("gameplay/monsterAttackSystem")
+local minionAbilities = require("gameplay/minionAbilities")
+local statusEffects = require("gameplay/statusEffects")
 local combatSystem = {}  -- Forward declaration
 
 -- Import existing minions from minionManager
@@ -193,146 +196,90 @@ local function executeMinionTurn(self)
         end
     end
     
+    -- Process status effects at turn start
+    local statusUpdates = statusEffects:processTurnStart(minion)
+    
+    -- Log status effect messages
+    for _, update in ipairs(statusUpdates) do
+        self:addLog(update.message, update.color)
+        
+        -- If minion was defeated by a status effect, skip its turn
+        if update.message:find(minion.name .. " is defeated") then
+            -- Mark turn as taken
+            self.minionsTurnTaken[charIndex][minionIndex] = true
+            return
+        end
+    end
+    
+    -- Check for stun status effect
+    if minion.status and minion.status["stun"] then
+        self:addLog(minion.name .. " is stunned and cannot act!", {0.8, 0.8, 0.2})
+        
+        -- Process status effects at turn end
+        local expiredEffects = statusEffects:processTurnEnd(minion)
+        for _, expired in ipairs(expiredEffects) do
+            self:addLog(expired.message, expired.color)
+        end
+        
+        -- Mark turn as taken
+        self.minionsTurnTaken[charIndex][minionIndex] = true
+        return
+    end
+    
     -- Add log entry
     self:addLog(minion.name .. " takes its turn!", {0.5, 0.7, 1})
     
     -- Process minion turn if active
     if minion.active and #self.enemies > 0 then
-        -- Find active enemies
-        local activeEnemies = {}
+        -- Find a valid target - Select a random active enemy
+        local validTargets = {}
         for i, enemy in ipairs(self.enemies) do
             if enemy.active then
-                table.insert(activeEnemies, i)
+                table.insert(validTargets, enemy)
             end
         end
         
-        if #activeEnemies > 0 then
-            -- Choose random active enemy
-            local targetIndex = activeEnemies[math.random(#activeEnemies)]
-            local target = self.enemies[targetIndex]
+        if #validTargets > 0 then
+            local targetEnemy = validTargets[math.random(#validTargets)]
             
-            -- Determine if using ability or basic attack
-            local usingAbility = false
-            local abilityName = nil
-            local damage = 0
+            -- Select an ability to use
+            local abilityId = "minion_basic_attack" -- Default ability
             
-            if minion.abilities and #minion.abilities > 0 and math.random() > 0.4 then
-                -- Use random ability
-                abilityName = minion.abilities[math.random(#minion.abilities)]
-                local abilityData = skillSystem:getSkill(abilityName)
-                
-                if abilityData then
-                    usingAbility = true
-                    
-                    -- Calculate damage based on ability type
-                    if abilityData.type == "physical" then
-                        damage = (minion.attackPower or 10) * (abilityData.basePower / 100)
-                    elseif abilityData.type == "magical" then
-                        damage = (minion.magicPower or 10) * (abilityData.basePower / 100)
-                    else
-                        damage = minion.attackPower or 10 -- Default to attack power for other types
-                    end
-                    
-                    -- Ensure reasonable damage
-                    damage = math.max(1, math.floor(damage))
-                end
+            -- If minion has specific abilities defined, select from them
+            if minion.abilities and #minion.abilities > 0 then
+                abilityId = minion.abilities[math.random(#minion.abilities)]
             end
             
-            if usingAbility then
-                -- Execute ability
-                self:addLog(minion.name .. " uses " .. abilityName .. " on " .. target.name .. "!", {0.6, 0.6, 1})
-                
-                -- Apply damage
-                target.currentHP = math.max(0, target.currentHP - damage)
-                
-                -- Log damage
-                self:addLog(target.name .. " takes " .. damage .. " damage!", {1, 0.6, 0.6})
-                
-                -- Play appropriate sound
-                assetManager:playSound("spell")
-            else
-                -- Execute basic attack
-                self:addLog(minion.name .. " attacks " .. target.name .. "!", {0.7, 0.7, 0.7})
-                
-                -- Calculate basic attack damage
-                damage = minion.attackPower or 10
-                if target.defense then
-                    damage = math.max(1, damage - (target.defense / 3))
-                end
-                damage = math.floor(damage)
-                
-                -- Apply damage
-                target.currentHP = math.max(0, target.currentHP - damage)
-                
-                -- Log damage
-                self:addLog(target.name .. " takes " .. damage .. " damage!", {1, 0.6, 0.6})
-                
-                -- Play attack sound
-                assetManager:playSound("attack")
+            -- Get the ability definition
+            local abilityDef = minionAbilities:getAbility(abilityId)
+            
+            -- Resolve the ability
+            local logEntries = monsterAttackSystem:resolveAbility(abilityDef or abilityId, minion, {targetEnemy}, self)
+            
+            -- Add log entries to combat log
+            for _, entry in ipairs(logEntries) do
+                self:addLog(entry.message, entry.color or {1, 0.7, 0.7})
             end
             
-            -- Check if enemy was defeated
-            if target.currentHP <= 0 then
-                target.currentHP = 0
-                target.active = false
-                self:addLog(target.name .. " was defeated!", {0, 1, 0})
-                
-                -- Check if all enemies are defeated
-                local allDefeated = true
-                for _, enemy in ipairs(self.enemies) do
-                    if enemy.active then
-                        allDefeated = false
-                        break
-                    end
-                end
-                
-                if allDefeated then
-                    -- Add delay before triggering victory to show final messages
-                    self:addLog("All enemies have been defeated!", {0, 1, 0.2})
-                    self:addLog(minion.name .. " has dealt the final blow!", {0.3, 1, 0.7})
-                    
-                    -- Calculate rewards BEFORE setting victory state
-                    self:calculateVictoryRewards()
-                    
-                    -- Set state directly to victory instead of continuing turn processing
-                    self.state = combatSystem.STATE.VICTORY
-                    
-                    -- Use a longer delay before showing victory screen when minion delivers final blow
-                    self.animationDelay = 2.0  -- Increased from 1.0
-                    
-                    -- Trigger victory directly with a delay
-                    self.turnEndDelay = 1.5  -- Increased from 0.2
-                    
-                    -- We'll need a custom function to handle this delayed victory
-                    self.pendingVictory = true
-                    
-                    -- Important: Return immediately to prevent further turn processing
-                    return
-                end
-            end
+            -- Play attack sound
+            assetManager:playSound("attack")
         else
-            -- No active enemies
-            self:addLog(minion.name .. " has no targets.", {0.7, 0.7, 0.7})
-        end
-    else
-        -- Minion can't act
-        if not minion.active then
-            self:addLog(minion.name .. " is inactive and can't take a turn.", {0.5, 0.5, 0.5})
-        elseif #self.enemies == 0 then
-            self:addLog(minion.name .. " has no enemies to target.", {0.5, 0.5, 0.5})
+            -- No valid targets, which means all enemies are defeated
+            self:addLog("No valid targets for " .. minion.name, {0.7, 0.7, 0.7})
         end
     end
     
-    -- Debug enemy states after minion action
-    if GAME.debug then
-        print("Enemy states after minion turn:")
-        for i, enemy in ipairs(self.enemies) do
-            print("  Enemy " .. i .. ": " .. enemy.name .. " (active: " .. tostring(enemy.active) .. ")")
-        end
+    -- Process status effects at turn end
+    local expiredEffects = statusEffects:processTurnEnd(minion)
+    for _, expired in ipairs(expiredEffects) do
+        self:addLog(expired.message, expired.color)
     end
     
-    -- Add delay before next turn
-    self.turnEndDelay = 0.7
+    -- Mark minion's turn as taken
+    self.minionsTurnTaken[charIndex][minionIndex] = true
+    
+    -- Add animation delay
+    self.animationDelay = 0.5
 end
 
 -- Find an active minion with an untaken turn

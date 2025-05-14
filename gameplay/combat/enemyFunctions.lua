@@ -1,6 +1,8 @@
 -- Enemy Functions - Handling AI and enemy turns
 local assetManager = require("assets/assetManager")
 local uniqueItemSystem = require("gameplay/uniqueItemSystem")
+local statusEffects = require("gameplay/statusEffects")
+local monsterAttackSystem = require("gameplay/monsterAttackSystem")
 local combatSystem = {}  -- Forward declaration
 
 -- Execute current enemy's turn
@@ -35,6 +37,34 @@ local function executeEnemyTurn(self)
     -- Skip the turn if the enemy is inactive
     if not enemy.active then
         self.activeEnemyIndex = self.activeEnemyIndex + 1
+        return
+    end
+    
+    -- Process status effects at turn start
+    local statusUpdates = statusEffects:processTurnStart(enemy)
+    
+    -- Log status effect messages
+    for _, update in ipairs(statusUpdates) do
+        self:addLog(update.message, update.color)
+        
+        -- If enemy was defeated by a status effect, skip its turn
+        if update.message:find(enemy.name .. " is defeated") then
+            self.activeEnemyIndex = self.activeEnemyIndex + 1
+            return
+        end
+    end
+    
+    -- Check for stun status effect
+    if enemy.status and enemy.status["stun"] then
+        self:addLog(enemy.name .. " is stunned and cannot act!", {0.8, 0.8, 0.2})
+        self.activeEnemyIndex = self.activeEnemyIndex + 1
+        
+        -- Process status effects at turn end
+        local expiredEffects = statusEffects:processTurnEnd(enemy)
+        for _, expired in ipairs(expiredEffects) do
+            self:addLog(expired.message, expired.color)
+        end
+        
         return
     end
     
@@ -77,90 +107,40 @@ local function executeEnemyTurn(self)
     
     -- Select a random target from valid targets
     local targetInfo = validTargets[math.random(#validTargets)]
-    local targetName = ""
-    local damage = 0
+    local targets = {}
     
+    -- Select ability to use
+    local abilityId = monsterAttackSystem:selectAbility(enemy)
+    
+    -- Process target selection based on ability target type
     if targetInfo.type == "player" then
         -- Target is a player character
         local target = self.party[targetInfo.index]
-        targetName = target.name
-        
-        -- Calculate damage
-        local attackPower = enemy.attackPower or enemy.stats.attack or 10
-        local defense = target.defense or 5
-        
-        -- Basic damage calculation
-        damage = math.floor(attackPower - (defense / 2))
-        damage = math.max(1, damage) -- Ensure minimum damage
-        
-        -- Process unique item effects that modify incoming damage
-        local damageContext = {
-            eventType = "CHARACTER_TAKES_DAMAGE",
-            character = target,
-            source = enemy,
-            value = damage,
-            damageType = enemy.element or "physical" -- Use enemy's element or default to physical
-        }
-        damage = uniqueItemSystem:processEffects(damageContext)
-        
-        -- Apply damage to character
-        target.currentHP = math.max(0, target.currentHP - damage)
-        
-        -- Check if character is defeated
-        if target.currentHP <= 0 then
-            target.currentHP = 0
-            target.active = false
-            
-            -- Add to combat log
-            self:addLog(target.name .. " is defeated!", {1, 0, 0})
-            
-            -- Check if all party members are defeated
-            local allDefeated = true
-            for _, char in ipairs(self.party) do
-                if char.active then
-                    allDefeated = false
-                    break
-                end
-            end
-            
-            if allDefeated then
-                self:partyDefeated()
-                return
-            end
-        end
+        targets = {target}
     elseif targetInfo.type == "minion" then
         -- Target is a minion
         local minion = self.minions[targetInfo.charIndex][targetInfo.minionIndex]
-        targetName = minion.name
-        
-        -- Calculate damage
-        local attackPower = enemy.attackPower or enemy.stats.attack or 10
-        local defense = minion.defense or 5
-        
-        -- Basic damage calculation
-        damage = math.floor(attackPower - (defense / 2))
-        damage = math.max(1, damage) -- Ensure minimum damage
-        
-        -- Apply damage to minion
-        minion.currentHP = math.max(0, minion.currentHP - damage)
-        
-        -- Check if minion is defeated
-        if minion.currentHP <= 0 then
-            minion.currentHP = 0
-            minion.active = false
-            
-            -- Add to combat log
-            self:addLog(minion.name .. " is defeated!", {1, 0.3, 0.3})
-        end
+        targets = {minion}
     end
     
-    -- Add to combat log
-    self:addLog(enemy.name .. " attacks " .. targetName .. " for " .. damage .. " damage!", {1, 0.5, 0.5})
+    -- Resolve the ability
+    local logEntries = monsterAttackSystem:resolveAbility(abilityId, enemy, targets, self)
+    
+    -- Add log entries to combat log
+    for _, entry in ipairs(logEntries) do
+        self:addLog(entry.message, entry.color or {1, 0.5, 0.5})
+    end
     
     -- Play attack sound
     assetManager:playSound("attack")
     
-    -- Increment to next enemy - only increment here
+    -- Process status effects at turn end
+    local expiredEffects = statusEffects:processTurnEnd(enemy)
+    for _, expired in ipairs(expiredEffects) do
+        self:addLog(expired.message, expired.color)
+    end
+    
+    -- Increment to next enemy
     self.activeEnemyIndex = self.activeEnemyIndex + 1
 end
 

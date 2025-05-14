@@ -18,7 +18,24 @@ local function setupCombatants(self)
         end
         
         -- Setup status effects table
-        character.status = {}
+        character.status = character.status or {}
+        
+        -- Initialize resistances table if none exists
+        character.resistances = character.resistances or {}
+        
+        -- Initialize immunities table if none exists
+        character.immunities = character.immunities or {}
+        
+        -- Add resistances from equipped items
+        if character.equipment then
+            for slot, item in pairs(character.equipment) do
+                if item and item.resistances then
+                    for damageType, value in pairs(item.resistances) do
+                        character.resistances[damageType] = (character.resistances[damageType] or 0) + value
+                    end
+                end
+            end
+        end
         
         -- Set active flag
         character.active = character.currentHP > 0
@@ -40,11 +57,45 @@ local function setupCombatants(self)
             enemy.defense = enemy.stats.defense
         end
         
+        -- Add magic attack power if defined
+        if enemy.stats.magicAttack then
+            enemy.magicAttackPower = enemy.stats.magicAttack
+        end
+        
         -- Setup enemy status effects
-        enemy.status = {}
+        enemy.status = enemy.status or {}
+        
+        -- Ensure resistances exist
+        enemy.resistances = enemy.resistances or {}
+        
+        -- Ensure immunities exist
+        enemy.immunities = enemy.immunities or {}
         
         -- Set enemy as active
         enemy.active = true
+    end
+    
+    -- Setup all minions
+    for charIndex, charMinions in pairs(self.minions) do
+        for minionIndex, minion in pairs(charMinions) do
+            -- Set up base stats if not already present
+            if not minion.maxHP then
+                minion.maxHP = minion.hp
+                minion.currentHP = minion.maxHP
+            end
+            
+            -- Setup minion status effects
+            minion.status = minion.status or {}
+            
+            -- Initialize resistances
+            minion.resistances = minion.resistances or {}
+            
+            -- Initialize immunities
+            minion.immunities = minion.immunities or {}
+            
+            -- Set minion as active
+            minion.active = minion.currentHP > 0
+        end
     end
 end
 

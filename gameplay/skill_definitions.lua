@@ -11,6 +11,7 @@ local skillDefinitions = {
         mpCost = 0,
         basePower = 100,
         formula = "physical",
+        damageType = "physical",
         maxLevel = 5,
         levelModifier = function(level) return 1 + (level * 0.05) end
     },
@@ -41,6 +42,7 @@ local skillDefinitions = {
         mpCost = 5,
         basePower = 150,
         formula = "physical",
+        damageType = "physical",
         maxLevel = 5,
         levelModifier = function(level) return 1 + (level * 0.1) end
     },
@@ -54,6 +56,7 @@ local skillDefinitions = {
         basePower = 80,
         hits = 2,
         formula = "physical",
+        damageType = "slashing",
         maxLevel = 5,
         levelModifier = function(level) return 1 + (level * 0.05) end
     },
@@ -83,11 +86,13 @@ local skillDefinitions = {
         mpCost = 6,
         basePower = 90,
         formula = "physical",
+        damageType = "bludgeoning",
         maxLevel = 5,
         effect = {
-            stat = "stun",
+            type = "stun",
             chance = 0.3,
-            duration = 1
+            duration = 1,
+            strength = 1
         },
         levelModifier = function(level) 
             return {
@@ -107,7 +112,14 @@ local skillDefinitions = {
         mpCost = 6,
         basePower = 120,
         formula = "magical",
+        damageType = "fire",
         maxLevel = 5,
+        effect = {
+            type = "burn",
+            chance = 0.3,
+            duration = 2,
+            strength = 1
+        },
         levelModifier = function(level) return 1 + (level * 0.1) end
     },
     
@@ -120,6 +132,7 @@ local skillDefinitions = {
         mpCost = 8,
         basePower = 100,
         formula = "magical",
+        damageType = "ice",
         maxLevel = 5,
         effect = {
             stat = "speed_multiplier",
@@ -144,6 +157,7 @@ local skillDefinitions = {
         mpCost = 10,
         basePower = 110,
         formula = "magical",
+        damageType = "lightning",
         critModifier = 2.0,
         critChance = 0.2,
         maxLevel = 5,

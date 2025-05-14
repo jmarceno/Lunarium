@@ -659,14 +659,47 @@ local function drawSingleEnemy(self, enemy, x, y)
         love.graphics.printf(enemy.name or "Monster", x + 40, y + 120, 120, "center")
     end
     
-    -- Draw status effects
-    local statusX = x
-    local statusY = y + 200 -- Move status effects below the sprite
+    -- Draw status effects using the helper function
+    if enemy.status and next(enemy.status) then
+        local uiHelpers = require("gameplay/combat/uiHelpers")
+        uiHelpers.drawStatusEffects(enemy, x, y + 195, 28, 5)
+    end
     
-    for status, info in pairs(enemy.status) do
-        love.graphics.setColor(0.8, 0.8, 0.2)
-        love.graphics.print(status, statusX, statusY)
-        statusY = statusY + 15
+    -- Draw resistances/vulnerabilities if this is the selected target
+    if self.selectedTarget == enemy and enemy.resistances then
+        love.graphics.setFont(screenManager.fonts.small)
+        love.graphics.setColor(1, 1, 1, 0.8)
+        
+        local resistY = y + 230
+        love.graphics.print("Resistances:", x, resistY)
+        resistY = resistY + 20
+        
+        -- Get notable resistances/vulnerabilities (those with significant values)
+        for damageType, value in pairs(enemy.resistances) do
+            if math.abs(value) >= 20 then -- Only show significant resistances/vulnerabilities
+                if value < 0 then
+                    love.graphics.setColor(0.4, 0.8, 0.4) -- Green for resistance
+                    love.graphics.print(damageType .. " " .. value .. "%", x + 10, resistY)
+                else
+                    love.graphics.setColor(0.8, 0.4, 0.4) -- Red for vulnerability
+                    love.graphics.print(damageType .. " +" .. value .. "%", x + 10, resistY)
+                end
+                resistY = resistY + 15
+            end
+        end
+        
+        -- Show immunities if any
+        if enemy.immunities and #enemy.immunities > 0 then
+            resistY = resistY + 5
+            love.graphics.setColor(0.8, 0.8, 0.2)
+            love.graphics.print("Immune to:", x, resistY)
+            resistY = resistY + 15
+            
+            for _, immunity in ipairs(enemy.immunities) do
+                love.graphics.print("- " .. immunity, x + 10, resistY)
+                resistY = resistY + 15
+            end
+        end
     end
 end
 
@@ -686,6 +719,9 @@ local function drawParty(self)
     
     -- Calculate width available for each character
     local characterWidth = GAME.width / #self.party
+    
+    -- Load uiHelpers for status effects
+    local uiHelpers = require("gameplay/combat/uiHelpers")
     
     for i, character in ipairs(self.party) do
         local x = (i - 1) * characterWidth + 20
@@ -779,25 +815,9 @@ local function drawParty(self)
             )
         end
         
-        -- Draw any status effects as small icons or text
-        if next(character.status) then
-            love.graphics.setFont(screenManager.fonts.small)
-            love.graphics.setColor(0.8, 0.8, 0.2)
-            
-            local statusX = x
-            local statusY = y + 70
-            local statusText = "Status: "
-            
-            for status, _ in pairs(character.status) do
-                statusText = statusText .. status .. " "
-            end
-            
-            -- Truncate if too long
-            if love.graphics.getFont():getWidth(statusText) > barWidth then
-                statusText = string.sub(statusText, 1, 20) .. "..."
-            end
-            
-            love.graphics.print(statusText, statusX, statusY)
+        -- Draw status effects using uiHelpers
+        if character.status and next(character.status) then
+            uiHelpers.drawStatusEffects(character, x, y + 70, 20, 3)
         end
     end
 end

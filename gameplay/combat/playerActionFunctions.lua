@@ -3,6 +3,8 @@ local skillSystem = require("gameplay/skill")
 local itemSystem = require("gameplay/item")
 local assetManager = require("assets/assetManager")
 local uniqueItemSystem = require("gameplay/uniqueItemSystem")
+local damageTypes = require("gameplay/damageTypes")
+local statusEffects = require("gameplay/statusEffects")
 
 -- Execute player's selected action
 local function executePlayerAction(self)
@@ -177,6 +179,18 @@ local function executeSkill(self)
                 currentChar.skills[self.selectedSkill.name].level
             )
             
+            -- Apply damage type modifier if skill has a damage type
+            if skillCopy.damageType then
+                local damageMultiplier = damageTypes:calculateModifier(skillCopy.damageType, self.selectedTarget)
+                damage = math.floor(damage * damageMultiplier)
+                
+                -- Log damage type effectiveness
+                local resistText, resistColor = damageTypes:getDisplayText(damageMultiplier)
+                if resistText then
+                    self:addLog(self.selectedTarget.name .. " " .. resistText .. " to " .. skillCopy.damageType .. "!", resistColor)
+                end
+            end
+            
             -- Apply unique item effects to the damage
             local damageContext = {
                 eventType = "CALCULATE_OUTGOING_DAMAGE",
@@ -184,7 +198,8 @@ local function executeSkill(self)
                 target = self.selectedTarget,
                 skill = skillCopy, -- Pass the mutable copy
                 value = damage,
-                is_critical = isCritical
+                is_critical = isCritical,
+                damageType = skillCopy.damageType or "physical" -- Add damage type to context
             }
             damage = uniqueItemSystem:processEffects(damageContext)
             
@@ -249,6 +264,23 @@ local function executeSkill(self)
         -- Check for enemy defeat
         if self.selectedTarget.currentHP <= 0 then
             self:enemyDefeated(self.selectedTarget)
+        end
+        
+        -- Add status effect if skill has effect property
+        if self.selectedSkill.effect and self.selectedTarget.active then
+            local effect = self.selectedSkill.effect
+            local effectType = effect.type
+            local chance = effect.chance or 1.0
+            local duration = effect.duration or 3
+            local strength = effect.strength or 1
+            
+            -- Roll for effect chance
+            if math.random() <= chance then
+                local applied = statusEffects:apply(effectType, self.selectedTarget, duration, strength)
+                if applied then
+                    self:addLog(self.selectedTarget.name .. " is afflicted with " .. statusEffects.effects[effectType].name .. "!", {0.8, 0.6, 0.8})
+                end
+            end
         end
     elseif self.selectedSkill.target == "all_enemies" then
         -- Apply to all enemies
