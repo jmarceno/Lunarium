@@ -11,6 +11,9 @@ function mainMenu:init()
     self.saveProfiles = {}
     self.selectedProfile = nil
     
+    -- Load main menu background image
+    self.backgroundImage = love.graphics.newImage("assets/MainScreen.png")
+    
     -- Create menu buttons
     self.elements.newGameButton = screenManager.UI.Button(
         GAME.width / 2 - 100, GAME.height / 2 - 100, 
@@ -254,7 +257,12 @@ end
 
 function mainMenu:draw()
     -- Draw background
-    love.graphics.clear(screenManager.colors.background)
+    if self.backgroundImage then
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.draw(self.backgroundImage, 0, 0, 0, GAME.width / self.backgroundImage:getWidth(), GAME.height / self.backgroundImage:getHeight())
+    else
+        love.graphics.clear(screenManager.colors.background)
+    end
     
     -- Draw game title
     love.graphics.setFont(screenManager.fonts.title)

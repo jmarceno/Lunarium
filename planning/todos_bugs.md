@@ -6,11 +6,14 @@
 - Add "Decals" textures over walls and floor textures to make them look older or broken
 - Add Textures for chests and other ground loot (maybe just a small bag)
 - Add Traps - Check claude chat for the ideas
-- Add more quests
 - Add a place to revive characters - This is problematic as we will need some kind o church on overworld map (need to be redraw)
 - Check if status is showing on the player
-- Fix position of pop-up asking to return to town
 - Internacionalization
+- Add more quests
+- Quests:
+  - Quest were someone was cursed and is haunting the dungeon (given on tavern as a more personal request)
+  - Quest were someones wife/husbasd died and became an undead (given on tavern as a more personal request)
+
 
 # Bugs
 
