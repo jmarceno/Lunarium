@@ -1209,7 +1209,14 @@ function raycaster:renderEntities(entities)
                     -- Calculate shade based on distance
                     local shade = 1.0 - (perpDistance / self.shadeDepth)
                     shade = math.max(0.0, shade) -- Allow complete darkness at max distance
-                    love.graphics.setColor(shade, shade, shade)
+                    
+                    -- Apply special coloring and transparency for hidden monsters in debug mode
+                    if entity.hidden and GAME.debug and entity.type == "monster" then
+                        -- Magenta tint for hidden monsters with 50% transparency in debug mode
+                        love.graphics.setColor(1, 0, 1, 0.5)  -- Magenta with 50% opacity
+                    else
+                        love.graphics.setColor(shade, shade, shade)
+                    end
                     
                     -- Send normal map for this sprite if available
                     if normalTexture then
@@ -1249,13 +1256,19 @@ function raycaster:renderEntities(entities)
                     local shade = 1.0 - (perpDistance / self.shadeDepth)
                     shade = math.max(0.0, shade) -- Allow complete darkness at max distance
                     
-                    -- Set color with correct shading
-                    love.graphics.setColor(
-                        entity.color[1] * shade,
-                        entity.color[2] * shade,
-                        entity.color[3] * shade,
-                        entity.color[4] or 1
-                    )
+                    -- Apply special coloring and transparency for hidden monsters in debug mode
+                    if entity.hidden and GAME.debug and entity.type == "monster" then
+                        -- Magenta color with 50% transparency for hidden monsters in debug mode
+                        love.graphics.setColor(1, 0, 1, 0.5) -- Magenta with 50% opacity
+                    else
+                        -- Set color with correct shading
+                        love.graphics.setColor(
+                            entity.color[1] * shade,
+                            entity.color[2] * shade,
+                            entity.color[3] * shade,
+                            entity.color[4] or 1
+                        )
+                    end
                     
                     -- Set depth value for this sprite
                     self.spriteShader:send("depth", perpDistance / self.maxDistance)
@@ -1332,7 +1345,19 @@ function raycaster:render(map, entities)
     
     -- Render entities
     if entities and #entities > 0 then
-        self:renderEntities(entities)
+        -- Filter out hidden entities unless in debug mode
+        local visibleEntities = {}
+        for _, entity in ipairs(entities) do
+            -- Only include entities that aren't hidden, or if they're hidden but debug mode is on
+            if not entity.hidden or (entity.hidden and GAME.debug) then
+                table.insert(visibleEntities, entity)
+            end
+        end
+        
+        -- Only render if we have visible entities
+        if #visibleEntities > 0 then
+            self:renderEntities(visibleEntities)
+        end
     end
     
     -- Apply post-processing effects

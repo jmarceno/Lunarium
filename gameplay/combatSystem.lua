@@ -28,7 +28,7 @@ local combatSystem = {
 }
 
 -- Create a new combat instance
-function combatSystem:createCombat(party, enemy)
+function combatSystem:createCombat(party, enemy, isAmbush)
     local combat = {
         party = party,
         enemies = {}, -- Array to hold multiple enemies
@@ -43,6 +43,7 @@ function combatSystem:createCombat(party, enemy)
         turnOrder = {},
         effects = {},
         rewardsCalculated = false, -- Flag to track reward calculation
+        isAmbush = isAmbush or false, -- Flag to indicate if the player was ambushed
         
         -- Active minions in combat
         minions = {},
@@ -308,13 +309,20 @@ function combatSystem:createCombat(party, enemy)
         self.enemyTurnDelay = nil  -- Set to nil to force initialization on first enemy turn
         self.activeEnemyIndex = 1  -- Start with the first enemy
         
-        -- Set initial state and find the first active character
-        self.state = combatSystem.STATE.PLAYER_TURN
+        -- Set initial state based on whether this is an ambush
+        if self.isAmbush then
+            -- If ambushed, enemies go first
+            self.state = combatSystem.STATE.ENEMY_TURN
+        else
+            -- Normal combat, players go first
+            self.state = combatSystem.STATE.PLAYER_TURN
+        end
         
         -- Track which characters have had their turn this round
         self.charactersTurnTaken = {}
         for i=1, #self.party do
-            self.charactersTurnTaken[i] = false
+            -- If ambushed, mark all party members as having already taken their turn in the first round
+            self.charactersTurnTaken[i] = self.isAmbush
         end
         
         -- Find the first active character
@@ -326,8 +334,10 @@ function combatSystem:createCombat(party, enemy)
             if self.party[i].active then
                 self.currentCharacter = i
                 found = true
-                -- Ensure their turn is not marked as taken
-                self.charactersTurnTaken[i] = false
+                -- Ensure their turn is not marked as taken (unless ambushed)
+                if not self.isAmbush then
+                    self.charactersTurnTaken[i] = false
+                end
                 break
             end
         end
@@ -336,7 +346,7 @@ function combatSystem:createCombat(party, enemy)
         if not found and #self.party > 0 then
             self.currentCharacter = 1
             self.party[1].active = true
-            self.charactersTurnTaken[1] = false  -- Ensure first character gets a turn
+            self.charactersTurnTaken[1] = self.isAmbush  -- Mark taken if ambushed
         end
         
         -- Add combat start message
@@ -360,10 +370,16 @@ function combatSystem:createCombat(party, enemy)
             self:addLog(self.enemy.name .. " appeared!")
         end
         
-        self:addLog(self.party[self.currentCharacter].name .. "'s turn begins", {0.5, 0.5, 1})
-        
-        -- Make sure action buttons are visible for first player turn
-        self:showActionButtons()
+        -- Add ambush message if applicable
+        if self.isAmbush then
+            self:addLog("You've been AMBUSHED! Your party loses their first turn!", {1, 0, 0})
+            self:addLog("The enemies attack first!", {1, 0.3, 0.3})
+        else
+            self:addLog(self.party[self.currentCharacter].name .. "'s turn begins", {0.5, 0.5, 1})
+            
+            -- Make sure action buttons are visible for first player turn
+            self:showActionButtons()
+        end
     end
     
     -- Initialize combat

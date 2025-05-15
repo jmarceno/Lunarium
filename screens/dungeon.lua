@@ -207,8 +207,15 @@ function dungeon:init()
                         for _, entity in ipairs(dungeon.entities) do
                             local entityX = math.floor(entity.x)
                             local entityY = math.floor(entity.y)
-                            if x == entityX and y == entityY and entity.type ~= "objective" then
-                                love.graphics.setColor(entity.color or {1, 0, 0})
+                            -- Only draw the entity if it's not hidden, or if debug mode is on and it's hidden
+                            if x == entityX and y == entityY and entity.type ~= "objective" and 
+                               (not entity.hidden or (entity.hidden and GAME.debug)) then
+                                -- Use a different color for hidden monsters in debug mode
+                                if entity.hidden and GAME.debug then
+                                    love.graphics.setColor(1, 0, 1) -- Magenta color for hidden monsters in debug mode
+                                else
+                                    love.graphics.setColor(entity.color or {1, 0, 0})
+                                end
                                 love.graphics.circle("fill", 
                                     self.x + entity.x * cellSize, 
                                     self.y + entity.y * cellSize, 
@@ -726,6 +733,17 @@ function dungeon:addFillerEntities(difficulty, count, avoidEnd)
     
     local usedMonsterData = require("gameplay/monsterData") -- Require inside helper
 
+    -- Calculate how many hidden monsters to add (10% of total monsters with minimum of 1)
+    local hiddenMonsterCount = math.max(1, math.floor(monsterCount * 0.1))
+    -- Increase total monster count by 10% to account for hidden monsters
+    monsterCount = monsterCount + hiddenMonsterCount
+    
+    print("Adding " .. monsterCount .. " monsters (" .. hiddenMonsterCount .. " hidden)")
+    
+    -- Keep track of monsters added and hidden monsters added
+    local monstersAdded = 0
+    local hiddenMonstersAdded = 0
+
     -- Add filler monsters
     for i = 1, monsterCount do
         local x, y = self:findValidSpawnPosition(avoidEnd)
@@ -734,6 +752,15 @@ function dungeon:addFillerEntities(difficulty, count, avoidEnd)
             local randomMonsterId = usedMonsterData:getRandomMonsterId(difficulty) 
             local fetchedMonsterData = usedMonsterData:getMonsterData(randomMonsterId) 
             if fetchedMonsterData then
+                -- Determine if this monster should be hidden
+                -- Ensure we add the minimum number of hidden monsters
+                local isHidden = false
+                if hiddenMonstersAdded < hiddenMonsterCount and 
+                   (monstersAdded >= (monsterCount - hiddenMonsterCount) or math.random() < 0.1) then
+                    isHidden = true
+                    hiddenMonstersAdded = hiddenMonstersAdded + 1
+                end
+                
                 table.insert(self.entities, {
                     x = x + 0.5,
                     y = y + 0.5,
@@ -743,8 +770,10 @@ function dungeon:addFillerEntities(difficulty, count, avoidEnd)
                     color = fetchedMonsterData.color,
                     stats = fetchedMonsterData.stats,
                     sprite = fetchedMonsterData.sprite, -- Add sprite path
-                    category = fetchedMonsterData.category -- Add category
+                    category = fetchedMonsterData.category, -- Add category
+                    hidden = isHidden -- Flag to mark hidden monsters for ambushes
                 })
+                monstersAdded = monstersAdded + 1
             else
                 print("Warning: Could not get data for random filler monster ID: " .. tostring(randomMonsterId))
             end
@@ -1005,9 +1034,12 @@ function dungeon:checkEntityInteraction()
                 -- Start combat
                 self.state = STATES.COMBAT
                 
+                -- Flag to track if this is an ambush (for hidden monsters)
+                local isAmbush = entity.hidden
+                
                 -- For boss monsters, always use single-enemy combat
                 if entity.isBoss then
-                    self.combat = combatSystem:createCombat(GAME.party, entity)
+                    self.combat = combatSystem:createCombat(GAME.party, entity, isAmbush)
                     -- Play boss battle music
                     assetManager:playMusic("bossCombat")
                 else
@@ -1036,11 +1068,11 @@ function dungeon:checkEntityInteraction()
                             monsters = {entity} -- Fallback
                         end
                         
-                        -- Start combat with multiple enemies
-                        self.combat = combatSystem:createCombat(GAME.party, monsters)
+                        -- Start combat with multiple enemies, passing the ambush flag
+                        self.combat = combatSystem:createCombat(GAME.party, monsters, isAmbush)
                     else
                         -- Easy missions still have single enemies
-                        self.combat = combatSystem:createCombat(GAME.party, entity)
+                        self.combat = combatSystem:createCombat(GAME.party, entity, isAmbush)
                     end
                     
                     -- Play regular battle music (randomly select between two tracks)
