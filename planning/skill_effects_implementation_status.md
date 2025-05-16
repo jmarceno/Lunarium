@@ -238,4 +238,4 @@ This document reviews each skill defined in `gameplay/skill_definitions.lua`, li
 - Implement support for multiple hits in skills
 - Ensure all stat multipliers are correctly used in damage/defense calculations
 - Add logic for life drain, taunt, and revealWeakness
-- Make all buffs/debuffs visible as status effects with proper icons 
+- Consider making all buffs/debuffs visible as status effects with proper icons 

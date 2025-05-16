@@ -159,224 +159,127 @@ local function executeSkill(self)
         return
     end
     
-    -- Track total damage for multi-hit skills
-    local totalDamage = 0
-    local hits = self.selectedSkill.hits or 1
-    
-    -- Apply life drain tracking
-    local lifeDrainAmount = 0
-    local hasLifeDrain = statusEffects:has(currentChar, "lifeDrain")
-    local lifeDrainMultiplier = 0
-    if hasLifeDrain then
-        lifeDrainMultiplier = statusEffects:getValue(currentChar, "lifeDrain") / 100
-    end
-    
     -- Handle different skill targets
     if self.selectedSkill.target == "single_enemy" then
         -- Apply damage to the selected enemy
-        for i = 1, hits do
-            local damage, isCritical = 0, false
-            
-            -- Make sure character has this skill before calculating damage
-            if currentChar.skills and currentChar.skills[self.selectedSkill.name] then
-                -- Create a mutable copy of the skill for this calculation
-                local skillCopy = {}
-                for k, v in pairs(self.selectedSkill) do
-                    skillCopy[k] = v
-                end
-                
-                damage, isCritical = skillSystem:calculateDamage(
-                    skillCopy,
-                    currentChar,
-                    self.selectedTarget,
-                    currentChar.skills[self.selectedSkill.name].level
-                )
-                
-                -- Apply damage type modifier if skill has a damage type
-                if skillCopy.damageType then
-                    local damageMultiplier = damageTypes:calculateModifier(skillCopy.damageType, self.selectedTarget)
-                    damage = math.floor(damage * damageMultiplier)
-                    
-                    -- Log damage type effectiveness
-                    if i == 1 then -- Only log once for multi-hit skills
-                        local resistText, resistColor = damageTypes:getDisplayText(damageMultiplier)
-                        if resistText then
-                            self:addLog(self.selectedTarget.name .. " " .. resistText .. " to " .. skillCopy.damageType .. "!", resistColor)
-                        end
-                    end
-                end
-                
-                -- Apply unique item effects to the damage
-                local damageContext = {
-                    eventType = "CALCULATE_OUTGOING_DAMAGE",
-                    character = currentChar,
-                    target = self.selectedTarget,
-                    skill = skillCopy,
-                    value = damage,
-                    is_critical = isCritical,
-                    damageType = skillCopy.damageType or "physical",
-                    hit_index = i,
-                    total_hits = hits
-                }
-                damage = uniqueItemSystem:processEffects(damageContext)
-                
-                -- Update isCritical if needed
-                isCritical = damageContext.is_critical
-            else
-                -- Fallback if skill level is not found
-                -- Create a mutable copy of the skill for this calculation
-                local skillCopy = {}
-                for k, v in pairs(self.selectedSkill) do
-                    skillCopy[k] = v
-                end
-                
-                damage, isCritical = skillSystem:calculateDamage(
-                    skillCopy,
-                    currentChar,
-                    self.selectedTarget,
-                    1
-                )
-                
-                -- Apply unique item effects to the damage
-                local damageContext = {
-                    eventType = "CALCULATE_OUTGOING_DAMAGE",
-                    character = currentChar,
-                    target = self.selectedTarget,
-                    skill = skillCopy,
-                    value = damage,
-                    is_critical = isCritical,
-                    hit_index = i,
-                    total_hits = hits
-                }
-                damage = uniqueItemSystem:processEffects(damageContext)
-                
-                -- Update isCritical if needed
-                isCritical = damageContext.is_critical
+        local damage, isCritical = 0, false
+        
+        -- Make sure character has this skill before calculating damage
+        if currentChar.skills and currentChar.skills[self.selectedSkill.name] then
+            -- Create a mutable copy of the skill for this calculation
+            local skillCopy = {}
+            for k, v in pairs(self.selectedSkill) do
+                skillCopy[k] = v
             end
             
-            -- Track for life drain
-            totalDamage = totalDamage + damage
+            damage, isCritical = skillSystem:calculateDamage(
+                skillCopy,
+                currentChar,
+                self.selectedTarget,
+                currentChar.skills[self.selectedSkill.name].level
+            )
             
-            -- Apply damage
-            local actualDamage = damage
-            
-            -- Check for barrier first
-            local barrierAbsorbed = 0
-            if statusEffects:has(self.selectedTarget, "barrier") then
-                local barrierValue = statusEffects:getValue(self.selectedTarget, "barrier")
-                barrierAbsorbed = math.min(damage, barrierValue)
+            -- Apply damage type modifier if skill has a damage type
+            if skillCopy.damageType then
+                local damageMultiplier = damageTypes:calculateModifier(skillCopy.damageType, self.selectedTarget)
+                damage = math.floor(damage * damageMultiplier)
                 
-                -- Update barrier value
-                local newBarrierValue = barrierValue - barrierAbsorbed
-                if newBarrierValue <= 0 then
-                    statusEffects:remove("barrier", self.selectedTarget)
-                    self:addLog(self.selectedTarget.name .. "'s barrier has broken!", {0.7, 0.3, 0.9})
-                else
-                    -- Update barrier with new value
-                    statusEffects:apply("barrier", self.selectedTarget, 
-                                      statusEffects:getDuration(self.selectedTarget, "barrier"),
-                                      newBarrierValue)
-                end
-                
-                -- Log barrier absorption
-                if barrierAbsorbed > 0 then
-                    self:addLog(self.selectedTarget.name .. "'s barrier absorbs " .. barrierAbsorbed .. " damage!", {0.3, 0.7, 0.9})
-                end
-                
-                -- Calculate actual damage after barrier
-                actualDamage = damage - barrierAbsorbed
-            end
-            
-            if actualDamage > 0 then
-                self.selectedTarget.currentHP = math.max(0, self.selectedTarget.currentHP - actualDamage)
-                
-                -- Track life drain based on actual damage dealt
-                if hasLifeDrain then
-                    lifeDrainAmount = lifeDrainAmount + (actualDamage * lifeDrainMultiplier)
+                -- Log damage type effectiveness
+                local resistText, resistColor = damageTypes:getDisplayText(damageMultiplier)
+                if resistText then
+                    self:addLog(self.selectedTarget.name .. " " .. resistText .. " to " .. skillCopy.damageType .. "!", resistColor)
                 end
             end
             
-            -- Play appropriate sound
-            if self.selectedSkill.type == "magical" then
-                assetManager:playSound("spell")
-            else
-                assetManager:playSound("attack")
+            -- Apply unique item effects to the damage
+            local damageContext = {
+                eventType = "CALCULATE_OUTGOING_DAMAGE",
+                character = currentChar,
+                target = self.selectedTarget,
+                skill = skillCopy, -- Pass the mutable copy
+                value = damage,
+                is_critical = isCritical,
+                damageType = skillCopy.damageType or "physical" -- Add damage type to context
+            }
+            damage = uniqueItemSystem:processEffects(damageContext)
+            
+            -- Update isCritical if needed
+            isCritical = damageContext.is_critical
+        else
+            -- Fallback if skill level is not found
+            -- Create a mutable copy of the skill for this calculation
+            local skillCopy = {}
+            for k, v in pairs(self.selectedSkill) do
+                skillCopy[k] = v
             end
             
-            -- Apply per-hit effects if specified
-            -- Check for both 'effect' and 'effects' fields for backward compatibility
-            if self.selectedSkill.effect then
-                -- Old format
-                if type(self.selectedSkill.effect) == "table" and self.selectedSkill.effect[1] then
-                    -- Handle old array format if it exists
-                    for _, effect in ipairs(self.selectedSkill.effect) do
-                        if effect.perHit then
-                            applyIndividualEffect(self, effect, currentChar, self.selectedTarget)
-                        end
-                    end
-                elseif self.selectedSkill.effect.perHit then
-                    -- Legacy single-effect format
-                    applyIndividualEffect(self, self.selectedSkill.effect, currentChar, self.selectedTarget)
-                end
-            elseif self.selectedSkill.effects then
-                -- New format - apply any effects marked as perHit
-                for _, effect in ipairs(self.selectedSkill.effects) do
-                    if effect.perHit then
-                        applyIndividualEffect(self, effect, currentChar, self.selectedTarget)
-                    end
-                end
-            end
+            damage, isCritical = skillSystem:calculateDamage(
+                skillCopy,
+                currentChar,
+                self.selectedTarget,
+                1
+            )
             
-            -- Check for enemy defeat
-            if self.selectedTarget.currentHP <= 0 then
-                self:enemyDefeated(self.selectedTarget)
-                break -- Exit the hit loop if target is defeated
-            end
+            -- Apply unique item effects to the damage
+            local damageContext = {
+                eventType = "CALCULATE_OUTGOING_DAMAGE",
+                character = currentChar,
+                target = self.selectedTarget,
+                skill = skillCopy, -- Pass the mutable copy
+                value = damage,
+                is_critical = isCritical
+            }
+            damage = uniqueItemSystem:processEffects(damageContext)
+            
+            -- Update isCritical if needed
+            isCritical = damageContext.is_critical
+        end
+        
+        -- Apply damage
+        self.selectedTarget.currentHP = math.max(0, self.selectedTarget.currentHP - damage)
+        
+        -- Play appropriate sound
+        if self.selectedSkill.type == "magical" then
+            assetManager:playSound("spell")
+        else
+            assetManager:playSound("attack")
         end
         
         -- Add to combat log
         local logText = currentChar.name .. " uses " .. self.selectedSkill.name
         logText = logText .. " on " .. self.selectedTarget.name
-        logText = logText .. " for " .. totalDamage .. " damage!"
+        logText = logText .. " for " .. damage .. " damage!"
         
-        if hits > 1 then
-            logText = logText .. " (" .. hits .. " hits)"
+        if isCritical then
+            logText = logText .. " Critical hit!"
         end
         
         self:addLog(logText)
         
-        -- Apply non-per-hit effects after all hits are done
-        if self.selectedTarget.active then
-            -- Apply effects that are not per-hit
-            if self.selectedSkill.effect then
-                -- Old format
-                if type(self.selectedSkill.effect) == "table" and self.selectedSkill.effect[1] then
-                    -- Handle old array format if it exists
-                    for _, effect in ipairs(self.selectedSkill.effect) do
-                        if not effect.perHit then
-                            applyIndividualEffect(self, effect, currentChar, self.selectedTarget)
-                        end
-                    end
-                elseif not self.selectedSkill.effect.perHit then
-                    -- Legacy single-effect format
-                    applyIndividualEffect(self, self.selectedSkill.effect, currentChar, self.selectedTarget)
-                end
-            elseif self.selectedSkill.effects then
-                -- New format
-                for _, effect in ipairs(self.selectedSkill.effects) do
-                    if not effect.perHit then
-                        applyIndividualEffect(self, effect, currentChar, self.selectedTarget)
-                    end
-                end
-            end
+        -- Apply skill effects
+        if self.selectedSkill.effect then
+            self:applySkillEffect(self.selectedSkill, currentChar, self.selectedTarget)
         end
         
-        -- Apply life drain if active
-        if hasLifeDrain and lifeDrainAmount > 0 then
-            local healAmount = math.floor(lifeDrainAmount)
-            if healAmount > 0 then
-                currentChar.currentHP = math.min(currentChar.maxHP, currentChar.currentHP + healAmount)
-                self:addLog(currentChar.name .. " drains " .. healAmount .. " HP!", {0.8, 0.2, 0.5})
+        -- Check for enemy defeat
+        if self.selectedTarget.currentHP <= 0 then
+            self:enemyDefeated(self.selectedTarget)
+        end
+        
+        -- Add status effect if skill has effect property
+        if self.selectedSkill.effect and self.selectedTarget.active then
+            local effect = self.selectedSkill.effect
+            local effectType = effect.type
+            local chance = effect.chance or 1.0
+            local duration = effect.duration or 3
+            local strength = effect.strength or 1
+            
+            -- Roll for effect chance
+            if math.random() <= chance then
+                local applied = statusEffects:apply(effectType, self.selectedTarget, duration, strength)
+                if applied then
+                    self:addLog(self.selectedTarget.name .. " is afflicted with " .. statusEffects.effects[effectType].name .. "!", {0.8, 0.6, 0.8})
+                end
             end
         end
     elseif self.selectedSkill.target == "all_enemies" then
@@ -645,147 +548,82 @@ local function executeStealSkill(self, character)
 end
 
 -- Apply skill effect to target
--- Helper function to apply a single effect
-local function applyIndividualEffect(self, effect, caster, target, skillLevel)
-    -- Skip if invalid target or effect
-    if not target or not effect then return false end
+local function applySkillEffect(self, skill, caster, target)
+    if not skill.effect then return end
     
-    -- Get the effect type (support both old format with 'stat' and new format with 'type')
-    local effectType = effect.type or effect.stat
-    if not effectType then
-        if GAME.debug then
-            print("WARNING: Effect has no type or stat: ", effect)
-        end
-        return false
+    local skillLevel = 1
+    -- Safely get the skill level if it exists
+    if caster.skills and caster.skills[skill.name] and caster.skills[skill.name].level then
+        skillLevel = caster.skills[skill.name].level
     end
     
-    -- Special handling for effect types
-    if effectType == "removeNegative" then
-        -- Handle Purify-like effects that remove negative status effects
-        local negativeEffectsRemoved = 0
-        
-        -- List of negative status effects
-        local negativeEffects = {
-            "poison", "burn", "bleed", "stun", "silence", "vulnerable", "taunt"
-        }
-        
-        for _, negEffect in ipairs(negativeEffects) do
-            if statusEffects:has(target, negEffect) then
-                -- Remove the negative effect
-                statusEffects:remove(negEffect, target)
-                negativeEffectsRemoved = negativeEffectsRemoved + 1
-            end
-        end
-        
-        -- Log the purification result
-        if negativeEffectsRemoved > 0 then
-            self:addLog(
-                target.name .. " is purified of " .. negativeEffectsRemoved .. " negative effects!",
-                {0.2, 0.8, 0.2}
-            )
-            return true
-        else
-            self:addLog(
-                target.name .. " has no negative effects to remove.",
-                {0.7, 0.7, 0.7}
-            )
-            return false
-        end
-    end
-    
-    -- Get the effect parameters
-    local duration = effect.duration or 3
-    local strength = effect.strength or effect.value or 1
-    local multiplier = effect.multiplier or 1
-    local chance = effect.chance or 1.0
-    
-    -- Check if this is a per-hit effect on a multi-hit skill
-    local applyPerHit = effect.perHit or false
-    
-    -- Handle formula-based values
-    if type(strength) == "function" then
-        strength = strength(caster, target)
-    end
-    
-    -- Apply skill level modifiers if available
-    if effect.levelModifier and type(effect.levelModifier) == "function" then
-        local modifier = effect.levelModifier(skillLevel)
-        
-        if type(modifier) == "number" then
-            -- Simple numeric modifier
-            strength = strength * modifier
-        elseif type(modifier) == "table" then
-            -- Complex modifier affecting multiple properties
-            if modifier.strength then
-                strength = strength * modifier.strength
-            end
-            if modifier.multiplier then
-                multiplier = multiplier * modifier.multiplier
-            end
-            if modifier.chance then
-                chance = modifier.chance
-            end
-            if modifier.duration then
-                duration = modifier.duration
-            end
-        end
-    end
-    
-    -- Apply the status effect using the statusEffects system
-    local applied, message = statusEffects:apply(
-        effectType,
+    local effect = skillSystem:calculateSkillEffect(
+        skill,
+        caster,
         target,
-        duration,
-        strength,
-        multiplier,
-        chance
+        skillLevel
     )
     
-    -- Log the application if successful
-    if applied then
-        local effectName = statusEffects.effects[effectType] and 
-                          statusEffects.effects[effectType].name or 
-                          effectType
+    -- Apply status effects
+    if effect.stat then
+        -- Single stat effect
+        target.status[effect.stat] = {
+            value = effect.value,
+            duration = effect.duration
+        }
         
-        local statusType = "affected by"
-        if statusEffects.effects[effectType] and statusEffects.effects[effectType].statusType then
-            if type(statusEffects.effects[effectType].statusType) == "function" then
-                -- Handle dynamic status type
-                local dynStatusType = statusEffects.effects[effectType].statusType(multiplier)
-                statusType = dynStatusType == "positive" and "empowered with" or "afflicted with"
-            else
-                -- Static status type
-                statusType = statusEffects.effects[effectType].statusType == "positive" and 
-                            "empowered with" or "afflicted with"
-            end
+        -- Add to combat log
+        self:addLog(
+            target.name .. " is affected by " .. effect.stat .. "!",
+            {0.8, 0.8, 0.2}
+        )
+    elseif effect.stats then
+        -- Multiple stat effects
+        for stat, value in pairs(effect.stats) do
+            target.status[stat] = {
+                value = value,
+                duration = effect.duration
+            }
         end
         
-        self:addLog(target.name .. " is " .. statusType .. " " .. effectName .. "!", 
-                   {0.8, 0.6, 0.8})
-        
-        return true
+        -- Add to combat log
+        self:addLog(
+            target.name .. " is affected by multiple status effects!",
+            {0.8, 0.8, 0.2}
+        )
     end
     
-    return false
-end
-
-local function applySkillEffect(self, skill, caster, target)
-    -- Support both old 'effect' and new 'effects' array format
-    if skill.effects then
-        -- New array format - Apply each effect
-        for _, effect in ipairs(skill.effects) do
-            applyIndividualEffect(self, effect, caster, target)
-        end
-    elseif skill.effect then
-        -- Old format - Single effect or array
-        if type(skill.effect) == "table" and skill.effect[1] then
-            -- It's an array of effects
-            for _, effect in ipairs(skill.effect) do
-                applyIndividualEffect(self, effect, caster, target)
+    -- Handle special effects
+    if effect.removeStatus then
+        -- Remove status effects
+        if effect.removeStatus == "negative" then
+            -- List of negative status effects
+            local negativeEffects = {
+                "poison", "sleep", "paralysis", "silence", "blind"
+            }
+            
+            for _, status in ipairs(negativeEffects) do
+                if target.status[status] then
+                    target.status[status] = nil
+                end
             end
+            
+            -- Add to combat log
+            self:addLog(
+                target.name .. "'s negative status effects are removed!",
+                {0.2, 0.8, 0.2}
+            )
         else
-            -- Single effect (old format)
-            applyIndividualEffect(self, skill.effect, caster, target)
+            -- Remove specific status
+            if target.status[effect.removeStatus] then
+                target.status[effect.removeStatus] = nil
+                
+                -- Add to combat log
+                self:addLog(
+                    target.name .. "'s " .. effect.removeStatus .. " is removed!",
+                    {0.2, 0.8, 0.2}
+                )
+            end
         end
     end
 end

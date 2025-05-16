@@ -1,8 +1,5 @@
 # TODOs
 - Check new skills and implement support for them. For example Dot 
-- Portraits
-  - Not working on battle screen
-  - Too Small on level up screen
 
 - Level up screen has some overlap with the fonts asking the player to choose the path and the job list
 - Reorganize the character creator screen to make it less tiresome (adding attributes is a pain)

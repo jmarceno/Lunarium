@@ -114,26 +114,13 @@ local skillDefinitions = {
         formula = "magical",
         damageType = "fire",
         maxLevel = 5,
-        effects = {
-            { 
-                type = "burn",
-                chance = 0.3,
-                duration = 2,
-                strength = 1
-            }
+        effect = {
+            type = "burn",
+            chance = 0.3,
+            duration = 2,
+            strength = 1
         },
-        levelModifier = function(level) 
-            return {
-                power = 1 + (level * 0.1),
-                effects = {
-                    {
-                        type = "burn",
-                        chance = 0.3 + (level * 0.05),
-                        duration = 2 + math.floor(level / 2)
-                    }
-                }
-            }
-        end
+        levelModifier = function(level) return 1 + (level * 0.1) end
     },
     
     IceShard = {
@@ -147,25 +134,16 @@ local skillDefinitions = {
         formula = "magical",
         damageType = "ice",
         maxLevel = 5,
-        effects = {
-            {
-                type = "speed_multiplier",
-                multiplier = 0.7,
-                chance = 0.4,
-                duration = 2
-            }
+        effect = {
+            stat = "speed_multiplier",
+            value = 0.7,
+            chance = 0.4,
+            duration = 2
         },
         levelModifier = function(level) 
             return {
                 power = 1 + (level * 0.08),
-                effects = {
-                    {
-                        type = "speed_multiplier",
-                        chance = 0.4 + (level * 0.05),
-                        multiplier = 0.7 - (level * 0.05), -- Slows more at higher levels
-                        duration = 2 + math.floor(level / 2)
-                    }
-                }
+                chance = 0.4 + (level * 0.05)
             }
         end
     },
@@ -183,25 +161,10 @@ local skillDefinitions = {
         critModifier = 2.0,
         critChance = 0.2,
         maxLevel = 5,
-        effects = {
-            {
-                type = "stun",
-                chance = 0.15,
-                duration = 1,
-                strength = 1
-            }
-        },
         levelModifier = function(level) 
             return {
                 power = 1 + (level * 0.08),
-                critChance = 0.2 + (level * 0.04),
-                effects = {
-                    {
-                        type = "stun",
-                        chance = 0.15 + (level * 0.05),
-                        duration = 1
-                    }
-                }
+                critChance = 0.2 + (level * 0.04)
             }
         end
     },
@@ -215,27 +178,17 @@ local skillDefinitions = {
         basePower = 0,
         formula = nil,
         maxLevel = 5,
-        effects = {
-            {
-                type = "barrier",
-                strength = function(caster) 
-                    return caster.attributes.INT * 5
-                end,
-                duration = 3
-            }
+        effect = {
+            stat = "barrier",
+            formula = function(caster) 
+                return caster.attributes.INT * 5
+            end,
+            duration = 3
         },
         levelModifier = function(level) 
-            return {
-                effects = {
-                    {
-                        type = "barrier",
-                        strength = function(caster)
-                            return caster.attributes.INT * (5 + level)
-                        end,
-                        duration = 3 + math.floor(level / 2)
-                    }
-                }
-            }
+            return function(caster)
+                return caster.attributes.INT * (5 + level)
+            end
         end
     },
     
@@ -261,57 +214,36 @@ local skillDefinitions = {
         basePower = 0,
         formula = nil,
         maxLevel = 5,
-        effects = {
-            {
-                type = "attack_multiplier",
-                multiplier = 1.2,
-                duration = 3
+        effect = {
+            stats = {
+                attack_multiplier = 1.2,
+                defense_multiplier = 1.2
             },
-            {
-                type = "defense_multiplier",
-                multiplier = 1.2,
-                duration = 3
-            }
+            duration = 3
         },
         levelModifier = function(level) 
             return {
-                effects = {
-                    {
-                        type = "attack_multiplier",
-                        multiplier = 1.2 + (level * 0.05),
-                        duration = 3 + math.floor(level / 2)
-                    },
-                    {
-                        type = "defense_multiplier",
-                        multiplier = 1.2 + (level * 0.05),
-                        duration = 3 + math.floor(level / 2)
-                    }
-                }
+                attack_multiplier = 1.2 + (level * 0.05),
+                defense_multiplier = 1.2 + (level * 0.05)
             }
         end
     },
     
     Purify = {
         name = "Purify",
-        description = "Removes negative status effects from an ally and heals.",
+        description = "Removes negative status effects from an ally.",
         type = "healing",
         target = "single_ally",
         mpCost = 6,
-        basePower = 30,
-        formula = "healing",
+        basePower = 0,
+        formula = nil,
         maxLevel = 3,
-        effects = {
-            {
-                type = "removeNegative",
-                duration = 1,
-                strength = 1
-            }
-        },
-        levelModifier = function(level) 
-            return {
-                power = 1 + (level * 0.5) -- Increases healing power with level
-            }
-        end
+        effect = {
+            removeStatus = "negative",
+            healing = function(level, caster) 
+                return caster.attributes.WIS * level * 2
+            end
+        }
     },
     
     Smite = {
@@ -343,35 +275,6 @@ local skillDefinitions = {
             return {
                 power = 1 + (level * 0.06),
                 critChance = 0.25 + (level * 0.05)
-            }
-        end
-    },
-    
-    VampiricStrike = {
-        name = "Vampiric Strike",
-        description = "Deals damage and drains HP from the target.",
-        type = "physical",
-        target = "single_enemy",
-        mpCost = 8,
-        basePower = 80,
-        formula = "physical",
-        maxLevel = 3,
-        effects = {
-            {
-                type = "lifeDrain",
-                strength = 20, -- 20% of damage dealt is restored as HP
-                duration = 1   -- Applies only to this attack
-            }
-        },
-        levelModifier = function(level) 
-            return {
-                power = 1 + (level * 0.1),
-                effects = {
-                    {
-                        type = "lifeDrain",
-                        strength = 20 + (level * 10) -- Increases to 30% at level 1, 40% at level 2, etc.
-                    }
-                }
             }
         end
     },
