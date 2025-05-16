@@ -236,7 +236,9 @@ function characterCreator:createUI()
         visible = false,
         update = function(self)
             if characterCreator.selectedJob then
-                self.jobs = jobSystem:getJobProgressions(characterCreator.selectedJob)
+                -- Format job name to remove spaces for system lookup
+                local formattedJobName = characterCreator.selectedJob:gsub("%s+", "")
+                self.jobs = jobSystem:getJobProgressions(formattedJobName)
             else
                 self.jobs = {}
             end
@@ -309,6 +311,8 @@ function characterCreator:createUI()
         width = GAME.width - 350,
         height = 300,
         visible = true,
+        hoveredAttribute = nil,
+        selectedAttributeIndex = 1, -- Initialize with first attribute selected
         
         draw = function(self)
             -- Skip if not visible
@@ -322,9 +326,38 @@ function characterCreator:createUI()
                 self.x, self.y + 300
             )
             
+            -- Draw keyboard navigation hint
+            love.graphics.setFont(screenManager.fonts.small)
+            love.graphics.setColor(0.8, 0.8, 0.8)
+            love.graphics.print("(Use W/S to select attribute, A/D to adjust points, PageUp/PageDown to navigate tabs)", 
+                self.x, self.y + 330)
+            
+            -- Get mouse position to determine hover state
+            local mx, my = love.mouse.getPosition()
+            
             -- Draw attributes
             for i, attr in ipairs(characterSystem.attributes) do
                 local y = self.y + (i - 1) * 40
+                
+                -- Check if mouse is hovering this attribute
+                local isHovered = mx >= self.x and mx <= self.x + 250 and
+                                my >= y and my <= y + 30
+                
+                -- Check if this attribute is selected with keyboard
+                local isSelected = (i == self.selectedAttributeIndex)
+                                
+                -- Draw highlight for selected or hovered attribute
+                if isSelected then
+                    -- Keyboard selected attribute gets a brighter highlight
+                    love.graphics.setColor(0.3, 0.5, 0.7, 0.7)
+                    love.graphics.rectangle("fill", self.x - 5, y - 5, 260, 40, 5, 5)
+                    self.hoveredAttribute = attr
+                elseif isHovered then
+                    -- Mouse hovered attribute gets a softer highlight
+                    love.graphics.setColor(0.2, 0.3, 0.4, 0.5)
+                    love.graphics.rectangle("fill", self.x - 5, y - 5, 260, 40, 5, 5)
+                    self.hoveredAttribute = attr
+                end
                 
                 -- Draw attribute name
                 love.graphics.setFont(screenManager.fonts.medium)
@@ -366,22 +399,66 @@ function characterCreator:createUI()
             
             if button ~= 1 then return false end
             
-            -- Check if within bounds of attribute buttons
+            -- Check if within bounds of attribute buttons or rows
             for i, attr in ipairs(characterSystem.attributes) do
                 local attrY = self.y + (i - 1) * 40
                 
-                -- Check decrease button
-                if x >= self.x + 180 and x <= self.x + 210 and
+                -- Check if clicking within the attribute row (for selection)
+                if x >= self.x and x <= self.x + 250 and
                    y >= attrY and y <= attrY + 30 then
-                    characterCreator:decreaseAttribute(attr)
+                    -- Update selected attribute index
+                    self.selectedAttributeIndex = i
+                    self.hoveredAttribute = attr
+                    
+                    -- Check specific buttons
+                    -- Check decrease button
+                    if x >= self.x + 180 and x <= self.x + 210 then
+                        characterCreator:decreaseAttribute(attr)
+                        return true
+                    end
+                    
+                    -- Check increase button
+                    if x >= self.x + 220 and x <= self.x + 250 then
+                        characterCreator:increaseAttribute(attr)
+                        return true
+                    end
+                    
+                    -- Clicked on row but not on buttons
                     return true
                 end
+            end
+            
+            return false
+        end,
+        
+        wheelmoved = function(self, x, y)
+            -- Skip if not visible
+            if self.visible == false then return false end
+            
+            -- Check if mouse is over an attribute
+            local mx, my = love.mouse.getPosition()
+            
+            for i, attr in ipairs(characterSystem.attributes) do
+                local attrY = self.y + (i - 1) * 40
                 
-                -- Check increase button
-                if x >= self.x + 220 and x <= self.x + 250 and
-                   y >= attrY and y <= attrY + 30 then
-                    characterCreator:increaseAttribute(attr)
-                    return true
+                -- Check if mouse is over this attribute row (wider area than the buttons)
+                if mx >= self.x and mx <= self.x + 250 and
+                   my >= attrY and my <= attrY + 30 then
+                    
+                    -- Update selected attribute index when interacting with scroll wheel
+                    self.selectedAttributeIndex = i
+                    self.hoveredAttribute = attr
+                    
+                    -- Scroll up increases attribute, scroll down decreases
+                    if y > 0 then
+                        -- Scroll up - increase attribute
+                        characterCreator:increaseAttribute(attr)
+                        return true
+                    elseif y < 0 then
+                        -- Scroll down - decrease attribute
+                        characterCreator:decreaseAttribute(attr)
+                        return true
+                    end
                 end
             end
             
@@ -819,7 +896,66 @@ end
 
 function characterCreator:keypressed(key, scancode, isrepeat)
     -- Pass to input fields
-    self.elements.nameInput:keyPressed(key)
+    if self.currentStep == 3 then
+        self.elements.nameInput:keyPressed(key)
+    end
+    
+    -- Use PageUp for next step, PageDown for previous step
+    if key == "pageup" then
+        if self.currentStep < 4 and self.elements.nextButton.visible then
+            self:nextStep()
+            return true
+        end
+    elseif key == "pagedown" then
+        if self.elements.prevButton.visible then
+            self:prevStep()
+            return true
+        end
+    elseif key == "return" then
+        if self.currentStep < 4 and self.elements.nextButton.visible then
+            self:nextStep()
+            return true
+        elseif self.currentStep == 4 and self.elements.finishButton.visible then
+            self:finishCharacter()
+            return true
+        end
+    end
+    
+    -- Attribute navigation and adjustment with keyboard on attribute step
+    if self.currentStep == 2 then
+        local attrElement = self.elements.attributes
+        if not attrElement then return false end
+        
+        -- Get the current selected attribute
+        local numAttributes = #characterSystem.attributes
+        local currentAttr = characterSystem.attributes[attrElement.selectedAttributeIndex]
+        
+        if key == "up" or key == "w" then
+            -- Move selection up to previous attribute
+            attrElement.selectedAttributeIndex = math.max(1, attrElement.selectedAttributeIndex - 1)
+            attrElement.hoveredAttribute = characterSystem.attributes[attrElement.selectedAttributeIndex]
+            return true
+        elseif key == "down" or key == "s" then
+            -- Move selection down to next attribute
+            attrElement.selectedAttributeIndex = math.min(numAttributes, attrElement.selectedAttributeIndex + 1)
+            attrElement.hoveredAttribute = characterSystem.attributes[attrElement.selectedAttributeIndex]
+            return true
+        elseif key == "right" or key == "d" then
+            -- Increase the selected attribute
+            if currentAttr then
+                self:increaseAttribute(currentAttr)
+            end
+            return true
+        elseif key == "left" or key == "a" then
+            -- Decrease the selected attribute
+            if currentAttr then
+                self:decreaseAttribute(currentAttr)
+            end
+            return true
+        end
+    end
+    
+    return false
 end
 
 function characterCreator:textinput(text)
@@ -902,6 +1038,9 @@ function characterCreator:selectJob(jobName)
     -- Select job
     self.selectedJob = jobName
     
+    -- Format the job name for system lookups (remove spaces)
+    local formattedJobName = jobName:gsub("%s+", "")
+    
     -- Show and populate progression graph
     if self.elements.jobProgression then
         self.elements.jobProgression.visible = true
@@ -910,10 +1049,11 @@ function characterCreator:selectJob(jobName)
     
     if GAME.debug then
         print("Selected job: " .. jobName)
+        print("Formatted job name for lookup: " .. formattedJobName)
     end
     
     -- Update base attributes based on job
-    local job = jobSystem:getJob(jobName)
+    local job = jobSystem:getJob(formattedJobName)
     if job and job.attributeModifiers then
         for attr, _ in pairs(self.baseAttributes) do
             self.baseAttributes[attr] = 5 -- Reset to default
@@ -1019,11 +1159,15 @@ function characterCreator:nextStep()
 
         -- If moving to the preview step (Step 4), create the temporary character first
         if nextStep == 4 then
-            self:createTempChar()
-            -- Check if temp character creation was successful
-            if not self.tempChar then 
+            if not self:createTempChar() then
                 print("Error: Failed to create temporary character for preview.")
                 return -- Don't advance if temp char failed
+            end
+            
+            -- Double check that the tempChar exists
+            if not self.tempChar then
+                print("Error: tempChar not created properly.")
+                return
             end
         end
 
@@ -1069,10 +1213,13 @@ function characterCreator:createTempChar()
         self.elements.nameInput:setValue(self.charName)
     end
     
+    -- Format job name for system lookup (remove spaces)
+    local formattedJobName = self.selectedJob:gsub("%s+", "")
+    
     -- Create temporary character
     self.tempChar = characterSystem:new(
         self.charName,
-        self.selectedJob,
+        formattedJobName,
         self.tempAttributes,
         nil, -- Will be replaced with portraitId
         self.portraitId
@@ -1082,10 +1229,28 @@ function characterCreator:createTempChar()
     if GAME.debug then
         if self.tempChar then
             print("Temporary character created successfully: " .. self.charName)
+            print("Using job: " .. formattedJobName .. " (from " .. self.selectedJob .. ")")
         else
             print("ERROR: Failed to create temporary character")
         end
     end
+    
+    if not self.tempChar then
+        print("WARNING: Failed to create temporary character. Using default values.")
+        -- Create a basic character as fallback to prevent preview failure
+        self.tempChar = {
+            name = self.charName,
+            job = self.selectedJob,
+            attributes = self.tempAttributes,
+            portraitId = self.portraitId,
+            profileIndex = 1,
+            maxHP = 100,
+            maxMP = 50,
+            skills = {},
+        }
+    end
+    
+    return self.tempChar ~= nil
 end
 
 function characterCreator:finishCharacter()
