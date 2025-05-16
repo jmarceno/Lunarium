@@ -15,6 +15,7 @@ This plan is based on the findings in `skill_effects_implementation_status.md`, 
 
 ## Original Prompt
 > Update status effects implementation based on the findings in skill_effects_implementation_status.md to ensure correct functionality of all skills and their effects.
+>
 
 ## Changelog
 | Date       | Change                                   | Reason                                            |
@@ -123,9 +124,11 @@ This plan is based on the findings in `skill_effects_implementation_status.md`, 
 - **Target file**: `uiFunctions.lua`, UI assets
 - **Description**: Add or update UI elements to visually represent all status effects, including new ones (barrier, taunt, untargetable, elemental buffs, etc.).
 - **Changes needed**:
-  - Add icons/tooltips for each status effect.
+  - Add icons/tooltips for each status effect. (Use `assets\Icons\StatusEffects\poison.png` as a placeholder for any icons you need)
   - Show barrier HP as a distinct overlay or bar.
   - Ensure buffs/debuffs are clearly visible and distinguishable.
+- **Important**:
+  - If party panel need changes, do them without big changes to the layout, as it should be preserved.
 
 ### 2.8 Update Developer Documentation
 - **Target file**: `README.md`, in-code comments

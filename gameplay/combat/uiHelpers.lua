@@ -68,10 +68,21 @@ local function drawStatusEffects(entity, x, y, spacing, maxIcons)
             if icon then
                 -- Draw icon background based on status type
                 local bgColor = {0.2, 0.2, 0.2, 0.7} -- Default background
-                if effectDef.statusType == "positive" then
-                    bgColor = {0.2, 0.5, 0.2, 0.7} -- Green for positive
-                elseif effectDef.statusType == "negative" then
-                    bgColor = {0.5, 0.2, 0.2, 0.7} -- Red for negative
+                if type(effectDef.statusType) == "function" then
+                    -- Handle dynamic status type (e.g., speed_multiplier depends on value)
+                    local statusType = effectDef.statusType(effect.multiplier or 1)
+                    if statusType == "positive" then
+                        bgColor = {0.2, 0.5, 0.2, 0.7} -- Green for positive
+                    elseif statusType == "negative" then
+                        bgColor = {0.5, 0.2, 0.2, 0.7} -- Red for negative
+                    end
+                else
+                    -- Static status type
+                    if effectDef.statusType == "positive" then
+                        bgColor = {0.2, 0.5, 0.2, 0.7} -- Green for positive
+                    elseif effectDef.statusType == "negative" then
+                        bgColor = {0.5, 0.2, 0.2, 0.7} -- Red for negative
+                    end
                 end
                 
                 -- Draw background circle
@@ -83,9 +94,33 @@ local function drawStatusEffects(entity, x, y, spacing, maxIcons)
                 local iconSize = effectDef.iconSize or 24
                 love.graphics.draw(icon, iconX, y, 0, iconSize / icon:getWidth(), iconSize / icon:getHeight())
                 
-                -- Draw duration counter
-                love.graphics.setColor(1, 1, 1, 1)
-                love.graphics.print(tostring(effect.duration), iconX + iconSize - 8, y + iconSize - 12)
+                -- Draw value or duration counter, depending on effect type
+                if effectType == "barrier" then
+                    -- For barrier, display the remaining barrier strength
+                    love.graphics.setColor(0.3, 0.7, 0.9, 1) -- Barrier color
+                    love.graphics.print(tostring(math.floor(effect.strength)), iconX + iconSize - 12, y + iconSize - 12)
+                elseif effect.multiplier and effect.multiplier ~= 1 then
+                    -- For multiplier effects, show the multiplier value
+                    local textColor = effect.multiplier > 1 and {0.2, 0.9, 0.2, 1} or {0.9, 0.2, 0.2, 1}
+                    love.graphics.setColor(unpack(textColor))
+                    
+                    -- Format multiplier for display: 1.25 -> x1.25, 0.75 -> x0.75
+                    local multiplierText = string.format("x%.2f", effect.multiplier):gsub("%.?0+$", "")
+                    love.graphics.print(multiplierText, iconX + 2, y + iconSize - 12)
+                    
+                    -- Also show duration
+                    love.graphics.setColor(1, 1, 1, 1)
+                    love.graphics.print(tostring(effect.duration), iconX + iconSize - 8, y)
+                else
+                    -- For other effects, show duration and strength if relevant
+                    love.graphics.setColor(1, 1, 1, 1)
+                    love.graphics.print(tostring(effect.duration), iconX + iconSize - 8, y + iconSize - 12)
+                    
+                    -- If effect has strength > 1, show it in top right
+                    if effect.strength and effect.strength > 1 then
+                        love.graphics.print(tostring(effect.strength), iconX + iconSize - 8, y)
+                    end
+                end
                 
                 -- Move to next position
                 iconX = iconX + spacing
@@ -96,6 +131,24 @@ local function drawStatusEffects(entity, x, y, spacing, maxIcons)
     
     -- Reset color
     love.graphics.setColor(1, 1, 1, 1)
+    
+    -- If entity has a barrier, draw an overlay bar showing barrier health
+    if entity.status and entity.status["barrier"] and entity.status["barrier"].strength > 0 then
+        local barrierStrength = entity.status["barrier"].strength
+        local maxHP = entity.maxHP or 100
+        local barrierWidth = math.min(100, (barrierStrength / maxHP) * 100)
+        
+        -- Position barrier bar above the health bar
+        love.graphics.setColor(0.3, 0.7, 0.9, 0.7) -- Translucent blue for barrier
+        love.graphics.rectangle("fill", x, y - 15, barrierWidth, 5)
+        
+        -- Draw border
+        love.graphics.setColor(0.2, 0.6, 0.8, 1)
+        love.graphics.rectangle("line", x, y - 15, barrierWidth, 5)
+        
+        -- Reset color
+        love.graphics.setColor(1, 1, 1, 1)
+    end
 end
 
 -- Draw a damage type icon with effectiveness text

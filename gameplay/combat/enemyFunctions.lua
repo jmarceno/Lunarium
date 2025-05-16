@@ -55,7 +55,7 @@ local function executeEnemyTurn(self)
     end
     
     -- Check for stun status effect
-    if enemy.status and enemy.status["stun"] then
+    if statusEffects:has(enemy, "stun") then
         self:addLog(enemy.name .. " is stunned and cannot act!", {0.8, 0.8, 0.2})
         self.activeEnemyIndex = self.activeEnemyIndex + 1
         
@@ -71,57 +71,126 @@ local function executeEnemyTurn(self)
     -- Log that this enemy is taking its turn
     self:addLog(enemy.name .. " prepares to attack!", {1, 0.6, 0.6})
     
-    -- Check for valid targets (party members and minions)
-    local validTargets = {}
+    -- Find valid targets - first collect all potential targets
+    local allTargets = {
+        party = {},    -- Regular party members
+        minions = {},  -- Summoned minions
+        taunters = {}  -- Entities with taunt status
+    }
     
-    -- Add active party members to valid targets
+    -- Add active party members to potential targets
     for i, character in ipairs(self.party) do
         if character.active then
-            table.insert(validTargets, { type = "player", index = i })
+            -- Check if the character has untargetable effect
+            if not statusEffects:has(character, "untargetable") then
+                -- Check if the character has taunt effect
+                if statusEffects:has(character, "taunt") then
+                    table.insert(allTargets.taunters, { type = "player", index = i })
+                else
+                    table.insert(allTargets.party, { type = "player", index = i })
+                end
+            elseif GAME.debug then
+                print(character.name .. " is untargetable and skipped in targeting")
+            end
         end
     end
     
-    -- Add active minions to valid targets
+    -- Add active minions to potential targets
     for charIndex, minions in pairs(self.minions) do
         for minionIndex, minion in pairs(minions) do
             if minion.active then
-                table.insert(validTargets, { 
-                    type = "minion", 
-                    charIndex = charIndex, 
-                    minionIndex = minionIndex 
-                })
+                -- Check if the minion has untargetable effect
+                if not statusEffects:has(minion, "untargetable") then
+                    -- Check if the minion has taunt effect
+                    if statusEffects:has(minion, "taunt") then
+                        table.insert(allTargets.taunters, { 
+                            type = "minion", 
+                            charIndex = charIndex, 
+                            minionIndex = minionIndex 
+                        })
+                    else
+                        table.insert(allTargets.minions, { 
+                            type = "minion", 
+                            charIndex = charIndex, 
+                            minionIndex = minionIndex 
+                        })
+                    end
+                elseif GAME.debug then
+                    print("Minion " .. minion.name .. " is untargetable and skipped in targeting")
+                end
             end
         end
     end
     
     -- Debug information about targets
     if GAME.debug then
-        print("Found " .. #validTargets .. " valid targets")
+        print("Found " .. #allTargets.party .. " targetable party members")
+        print("Found " .. #allTargets.minions .. " targetable minions")
+        print("Found " .. #allTargets.taunters .. " taunters")
     end
     
-    -- If no valid targets, party must be defeated
-    if #validTargets == 0 then
-        self:partyDefeated()
+    -- Select a target based on priority rules
+    local targetInfo = nil
+    
+    -- Priority 1: If there are taunters, randomly select one of them
+    if #allTargets.taunters > 0 then
+        targetInfo = allTargets.taunters[math.random(#allTargets.taunters)]
+        if GAME.debug then
+            print("Selected a taunter as target")
+        end
+    -- Priority 2: Combine party members and minions, and randomly select one
+    elseif #allTargets.party > 0 or #allTargets.minions > 0 then
+        -- Combine all non-taunting, targetable entities
+        local combinedTargets = {}
+        for _, target in ipairs(allTargets.party) do
+            table.insert(combinedTargets, target)
+        end
+        for _, target in ipairs(allTargets.minions) do
+            table.insert(combinedTargets, target)
+        end
+        
+        targetInfo = combinedTargets[math.random(#combinedTargets)]
+        if GAME.debug then
+            print("Selected a random target from " .. #combinedTargets .. " possibilities")
+        end
+    end
+    
+    -- If no valid targets, all targets must be untargetable or defeated
+    if not targetInfo then
+        -- Special case: all targets are untargetable, enemy skips turn
+        self:addLog(enemy.name .. " can't find a valid target and skips its turn!", {0.7, 0.7, 0.7})
+        self.activeEnemyIndex = self.activeEnemyIndex + 1
+        
+        if GAME.debug then
+            print("All potential targets are untargetable or defeated")
+        end
+        
         return
     end
     
-    -- Select a random target from valid targets
-    local targetInfo = validTargets[math.random(#validTargets)]
+    -- Extract the actual target entity from target info
     local targets = {}
     
-    -- Select ability to use
-    local abilityId = monsterAttackSystem:selectAbility(enemy)
-    
-    -- Process target selection based on ability target type
     if targetInfo.type == "player" then
         -- Target is a player character
         local target = self.party[targetInfo.index]
         targets = {target}
+        
+        if GAME.debug then 
+            print("Targeting party member: " .. target.name)
+        end
     elseif targetInfo.type == "minion" then
         -- Target is a minion
         local minion = self.minions[targetInfo.charIndex][targetInfo.minionIndex]
         targets = {minion}
+        
+        if GAME.debug then 
+            print("Targeting minion: " .. minion.name)
+        end
     end
+    
+    -- Select ability to use
+    local abilityId = monsterAttackSystem:selectAbility(enemy)
     
     -- Resolve the ability
     local logEntries = monsterAttackSystem:resolveAbility(abilityId, enemy, targets, self)

@@ -7,6 +7,7 @@ local skillSystem = {
 
 -- Import skill definitions
 skillSystem.skills = require("gameplay/skill_definitions")
+local statusEffects = require("gameplay/statusEffects")
 
 -- Skill types
 skillSystem.SKILL_TYPE = {
@@ -104,6 +105,10 @@ function skillSystem:calculateDamage(skill, user, target, level)
             attack = user.attributes.STR
         end
         
+        -- Apply attack multiplier from status effects
+        local attackMultiplier = statusEffects:getMultiplier(user, "attack_multiplier")
+        attack = attack * attackMultiplier
+        
         local defense = 5  -- Default value if no defense found
         if target.defense ~= nil then
             defense = target.defense
@@ -111,12 +116,31 @@ function skillSystem:calculateDamage(skill, user, target, level)
             defense = target.attributes.CON / 2
         end
         
+        -- Apply defense multiplier from status effects
+        local defenseMultiplier = statusEffects:getMultiplier(target, "defense_multiplier")
+        defense = defense * defenseMultiplier
+        
         -- Make sure values are numbers
         attack = tonumber(attack) or 10
         defense = tonumber(defense) or 5
         
         damage = (power / 100) * (attack * 2 - defense)
         damage = math.max(1, damage)
+        
+        -- Apply strengthen status effect (if present)
+        if statusEffects:has(user, "strengthen") then
+            damage = damage * 1.25
+        end
+        
+        -- Apply vulnerable status effect (if present)
+        if statusEffects:has(target, "vulnerable") then
+            damage = damage * 1.25
+        end
+        
+        -- Apply protect status effect (if present)
+        if statusEffects:has(target, "protect") then
+            damage = damage * 0.75
+        end
         
     elseif skill.formula == "magical" then
         -- Magical damage formula
@@ -127,12 +151,20 @@ function skillSystem:calculateDamage(skill, user, target, level)
             magicPower = user.attributes.INT
         end
         
+        -- Apply attack multiplier from status effects (for magic)
+        local magicMultiplier = statusEffects:getMultiplier(user, "magic_multiplier")
+        magicPower = magicPower * magicMultiplier
+        
         local magicDefense = 5  -- Default value if no magic defense found
         if target.magicDefense ~= nil then
             magicDefense = target.magicDefense
         elseif target.attributes and target.attributes.WIL then
             magicDefense = target.attributes.WIL / 2
         end
+        
+        -- Apply magic defense multiplier from status effects
+        local magicDefenseMultiplier = statusEffects:getMultiplier(target, "magic_defense_multiplier")
+        magicDefense = magicDefense * magicDefenseMultiplier
         
         -- Make sure values are numbers
         magicPower = tonumber(magicPower) or 10
@@ -141,12 +173,43 @@ function skillSystem:calculateDamage(skill, user, target, level)
         damage = (power / 100) * (magicPower * 2.5 - magicDefense)
         damage = math.max(1, damage)
         
+        -- Apply elemental power if user has it and skill has an element
+        if skill.element and statusEffects:has(user, "elementalPower") then
+            local elementalBoost = 1 + (statusEffects:getValue(user, "elementalPower") / 100)
+            damage = damage * elementalBoost
+        end
+        
+        -- Apply elemental resistance if target has it and skill has an element
+        if skill.element and statusEffects:has(target, "elementalResist") then
+            local elementalResist = 1 - (statusEffects:getValue(target, "elementalResist") / 100)
+            damage = damage * elementalResist
+        end
+        
+        -- Apply strengthen status effect (if present)
+        if statusEffects:has(user, "strengthen") then
+            damage = damage * 1.25
+        end
+        
+        -- Apply vulnerable status effect (if present)
+        if statusEffects:has(target, "vulnerable") then
+            damage = damage * 1.25
+        end
+        
+        -- Apply protect status effect (if present)
+        if statusEffects:has(target, "protect") then
+            damage = damage * 0.75
+        end
+        
     elseif skill.formula == "healing" then
         -- Healing formula
         local wisdom = 10  -- Default value
         if user.attributes and user.attributes.WIS then
             wisdom = user.attributes.WIS
         end
+        
+        -- Apply healing multiplier from status effects
+        local healingMultiplier = statusEffects:getMultiplier(user, "healing_multiplier")
+        wisdom = wisdom * healingMultiplier
         
         -- Make sure wisdom is a number
         wisdom = tonumber(wisdom) or 10
@@ -179,6 +242,10 @@ function skillSystem:calculateDamage(skill, user, target, level)
                 critChance = modifier.critChance
             end
         end
+        
+        -- Apply accuracy multiplier to crit chance
+        local accuracyMultiplier = statusEffects:getMultiplier(user, "accuracy_multiplier")
+        critChance = critChance * accuracyMultiplier
         
         if math.random() < critChance then
             damage = damage * (skill.critModifier or 1.5)
