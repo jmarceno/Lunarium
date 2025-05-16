@@ -400,9 +400,9 @@ function characterCreator:createUI()
         y = 280,
         width = 950,
         height = 300,
-        portraitSize = 86,
+        portraitSize = 64,
         spacing = 10,
-        cols = 10,
+        cols = 13,
         scrollSpeed = 40,
         
         draw = function(self)
@@ -453,9 +453,9 @@ function characterCreator:createUI()
                         )
                     end
                     
-                    -- Draw profile image - force to half size (173/2 = 86)
+                    -- Draw profile image
                     love.graphics.setColor(1, 1, 1)
-                    love.graphics.draw(portraits[i], x, y, 0, 0.5, 0.5)
+                    love.graphics.draw(portraits[i], x, y, 0, 1, 1)
                 end
             end
             

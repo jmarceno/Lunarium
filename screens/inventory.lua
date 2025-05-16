@@ -120,7 +120,7 @@ function inventory:createUI()
                 love.graphics.rectangle("fill", self.x, y, self.width, charHeight, 5, 5)
                 
                 -- Set up portrait area
-                local portraitScale = 0.5
+                local portraitScale = 1.4
                 local portraitX = self.x + 15
                 local portraitY = y + 15
                 local textX = portraitX + 100 -- Start text after portrait

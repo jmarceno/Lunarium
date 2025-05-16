@@ -21,7 +21,7 @@ local partyPanel = {
                 local width = (self.width - 20) / 4 - 10
                 
                 -- Set up portrait area
-                local portraitScale = 0.4
+                local portraitScale = 1.1
                 local portraitSpace = 80
                 local textStartX = x + portraitSpace
                 local barStartX = textStartX
