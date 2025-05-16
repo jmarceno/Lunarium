@@ -5,6 +5,7 @@ local itemSystem = require("gameplay/item")
 local assetManager = require("assets/assetManager")
 local screenManager = require("screens/screenManager")
 local minionManager = require("gameplay/minionManager")
+local partyPanel = require("screens/ui_slices/partyPanel")
 
 -- Import modules from gameplay/combat directory
 local uiHelpers = require("gameplay/combat/uiHelpers")
@@ -96,6 +97,7 @@ function combatSystem:createCombat(party, enemy, isAmbush)
     combat.showPartySelectionUI = uiFunctions.showPartySelectionUI
     combat.handleUIClick = uiFunctions.handleUIClick
     combat.drawMinions = uiFunctions.drawMinions
+    combat.drawStatusEffectTooltips = uiFunctions.drawStatusEffectTooltips
     
     -- Add player action functions
     combat.executePlayerAction = playerActionFunctions.executePlayerAction
@@ -183,6 +185,9 @@ function combatSystem:createCombat(party, enemy, isAmbush)
     combat.showItemList = function(self)
         if not GAME.inventory or #GAME.inventory == 0 then
             self:addLog("No items available!", {1, 0.5, 0.5})
+            self.selectedAction = nil -- Reset selected action
+            self:showActionButtons() -- Show action buttons again
+            self:showConfirmBackButtons(false, false) -- Hide confirm/back buttons
             return
         end
         
@@ -197,6 +202,9 @@ function combatSystem:createCombat(party, enemy, isAmbush)
         
         if #consumables == 0 then
             self:addLog("No consumables available!", {1, 0.5, 0.5})
+            self.selectedAction = nil -- Reset selected action
+            self:showActionButtons() -- Show action buttons again
+            self:showConfirmBackButtons(false, false) -- Hide confirm/back buttons
             return
         end
         
@@ -307,6 +315,7 @@ function combatSystem:createCombat(party, enemy, isAmbush)
         self.animationDelay = 0
         self.turnEndDelay = 0
         self.enemyTurnDelay = nil  -- Set to nil to force initialization on first enemy turn
+        self.minionTurnDelay = nil -- Set to nil to force initialization on first minion turn
         self.activeEnemyIndex = 1  -- Start with the first enemy
         
         -- Set initial state based on whether this is an ambush
@@ -347,6 +356,14 @@ function combatSystem:createCombat(party, enemy, isAmbush)
             self.currentCharacter = 1
             self.party[1].active = true
             self.charactersTurnTaken[1] = self.isAmbush  -- Mark taken if ambushed
+        end
+        
+        -- Initialize party panel for combat mode
+        partyPanel:setCombatMode(true, self.party)
+        if self.state == combatSystem.STATE.PLAYER_TURN then
+            partyPanel:setActiveCharacter(self.currentCharacter)
+        else
+            partyPanel:setActiveCharacter(nil)
         end
         
         -- Add combat start message

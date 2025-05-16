@@ -576,7 +576,7 @@ local skillDefinitions = {
             attackPower = 15,
             defense = 10,
             speed = 7,
-            abilities = {"BoneStrike"},
+            abilities = {"skeleton_bone_strike"},
             color = {0.8, 0.8, 0.8}
         },
         duration = 600, -- 10 minutes in seconds

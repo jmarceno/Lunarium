@@ -78,3 +78,30 @@ The game is built with:
 ## Credits
 
 Dungeon RPG was created as a demonstration of game development techniques using LÖVE2D. It showcases procedural content generation, RPG systems design, and modular code architecture.
+
+# Status Effects Implementation
+
+The status effects system has been updated with the following improvements:
+
+## Core Changes
+- Unified all status effects into a consistent structure with `type`, `chance`, `duration`, `value`, and `multiplier`.
+- Implemented status effect chance rolls for effects like stun and burn.
+- Added helper functions for status effect access: `has()`, `getValue()`, `getMultiplier()` and `getDuration()`.
+- Implemented effects with multipliers for stats (attack, defense, speed, accuracy).
+- Added barrier effect that absorbs damage before it affects HP.
+- Added taunt and untargetable effects for targeting control.
+- Added elemental resist and power effects.
+
+## Visual Improvements
+- Status effects now appear as icons on party members and enemies.
+- Added tooltips for status effects that show details when hovered.
+- Barrier is displayed as an overlay on the HP bar.
+
+## Combat Logic Improvements
+- Enemy AI now prioritizes taunting targets and avoids untargetable ones.
+- Status effects now properly affect damage calculations in both directions.
+- Life drain is calculated after mitigation by barrier.
+- Multi-hit skills can apply effects per hit with the perHit flag.
+- Purify skill now properly removes negative effects and applies healing.
+
+This implementation standardizes all the status effects, improves visual feedback, and ensures effects are consistently used throughout combat calculations.

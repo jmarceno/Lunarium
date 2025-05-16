@@ -2,7 +2,7 @@ function love.conf(t)
     t.identity = "DungeonCrawler"           -- The name of the save directory
     t.appendidentity = true                  -- Search files in source directory before save directory
     t.version = "11.4"                       -- The LÖVE version this game was made for
-    t.console = true                         -- Attach a console (Windows only)
+    t.console = false                         -- Attach a console (Windows only)
     
     t.window.title = "Dungeon Crawler"       -- The window title
     t.window.icon = nil                      -- Filepath to an image to use as the window's icon

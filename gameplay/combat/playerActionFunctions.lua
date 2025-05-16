@@ -256,30 +256,84 @@ local function executeSkill(self)
         
         self:addLog(logText)
         
-        -- Apply skill effects
-        if self.selectedSkill.effect then
-            self:applySkillEffect(self.selectedSkill, currentChar, self.selectedTarget)
-        end
-        
         -- Check for enemy defeat
         if self.selectedTarget.currentHP <= 0 then
             self:enemyDefeated(self.selectedTarget)
         end
         
-        -- Add status effect if skill has effect property
-        if self.selectedSkill.effect and self.selectedTarget.active then
+        -- Apply skill effects using the new unified structure
+        if self.selectedSkill.effects and self.selectedTarget.active then
+            -- Handle multiple effects
+            for _, effect in ipairs(self.selectedSkill.effects) do
+                local effectType = effect.type
+                local chance = effect.chance or 1.0
+                local duration = effect.duration or 3
+                local strength = effect.value or effect.strength or 1
+                local extraParams = {}
+                
+                -- Handle multiplier effects
+                if effect.multiplier then
+                    extraParams.multiplier = effect.multiplier
+                end
+                
+                -- Handle elemental effects
+                if effect.element then
+                    extraParams.element = effect.element
+                end
+                
+                -- Check if effect should be applied per hit
+                local appliesPerHit = effect.perHit or false
+                local hits = 1
+                
+                if self.selectedSkill.hits and appliesPerHit then
+                    hits = self.selectedSkill.hits
+                end
+                
+                -- Apply effect for each hit (or just once if not per-hit)
+                for i = 1, hits do
+                    local success, message = statusEffects:apply(
+                        effectType, 
+                        self.selectedTarget, 
+                        duration, 
+                        strength, 
+                        chance, 
+                        extraParams
+                    )
+                    
+                    if success and statusEffects.effects[effectType] then
+                        self:addLog(self.selectedTarget.name .. " is afflicted with " .. 
+                                     statusEffects.effects[effectType].name .. "!", 
+                                     {0.8, 0.6, 0.8})
+                    end
+                end
+            end
+        -- Backward compatibility for single effect
+        elseif self.selectedSkill.effect and self.selectedTarget.active then
             local effect = self.selectedSkill.effect
-            local effectType = effect.type
+            local effectType = effect.type or effect.stat -- Support both formats
             local chance = effect.chance or 1.0
             local duration = effect.duration or 3
-            local strength = effect.strength or 1
+            local strength = effect.value or effect.strength or 1
+            local extraParams = {}
             
-            -- Roll for effect chance
-            if math.random() <= chance then
-                local applied = statusEffects:apply(effectType, self.selectedTarget, duration, strength)
-                if applied then
-                    self:addLog(self.selectedTarget.name .. " is afflicted with " .. statusEffects.effects[effectType].name .. "!", {0.8, 0.6, 0.8})
-                end
+            -- Handle multiplier effects
+            if effectType:find("multiplier") and effect.value then
+                extraParams.multiplier = effect.value
+            end
+            
+            local success, message = statusEffects:apply(
+                effectType, 
+                self.selectedTarget, 
+                duration, 
+                strength, 
+                chance, 
+                extraParams
+            )
+            
+            if success and statusEffects.effects[effectType] then
+                self:addLog(self.selectedTarget.name .. " is afflicted with " .. 
+                             statusEffects.effects[effectType].name .. "!", 
+                             {0.8, 0.6, 0.8})
             end
         end
     elseif self.selectedSkill.target == "all_enemies" then
@@ -549,7 +603,7 @@ end
 
 -- Apply skill effect to target
 local function applySkillEffect(self, skill, caster, target)
-    if not skill.effect then return end
+    if not skill.effect and not skill.effects then return end
     
     local skillLevel = 1
     -- Safely get the skill level if it exists
@@ -557,72 +611,188 @@ local function applySkillEffect(self, skill, caster, target)
         skillLevel = caster.skills[skill.name].level
     end
     
-    local effect = skillSystem:calculateSkillEffect(
-        skill,
-        caster,
-        target,
-        skillLevel
-    )
-    
-    -- Apply status effects
-    if effect.stat then
-        -- Single stat effect
-        target.status[effect.stat] = {
-            value = effect.value,
-            duration = effect.duration
-        }
-        
-        -- Add to combat log
-        self:addLog(
-            target.name .. " is affected by " .. effect.stat .. "!",
-            {0.8, 0.8, 0.2}
-        )
-    elseif effect.stats then
-        -- Multiple stat effects
-        for stat, value in pairs(effect.stats) do
-            target.status[stat] = {
-                value = value,
-                duration = effect.duration
-            }
+    -- Process unified effects list first
+    if skill.effects then
+        for _, effect in ipairs(skill.effects) do
+            local effectType = effect.type
+            local chance = effect.chance or 1.0
+            local duration = effect.duration or 3
+            local strength = effect.value or effect.strength or 1
+            local extraParams = {}
+            
+            -- Handle multiplier effects
+            if effect.multiplier then
+                extraParams.multiplier = effect.multiplier
+            end
+            
+            -- Apply level scaling if available
+            if skill.levelModifier and type(skill.levelModifier) == "function" then
+                local modifier = skill.levelModifier(skillLevel)
+                if type(modifier) == "number" then
+                    strength = strength * modifier
+                elseif type(modifier) == "table" then
+                    if modifier.power then
+                        strength = strength * modifier.power
+                    end
+                    if modifier.chance then
+                        chance = modifier.chance
+                    end
+                    if modifier.duration then
+                        duration = modifier.duration
+                    end
+                    if modifier.multiplier then
+                        extraParams.multiplier = modifier.multiplier
+                    end
+                end
+            end
+            
+            -- Apply the status effect
+            local success, message = statusEffects:apply(
+                effectType,
+                target,
+                duration,
+                strength,
+                chance,
+                extraParams
+            )
+            
+            if success and statusEffects.effects[effectType] then
+                -- Add to combat log
+                self:addLog(
+                    target.name .. " is affected by " .. statusEffects.effects[effectType].name .. "!",
+                    {0.8, 0.8, 0.2}
+                )
+            end
         end
-        
-        -- Add to combat log
-        self:addLog(
-            target.name .. " is affected by multiple status effects!",
-            {0.8, 0.8, 0.2}
-        )
+        return
     end
     
-    -- Handle special effects
-    if effect.removeStatus then
-        -- Remove status effects
-        if effect.removeStatus == "negative" then
-            -- List of negative status effects
-            local negativeEffects = {
-                "poison", "sleep", "paralysis", "silence", "blind"
-            }
+    -- Backward compatibility for old effect format
+    if skill.effect then
+        local effect = skillSystem:calculateSkillEffect(
+            skill,
+            caster,
+            target,
+            skillLevel
+        )
+        
+        -- Apply using the unified structure
+        if effect.stat then
+            -- Single stat effect
+            local effectType = effect.stat
+            local value = effect.value or 1
+            local duration = effect.duration or 3
+            local extraParams = {}
             
-            for _, status in ipairs(negativeEffects) do
-                if target.status[status] then
-                    target.status[status] = nil
+            -- Handle multiplier effects
+            if effectType:find("multiplier") then
+                extraParams.multiplier = value
+                value = 1 -- Use value of 1 for multipliers, actual value goes in extraParams
+            end
+            
+            local success, message = statusEffects:apply(
+                effectType,
+                target,
+                duration,
+                value,
+                1.0, -- No chance in old format, always apply
+                extraParams
+            )
+            
+            if success then
+                -- Add to combat log
+                self:addLog(
+                    target.name .. " is affected by " .. (statusEffects.effects[effectType] and 
+                                                          statusEffects.effects[effectType].name or 
+                                                          effectType) .. "!",
+                    {0.8, 0.8, 0.2}
+                )
+            end
+        elseif effect.stats then
+            -- Multiple stat effects
+            for stat, value in pairs(effect.stats) do
+                local effectType = stat
+                local duration = effect.duration or 3
+                local extraParams = {}
+                
+                -- Handle multiplier effects
+                if effectType:find("multiplier") then
+                    extraParams.multiplier = value
+                    value = 1 -- Use value of 1 for multipliers, actual value goes in extraParams
                 end
+                
+                local success, message = statusEffects:apply(
+                    effectType,
+                    target,
+                    duration,
+                    value,
+                    1.0, -- No chance in old format, always apply
+                    extraParams
+                )
             end
             
             -- Add to combat log
             self:addLog(
-                target.name .. "'s negative status effects are removed!",
-                {0.2, 0.8, 0.2}
+                target.name .. " is affected by multiple status effects!",
+                {0.8, 0.8, 0.2}
             )
-        else
-            -- Remove specific status
-            if target.status[effect.removeStatus] then
-                target.status[effect.removeStatus] = nil
+        end
+        
+        -- Handle special effects
+        if effect.removeStatus then
+            -- Remove status effects
+            if effect.removeStatus == "negative" then
+                -- List of negative status effects
+                local negativeEffects = {
+                    "poison", "burn", "bleed", "stun", "silence", "vulnerable"
+                }
+                
+                for _, status in ipairs(negativeEffects) do
+                    if statusEffects:has(target, status) then
+                        statusEffects:remove(target, status)
+                    end
+                end
                 
                 -- Add to combat log
                 self:addLog(
-                    target.name .. "'s " .. effect.removeStatus .. " is removed!",
+                    target.name .. "'s negative status effects are removed!",
                     {0.2, 0.8, 0.2}
                 )
+                
+                -- If this is a Purify skill, apply custom healing after removing effects
+                if skill.name == "Purify" then
+                    local healing = skillSystem:calculateDamage(
+                        skill,
+                        caster,
+                        target,
+                        skillLevel
+                    )
+                    
+                    target.currentHP = math.min(
+                        target.maxHP,
+                        target.currentHP + healing
+                    )
+                    
+                    self:addLog(
+                        target.name .. " is healed for " .. healing .. " HP!",
+                        {0.2, 0.8, 0.2}
+                    )
+                end
+            else
+                -- Remove specific status
+                if statusEffects:has(target, effect.removeStatus) then
+                    statusEffects:remove(target, effect.removeStatus)
+                    
+                    -- Add to combat log
+                    local statusName = statusEffects.effects[effect.removeStatus] and 
+                                       statusEffects.effects[effect.removeStatus].name or
+                                       effect.removeStatus
+                                       
+                    self:addLog(
+                        target.name .. "'s " .. statusName .. " is removed!",
+                        {0.2, 0.8, 0.2}
+                    )
+                end
             end
         end
     end

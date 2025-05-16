@@ -5,6 +5,7 @@ local assetManager = require("assets/assetManager")
 local minionManager = require("gameplay/minionManager")
 local skillSystem = require("gameplay/skill")
 local itemSystem = require("gameplay/item")
+local partyPanel = require("screens/ui_slices/partyPanel")
 
 local combatSystem = {}  -- Forward declaration
 
@@ -497,30 +498,23 @@ local function draw(self)
         end
         
         -- Draw select lists if visible
-        if self.elements.skillList then
-            self.elements.skillList:draw()
+        for _, element in pairs(self.elements) do
+            if element.visible then
+                element:draw()
+            end
         end
         
-        if self.elements.itemList then
-            self.elements.itemList:draw()
-        end
+        -- Draw status effect tooltips for any hovered effect icons
+        self:drawStatusEffectTooltips()
         
-        if self.elements.partySelectList then
-            self.elements.partySelectList:draw()
-        end
-        
-        if self.elements.enemySelectList then
-            self.elements.enemySelectList:draw()
-        end
+        -- Draw combat log
+        self:drawCombatLog()
     end
     
     -- Draw minions
     if self.state ~= combatSystem.STATE.VICTORY and self.state ~= combatSystem.STATE.DEFEAT then
         self:drawMinions()
     end
-    
-    -- Always draw combat log
-    self:drawCombatLog()
 end
 
 -- Draw enemy information
@@ -705,129 +699,26 @@ end
 
 -- Draw party information
 local function drawParty(self)
-    -- Create a background panel at the bottom of the screen
-    local panelHeight = 110 -- Increased from 90
-    local panelY = GAME.height - panelHeight
+    -- Configure party panel for combat
+    partyPanel:setCombatMode(true, self.party)
     
-    -- Draw panel background
-    love.graphics.setColor(0.1, 0.1, 0.2, 0.8)
-    love.graphics.rectangle("fill", 0, panelY, GAME.width, panelHeight)
-    
-    -- Draw panel border
-    love.graphics.setColor(0.3, 0.3, 0.5)
-    love.graphics.rectangle("line", 0, panelY, GAME.width, panelHeight)
-    
-    -- Calculate width available for each character
-    local characterWidth = GAME.width / #self.party
-    
-    -- Load uiHelpers for status effects
-    local uiHelpers = require("gameplay/combat/uiHelpers")
-    
-    for i, character in ipairs(self.party) do
-        local x = (i - 1) * characterWidth + 20
-        local y = panelY + 10
-        
-        -- Draw character container
-        if self.state == combatSystem.STATE.PLAYER_TURN and i == self.currentCharacter then
-            -- Highlight current character
-            love.graphics.setColor(0.3, 0.3, 0.7, 0.5)
-            love.graphics.rectangle("fill", x - 10, y - 5, characterWidth - 20, panelHeight - 10, 5, 5)
-        end
-        
-        -- Draw character name
-        love.graphics.setFont(screenManager.fonts.medium)
-        if character.active then
-            love.graphics.setColor(1, 1, 1)
-        else
-            love.graphics.setColor(0.5, 0.5, 0.5)
-        end
-        love.graphics.print(character.name, x, y)
-        
-        -- Draw HP/MP bars side by side
-        local barWidth = characterWidth - 100 -- Leave space for portrait
-        local barHeight = 15
-        
-        -- Draw HP bar
-        local healthWidth = barWidth * (character.currentHP / character.maxHP)
-        love.graphics.setColor(0.2, 0.2, 0.2)
-        love.graphics.rectangle("fill", x, y + 30, barWidth, barHeight)
-        love.graphics.setColor(0.8, 0.2, 0.2)
-        love.graphics.rectangle("fill", x, y + 30, healthWidth, barHeight)
-        
-        -- Draw HP text
-        love.graphics.setFont(screenManager.fonts.small)
-        love.graphics.setColor(1, 1, 1)
-        love.graphics.print(
-            "HP: " .. character.currentHP .. "/" .. character.maxHP,
-            x + 5, y + 30
-        )
-        
-        -- Draw MP bar
-        local mpWidth = barWidth * (character.currentMP / character.maxMP)
-        love.graphics.setColor(0.2, 0.2, 0.2)
-        love.graphics.rectangle("fill", x, y + 50, barWidth, barHeight)
-        love.graphics.setColor(0.2, 0.2, 0.8)
-        love.graphics.rectangle("fill", x, y + 50, mpWidth, barHeight)
-        
-        -- Draw MP text
-        love.graphics.setColor(1, 1, 1)
-        love.graphics.print(
-            "MP: " .. character.currentMP .. "/" .. character.maxMP,
-            x + 5, y + 50
-        )
-        
-        -- Draw character portrait
-        local portraitSize = 60
-        local portraitX = x + barWidth + 20
-        local portraitY = y + 15
-        
-        -- Try to load and draw character portrait
-        local portrait = nil
-        if character.portraitId then
-            portrait = assetManager:getImage("portrait", character.portraitId)
-        end
-        
-        if portrait then
-            -- Draw portrait with fixed size
-            love.graphics.setColor(1, 1, 1)
-            love.graphics.draw(
-                portrait,
-                portraitX,
-                portraitY,
-                0, -- rotation
-                portraitSize / portrait:getWidth(), -- scale x
-                portraitSize / portrait:getHeight() -- scale y
-            )
-        else
-            -- Draw placeholder if portrait not found
-            love.graphics.setColor(0.5, 0.5, 0.6)
-            love.graphics.rectangle("fill", portraitX, portraitY, portraitSize, portraitSize)
-            
-            -- Draw first letter of character name in placeholder
-            love.graphics.setColor(0.9, 0.9, 1)
-            love.graphics.setFont(screenManager.fonts.large)
-            love.graphics.printf(
-                string.sub(character.name, 1, 1),
-                portraitX,
-                portraitY + portraitSize/4,
-                portraitSize,
-                "center"
-            )
-        end
-        
-        -- Draw status effects using uiHelpers
-        if character.status and next(character.status) then
-            uiHelpers.drawStatusEffects(character, x, y + 70, 20, 3)
-        end
+    -- Set the active character based on current state
+    if self.state == combatSystem.STATE.PLAYER_TURN then
+        partyPanel:setActiveCharacter(self.currentCharacter)
+    else
+        partyPanel:setActiveCharacter(nil)
     end
+    
+    -- Draw the party panel
+    partyPanel:draw()
 end
 
 -- Draw combat log
 local function drawCombatLog(self)
     -- Position in bottom right corner, above the party panel
-    local panelHeight = 110 -- Should match party panel height (increased from 90)
+    local panelHeight = partyPanel.height
     local logWidth = 260
-    local logHeight = 230 -- Increased from 180 to 230 (added 50px)
+    local logHeight = 230
     local logX = GAME.width - logWidth - 20 -- 20px margin from right edge
     local logY = GAME.height - panelHeight - logHeight - 20 -- Above party panel with 20px gap
     
@@ -1531,6 +1422,201 @@ local function cancelSelection(self)
     self:showActionButtons()
 end
 
+-- Draw status effect tooltips when hovering over icons
+local function drawStatusEffectTooltips(self)
+    local mouseX, mouseY = love.mouse.getPosition()
+    local statusEffects = require("gameplay/statusEffects")
+    local tooltipShown = false
+    
+    -- Use party panel dimensions
+    local partyPanelX = partyPanel.x
+    local partyPanelY = partyPanel.y
+    local partyPanelWidth = partyPanel.width
+    local partyPanelHeight = partyPanel.height
+    
+    -- Check if mouse is over any character status effect icons
+    for _, character in ipairs(self.party or {}) do
+        if character.status then
+            local characterIdx = nil
+            for i, partyMember in ipairs(self.party) do
+                if partyMember == character then
+                    characterIdx = i
+                    break
+                end
+            end
+            
+            if characterIdx then
+                local x = partyPanelX + 10 + (characterIdx-1) * ((partyPanelWidth - 20) / 4)
+                local width = (partyPanelWidth - 20) / 4 - 10
+                local portraitSpace = 80
+                local textStartX = x + portraitSpace
+                
+                -- Calculate status effect icon layout
+                local statusIconSize = 16
+                local statusIconSpacing = 2
+                local maxIconsPerRow = 5
+                local iconStartX = textStartX
+                local iconStartY = partyPanelY + 60
+                local iconIndex = 0
+                
+                for effectType, effect in pairs(character.status) do
+                    if statusEffects.effects[effectType] then
+                        local effectInfo = statusEffects.effects[effectType]
+                        local row = math.floor(iconIndex / maxIconsPerRow)
+                        local col = iconIndex % maxIconsPerRow
+                        
+                        local iconX = iconStartX + col * (statusIconSize + statusIconSpacing)
+                        local iconY = iconStartY + row * (statusIconSize + statusIconSpacing)
+                        
+                        -- Check if mouse is over this status effect icon
+                        if mouseX >= iconX and mouseX <= iconX + statusIconSize and
+                           mouseY >= iconY and mouseY <= iconY + statusIconSize then
+                            
+                            -- Draw tooltip
+                            local tooltipWidth = 200
+                            local tooltipHeight = 100
+                            local tooltipX = mouseX + 10
+                            local tooltipY = mouseY - tooltipHeight - 10
+                            
+                            -- Adjust tooltip position if it would go off-screen
+                            if tooltipX + tooltipWidth > GAME.width then
+                                tooltipX = GAME.width - tooltipWidth - 10
+                            end
+                            if tooltipY < 0 then
+                                tooltipY = mouseY + 20
+                            end
+                            
+                            -- Draw tooltip background
+                            love.graphics.setColor(0.1, 0.1, 0.1, 0.9)
+                            love.graphics.rectangle("fill", tooltipX, tooltipY, tooltipWidth, tooltipHeight, 5, 5)
+                            
+                            -- Draw tooltip border
+                            if effectInfo.statusType == "positive" then
+                                love.graphics.setColor(0.2, 0.7, 0.3, 0.7)
+                            elseif effectInfo.statusType == "negative" then
+                                love.graphics.setColor(0.7, 0.3, 0.2, 0.7)
+                            else
+                                love.graphics.setColor(0.5, 0.5, 0.7, 0.7)
+                            end
+                            love.graphics.rectangle("line", tooltipX, tooltipY, tooltipWidth, tooltipHeight, 5, 5)
+                            
+                            -- Draw effect name
+                            love.graphics.setFont(screenManager.fonts.medium)
+                            love.graphics.setColor(1, 1, 1)
+                            love.graphics.print(effectInfo.name, tooltipX + 10, tooltipY + 10)
+                            
+                            -- Draw effect description
+                            love.graphics.setFont(screenManager.fonts.small)
+                            love.graphics.setColor(0.9, 0.9, 0.9)
+                            love.graphics.printf(effectInfo.description, tooltipX + 10, tooltipY + 35, tooltipWidth - 20, "left")
+                            
+                            -- Draw effect duration
+                            love.graphics.setColor(0.7, 0.7, 1)
+                            love.graphics.print(
+                                "Duration: " .. effect.duration .. " turns", 
+                                tooltipX + 10, tooltipY + tooltipHeight - 20
+                            )
+                            
+                            tooltipShown = true
+                            break
+                        end
+                        
+                        iconIndex = iconIndex + 1
+                    end
+                end
+                
+                if tooltipShown then
+                    break
+                end
+            end
+        end
+    end
+    
+    -- Also check enemy status effects if not already showing a tooltip
+    if not tooltipShown and self.enemies then
+        for _, enemy in ipairs(self.enemies) do
+            if enemy.status and enemy.active then
+                -- Calculate enemy status icon positions
+                -- This depends on how they are displayed in the drawEnemy function
+                local enemyX = GAME.width / 2 - 50
+                local enemyY = 150
+                
+                local statusIconSize = 18
+                local statusIconSpacing = 3
+                local maxIconsPerRow = 5
+                local iconStartX = enemyX + 100
+                local iconStartY = enemyY - 30
+                local iconIndex = 0
+                
+                for effectType, effect in pairs(enemy.status) do
+                    if statusEffects.effects[effectType] then
+                        local effectInfo = statusEffects.effects[effectType]
+                        local row = math.floor(iconIndex / maxIconsPerRow)
+                        local col = iconIndex % maxIconsPerRow
+                        
+                        local iconX = iconStartX + col * (statusIconSize + statusIconSpacing)
+                        local iconY = iconStartY + row * (statusIconSize + statusIconSpacing)
+                        
+                        -- Check if mouse is over this icon
+                        if mouseX >= iconX and mouseX <= iconX + statusIconSize and
+                           mouseY >= iconY and mouseY <= iconY + statusIconSize then
+                            
+                            -- Draw tooltip
+                            local tooltipWidth = 200
+                            local tooltipHeight = 100
+                            local tooltipX = mouseX + 10
+                            local tooltipY = mouseY - tooltipHeight - 10
+                            
+                            -- Adjust tooltip position if it would go off-screen
+                            if tooltipX + tooltipWidth > GAME.width then
+                                tooltipX = GAME.width - tooltipWidth - 10
+                            end
+                            if tooltipY < 0 then
+                                tooltipY = mouseY + 20
+                            end
+                            
+                            -- Draw tooltip background
+                            love.graphics.setColor(0.1, 0.1, 0.1, 0.9)
+                            love.graphics.rectangle("fill", tooltipX, tooltipY, tooltipWidth, tooltipHeight, 5, 5)
+                            
+                            -- Draw tooltip border
+                            if effectInfo.statusType == "positive" then
+                                love.graphics.setColor(0.2, 0.7, 0.3, 0.7)
+                            elseif effectInfo.statusType == "negative" then
+                                love.graphics.setColor(0.7, 0.3, 0.2, 0.7)
+                            else
+                                love.graphics.setColor(0.5, 0.5, 0.7, 0.7)
+                            end
+                            love.graphics.rectangle("line", tooltipX, tooltipY, tooltipWidth, tooltipHeight, 5, 5)
+                            
+                            -- Draw effect name
+                            love.graphics.setFont(screenManager.fonts.medium)
+                            love.graphics.setColor(1, 1, 1)
+                            love.graphics.print(effectInfo.name, tooltipX + 10, tooltipY + 10)
+                            
+                            -- Draw effect description
+                            love.graphics.setFont(screenManager.fonts.small)
+                            love.graphics.setColor(0.9, 0.9, 0.9)
+                            love.graphics.printf(effectInfo.description, tooltipX + 10, tooltipY + 35, tooltipWidth - 20, "left")
+                            
+                            -- Draw effect duration
+                            love.graphics.setColor(0.7, 0.7, 1)
+                            love.graphics.print(
+                                "Duration: " .. effect.duration .. " turns", 
+                                tooltipX + 10, tooltipY + tooltipHeight - 20
+                            )
+                            
+                            break
+                        end
+                        
+                        iconIndex = iconIndex + 1
+                    end
+                end
+            end
+        end
+    end
+end
+
 combatSystem.STATE = {
     INIT = 1,
     PLAYER_TURN = 2,
@@ -1543,19 +1629,26 @@ combatSystem.STATE = {
 return {
     createUI = createUI,
     draw = draw,
-    drawEnemy = drawEnemy,
-    drawMultipleEnemies = drawMultipleEnemies, 
-    drawSingleEnemy = drawSingleEnemy,
-    drawParty = drawParty,
     drawCombatLog = drawCombatLog,
-    drawPlayerTurnUI = drawPlayerTurnUI,
+    drawEnemy = drawEnemy,
+    drawSingleEnemy = drawSingleEnemy,
+    drawMultipleEnemies = drawMultipleEnemies,
+    drawParty = drawParty,
+    drawMinions = drawMinions,
     drawEnemyTurnUI = drawEnemyTurnUI,
+    drawVictoryUI = drawVictoryUI,
     drawDefeatUI = drawDefeatUI,
-    showEnemySelectionUI = showEnemySelectionUI,
-    confirmEnemySelection = confirmEnemySelection,
+    drawPlayerTurnUI = drawPlayerTurnUI,
+    handleUIClick = handleUIClick,
     showSkillList = showSkillList,
     showItemList = showItemList,
+    showEnemySelectionUI = showEnemySelectionUI,
     showPartySelectionUI = showPartySelectionUI,
-    handleUIClick = handleUIClick,
-    drawMinions = drawMinions
+    confirmEnemySelection = confirmEnemySelection,
+    confirmPartySelection = confirmPartySelection,
+    hideSelectionLists = hideSelectionLists,
+    selectAction = selectAction,
+    cancelSelection = cancelSelection,
+    handleMouseScroll = handleMouseScroll,
+    drawStatusEffectTooltips = drawStatusEffectTooltips
 }

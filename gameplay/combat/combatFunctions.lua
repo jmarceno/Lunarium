@@ -1,6 +1,7 @@
 -- Combat Functions - Core combat functionality
 local screenManager = require("screens/screenManager")
 local minionManager = require("gameplay/minionManager")
+local partyPanel = require("screens/ui_slices/partyPanel")
 
 local combatSystem = {}  -- Forward declaration
 
@@ -298,6 +299,10 @@ local function victory(self)
     
     -- Handle minion persistence after battle
     minionManager:clearNonPersistentMinions()
+    
+    -- Reset party panel
+    partyPanel:setCombatMode(false, nil)
+    partyPanel:setActiveCharacter(nil)
     
     -- Create continue button
     self.elements.continueButton = screenManager.UI.Button(

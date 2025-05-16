@@ -2,6 +2,9 @@
 -- Core combat flow and state management
 local minionManager = require("gameplay/minionManager")
 local itemSystem = require("gameplay/item")
+local screenManager = require("screens/screenManager")
+local partyPanel = require("screens/ui_slices/partyPanel")
+
 local combatSystem = {}  -- Forward declaration to reference STATE values
 
 -- Setup combatants with combat stats
@@ -192,13 +195,13 @@ local function update(self, dt)
     end
 
     -- Handle animation delay
-    if self.animationDelay > 0 then
+    if self.animationDelay and self.animationDelay > 0 then
         self.animationDelay = self.animationDelay - dt
         return
     end
     
     -- Handle turn end delay
-    if self.turnEndDelay > 0 then
+    if self.turnEndDelay and self.turnEndDelay > 0 then
         self.turnEndDelay = self.turnEndDelay - dt
         if self.turnEndDelay <= 0 then
             -- Check if we have a pending victory (from minion killing last enemy)
@@ -272,7 +275,7 @@ local function update(self, dt)
         
         self.enemyTurnDelay = self.enemyTurnDelay - dt
         
-        if self.enemyTurnDelay <= 0 then
+        if self.enemyTurnDelay and self.enemyTurnDelay <= 0 then
             -- Debug
             print("Enemy turn timer expired, executing enemy turn for index " .. self.activeEnemyIndex)
             
@@ -312,18 +315,22 @@ local function update(self, dt)
         
         self.minionTurnDelay = self.minionTurnDelay - dt
         
-        if self.minionTurnDelay <= 0 then
+        if self.minionTurnDelay and self.minionTurnDelay <= 0 then
             -- Execute current minion's turn
             self:executeMinionTurn()
             
-            -- Check for pending victory (minion might have killed last enemy)
-            if self.pendingVictory then
-                return
+            -- If the minion's action resulted in victory or defeat, the state will be set.
+            -- The main update loop checks for this at its beginning.
+            -- We use self:isOver() here to prevent scheduling another turn if combat ended.
+            if self:isOver() then
+                 self.minionTurnDelay = nil -- Prevent re-entry if somehow update is called again before state fully processes
+                 return -- Combat is over, exit this block
             end
             
-            -- Move to minion turn
-            self.minionTurnDelay = 0.5
-            self:executeEnemyTurn()
+            -- If combat is not over, set a short delay then allow nextTurn() to be called
+            -- via the turnEndDelay mechanism. This correctly determines the next actor.
+            self.turnEndDelay = 0.5 -- Delay before processing nextTurn logic
+            self.minionTurnDelay = nil -- Reset for the next potential sequence of minion turns
         end
     end
 end
@@ -372,8 +379,14 @@ local function nextTurn(self)
                 -- Stay in player turn state
                 self.state = combatSystem.STATE.PLAYER_TURN
                 
+                -- Update the party panel to highlight the active character
+                partyPanel:setActiveCharacter(self.currentCharacter)
+                
                 -- Reset selection state
                 self:resetSelectionUI()
+                
+                -- Make sure action buttons are visible for the new turn
+                self:showActionButtons()
                 
                 -- Log new character turn
                 self:addLog(self.party[self.currentCharacter].name .. "'s turn begins", {0.5, 0.5, 1})
@@ -391,6 +404,9 @@ local function nextTurn(self)
                 -- Found an active minion with an untaken turn
                 self.activeMinion = activeMinion
                 self.state = combatSystem.STATE.MINION_TURN
+                
+                -- Clear party panel highlight
+                partyPanel:setActiveCharacter(nil)
                 
                 -- Initialize minion turn delay
                 self.minionTurnDelay = 0.8
@@ -440,11 +456,17 @@ local function nextTurn(self)
                 self.currentCharacter = i
                 foundNextPlayer = true
                 
+                -- Update the party panel to highlight the active character
+                partyPanel:setActiveCharacter(self.currentCharacter)
+                
                 -- Switch to player turn state
                 self.state = combatSystem.STATE.PLAYER_TURN
                 
                 -- Reset selection state
                 self:resetSelectionUI()
+                
+                -- Make sure action buttons are visible for the new turn
+                self:showActionButtons()
                 
                 -- Log new round
                 self:addLog("Round " .. self.currentTurn .. " begins", {1, 1, 0.5})
@@ -475,6 +497,10 @@ local function partyDefeated(self)
     
     -- Set defeat state
     self.state = combatSystem.STATE.DEFEAT
+    
+    -- Reset party panel
+    partyPanel:setCombatMode(false, nil)
+    partyPanel:setActiveCharacter(nil)
     
     -- Create continue button
     self.elements.continueButton = screenManager.UI.Button(

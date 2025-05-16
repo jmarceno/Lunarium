@@ -120,12 +120,17 @@ This plan is based on the findings in `skill_effects_implementation_status.md`, 
 - **Description**: Ensure all minion stat buffs are used in relevant calculations.
 
 ### 2.7 Visual Representation of Status Effects
-- **Target file**: `uiFunctions.lua`, UI assets
+- **Target file**: `uiFunctions.lua`, `screens/ui_slices/partypanel.lua`, UI assets
 - **Description**: Add or update UI elements to visually represent all status effects, including new ones (barrier, taunt, untargetable, elemental buffs, etc.).
 - **Changes needed**:
   - Add icons/tooltips for each status effect.
   - Show barrier HP as a distinct overlay or bar.
   - Ensure buffs/debuffs are clearly visible and distinguishable.
+  - For character status effects, display icon indicators in the party panel next to the corresponding affected character.
+  - Status icons in the party panel should be small and non-intrusive to preserve the overall layout and aesthetics.
+  - Multiple status effects on a character should be arranged in a compact way (e.g., horizontal row or small grid).
+  - Add tooltips to these icons that appear on hover to show effect details (type, duration, value).
+  - Ensure the party panel's core functionality and layout remain intact when displaying status effects.
 
 ### 2.8 Update Developer Documentation
 - **Target file**: `README.md`, in-code comments

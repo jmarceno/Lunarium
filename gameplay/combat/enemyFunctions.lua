@@ -73,11 +73,18 @@ local function executeEnemyTurn(self)
     
     -- Check for valid targets (party members and minions)
     local validTargets = {}
+    local tauntingTargets = {} -- Track targets with taunt effect
     
     -- Add active party members to valid targets
     for i, character in ipairs(self.party) do
         if character.active then
-            table.insert(validTargets, { type = "player", index = i })
+            -- Check if character has taunt effect
+            if statusEffects:has(character, "taunt") then
+                table.insert(tauntingTargets, { type = "player", index = i, entity = character })
+            -- Check if character is untargetable
+            elseif not statusEffects:has(character, "untargetable") then
+                table.insert(validTargets, { type = "player", index = i, entity = character })
+            end
         end
     end
     
@@ -85,11 +92,23 @@ local function executeEnemyTurn(self)
     for charIndex, minions in pairs(self.minions) do
         for minionIndex, minion in pairs(minions) do
             if minion.active then
-                table.insert(validTargets, { 
-                    type = "minion", 
-                    charIndex = charIndex, 
-                    minionIndex = minionIndex 
-                })
+                -- Check if minion has taunt effect
+                if statusEffects:has(minion, "taunt") then
+                    table.insert(tauntingTargets, { 
+                        type = "minion", 
+                        charIndex = charIndex, 
+                        minionIndex = minionIndex,
+                        entity = minion
+                    })
+                -- Check if minion is untargetable
+                elseif not statusEffects:has(minion, "untargetable") then
+                    table.insert(validTargets, { 
+                        type = "minion", 
+                        charIndex = charIndex, 
+                        minionIndex = minionIndex,
+                        entity = minion
+                    })
+                end
             end
         end
     end
@@ -97,22 +116,49 @@ local function executeEnemyTurn(self)
     -- Debug information about targets
     if GAME.debug then
         print("Found " .. #validTargets .. " valid targets")
+        print("Found " .. #tauntingTargets .. " taunting targets")
     end
     
     -- If no valid targets, party must be defeated
-    if #validTargets == 0 then
-        self:partyDefeated()
-        return
+    if #validTargets == 0 and #tauntingTargets == 0 then
+        -- Case: All potential targets are untargetable
+        if self.allTargetsUntargetable then
+            self:addLog(enemy.name .. " couldn't find a valid target and skips its turn!", {0.7, 0.7, 0.9})
+            self.activeEnemyIndex = self.activeEnemyIndex + 1
+            return
+        else
+            self.allTargetsUntargetable = true
+            self:partyDefeated()
+            return
+        end
     end
     
-    -- Select a random target from valid targets
-    local targetInfo = validTargets[math.random(#validTargets)]
-    local targets = {}
+    -- Reset the untargetable flag if we found valid targets
+    self.allTargetsUntargetable = false
+    
+    -- Prioritize taunting targets over regular targets
+    local targetInfo
+    if #tauntingTargets > 0 then
+        -- If there are taunting targets, choose randomly among them
+        targetInfo = tauntingTargets[math.random(#tauntingTargets)]
+        
+        if GAME.debug then
+            print("Targeting taunting " .. targetInfo.entity.name)
+        end
+    else
+        -- Otherwise choose randomly among valid targets
+        targetInfo = validTargets[math.random(#validTargets)]
+        
+        if GAME.debug then
+            print("Targeting " .. targetInfo.entity.name)
+        end
+    end
     
     -- Select ability to use
     local abilityId = monsterAttackSystem:selectAbility(enemy)
     
     -- Process target selection based on ability target type
+    local targets = {}
     if targetInfo.type == "player" then
         -- Target is a player character
         local target = self.party[targetInfo.index]

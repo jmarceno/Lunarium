@@ -81,6 +81,9 @@ function skillSystem:calculateDamage(skill, user, target, level)
     local basePower = skill.basePower or 0
     local power = basePower
     
+    -- Get statusEffects module if not directly passed
+    local statusEffects = statusEffects or require("gameplay/statusEffects")
+    
     -- Apply level modifier
     if skill.levelModifier and type(skill.levelModifier) == "function" then
         local modifier = skill.levelModifier(level or 1)
@@ -104,12 +107,18 @@ function skillSystem:calculateDamage(skill, user, target, level)
             attack = user.attributes.STR
         end
         
+        -- Apply attack multiplier from status effects
+        attack = attack * statusEffects:getMultiplier(user, "attack_multiplier")
+        
         local defense = 5  -- Default value if no defense found
         if target.defense ~= nil then
             defense = target.defense
         elseif target.attributes and target.attributes.CON then
             defense = target.attributes.CON / 2
         end
+        
+        -- Apply defense multiplier from status effects
+        defense = defense * statusEffects:getMultiplier(target, "defense_multiplier")
         
         -- Make sure values are numbers
         attack = tonumber(attack) or 10
@@ -127,12 +136,18 @@ function skillSystem:calculateDamage(skill, user, target, level)
             magicPower = user.attributes.INT
         end
         
+        -- Apply magic attack multiplier from status effects (using attack_multiplier)
+        magicPower = magicPower * statusEffects:getMultiplier(user, "attack_multiplier")
+        
         local magicDefense = 5  -- Default value if no magic defense found
         if target.magicDefense ~= nil then
             magicDefense = target.magicDefense
         elseif target.attributes and target.attributes.WIL then
             magicDefense = target.attributes.WIL / 2
         end
+        
+        -- Apply magic defense multiplier from status effects (using defense_multiplier)
+        magicDefense = magicDefense * statusEffects:getMultiplier(target, "defense_multiplier")
         
         -- Make sure values are numbers
         magicPower = tonumber(magicPower) or 10
@@ -163,7 +178,37 @@ function skillSystem:calculateDamage(skill, user, target, level)
             elementMultiplier = target.elementalWeaknesses[skill.element]
         end
         
+        -- Apply elemental resistance from status effects
+        if statusEffects:has(target, "elementalResist") and 
+           (not target.status.elementalResist.extraParams.element or 
+            target.status.elementalResist.extraParams.element == skill.element) then
+            -- If target has general elemental resist or specific resist to this element
+            elementMultiplier = elementMultiplier * 0.75 -- Reduce damage by 25%
+        end
+        
+        -- Apply elemental power from status effects
+        if statusEffects:has(user, "elementalPower") and 
+           (not user.status.elementalPower.extraParams.element or 
+            user.status.elementalPower.extraParams.element == skill.element) then
+            -- If user has general elemental power boost or specific to this element
+            elementMultiplier = elementMultiplier * 1.25 -- Increase damage by 25%
+        end
+        
         damage = damage * elementMultiplier
+    end
+    
+    -- Apply offensive status effects
+    if statusEffects:has(user, "strengthen") then
+        damage = damage * 1.25 -- 25% more damage
+    end
+    
+    -- Apply defensive status effects
+    if statusEffects:has(target, "vulnerable") then
+        damage = damage * 1.25 -- 25% more damage when vulnerable
+    end
+    
+    if statusEffects:has(target, "protect") then
+        damage = damage * 0.75 -- 25% less damage when protected
     end
     
     -- Calculate critical hit
@@ -179,6 +224,9 @@ function skillSystem:calculateDamage(skill, user, target, level)
                 critChance = modifier.critChance
             end
         end
+        
+        -- Apply accuracy multiplier from status effects (affects crit chance)
+        critChance = critChance * statusEffects:getMultiplier(user, "accuracy_multiplier")
         
         if math.random() < critChance then
             damage = damage * (skill.critModifier or 1.5)
