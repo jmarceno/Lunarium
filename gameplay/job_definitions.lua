@@ -96,35 +96,33 @@ local jobDefinitions = {
         requirements = nil
     },
 
-    Necromancer = {
-        name = "Necromancer",
-        description = "Master of death who commands undead minions to do their bidding.",
-        tier = 3,
+    Mystic = {
+        name = "Mystic",
+        description = "A spiritualist who specializes in buffs and debuffs, manipulating the flow of battle.",
+        tier = 1,
         attributeModifiers = {
-            INT = 4,
-            WIL = 3,
-            WIS = 2
+            WIS = 2,
+            CHA = 2,
+            INT = 1
         },
         startingSkills = {
-            "RaiseSkeleton",
-            "DarkCommand"
+            "MinorBlessing",
+            "Weaken",
+            "Focus"
         },
         availableSkills = {
-            "RaiseSkeleton",
-            "RaiseZombie",
-            "RaiseWraith",
-            "DarkCommand",
-            "DeathPact",
-            "UnholyAura",
-            "BoneArmor"
+            "MinorBlessing",
+            "Weaken",
+            "Focus",
+            "QuickRecovery",
+            "DullBlade",
+            "Clarity"
         },
         startingEquipment = {
-            weapon = "NecromanticStaff",
-            body = "NecromancerRobes"
+            weapon = "SpiritRod",
+            body = "MysticRobe"
         },
-        requirements = {
-            DarkMage = 2
-        }
+        requirements = nil
     },
 
     Cleric = {
@@ -153,6 +151,35 @@ local jobDefinitions = {
             weapon = "Mace",
             offhand = "HolySymbol",
             body = "AcolyteRobe"
+        },
+        requirements = nil
+    },
+
+    Monk = {
+        name = "Monk",
+        description = "A martial artist who balances offense and defense through spiritual discipline and unarmed combat.",
+        tier = 1,
+        attributeModifiers = {
+            DEX = 2,
+            WIL = 2,
+            CON = 1
+        },
+        startingSkills = {
+            "UnarmedStrike",
+            "InnerFocus",
+            "Meditate"
+        },
+        availableSkills = {
+            "UnarmedStrike",
+            "InnerFocus",
+            "Meditate",
+            "CounterStance",
+            "IronBody",
+            "Flurry"
+        },
+        startingEquipment = {
+            weapon = nil,
+            body = "MonkRobe"
         },
         requirements = nil
     },
@@ -404,6 +431,66 @@ local jobDefinitions = {
         }
     },
 
+    Hexer = {
+        name = "Hexer",
+        description = "A master of curses and debilitating magic, specializing in weakening foes.",
+        tier = 2,
+        attributeModifiers = {
+            WIL = 3,
+            INT = 2,
+            CHA = 1
+        },
+        startingSkills = {
+            "Hex",
+            "CurseOfFrailty"
+        },
+        availableSkills = {
+            "Hex",
+            "CurseOfFrailty",
+            "Wither",
+            "Silence",
+            "EvilEye",
+            "Torment"
+        },
+        startingEquipment = {
+            weapon = "CursedTalisman",
+            body = "HexersMantle"
+        },
+        requirements = {
+            Mystic = 10
+        }
+    },
+
+    Enchanter = {
+        name = "Enchanter",
+        description = "A specialist in powerful magical buffs, enhancing allies' abilities.",
+        tier = 2,
+        attributeModifiers = {
+            WIS = 3,
+            CHA = 2,
+            INT = 1
+        },
+        startingSkills = {
+            "GreaterBlessing",
+            "Haste"
+        },
+        availableSkills = {
+            "GreaterBlessing",
+            "Haste",
+            "Fortify",
+            "Inspire",
+            "MagicWard",
+            "Regeneration"
+        },
+        startingEquipment = {
+            weapon = "EnchantersStaff",
+            body = "EnchantersRobe"
+        },
+        requirements = {
+            Mystic = 10
+        }
+    },
+
     ElementalMage = {
         name = "Elemental Mage",
         description = "A mage who specializes in commanding the raw elemental forces.",
@@ -459,6 +546,67 @@ local jobDefinitions = {
         },
         requirements = {
             Cleric = 10
+        }
+    },
+
+    MartialArtist = {
+        name = "Martial Artist",
+        description = "A master of advanced martial techniques and physical prowess.",
+        tier = 2,
+        attributeModifiers = {
+            DEX = 3,
+            STR = 2,
+            WIL = 1
+        },
+        startingSkills = {
+            "ChiBurst",
+            "PressurePoint"
+        },
+        availableSkills = {
+            "ChiBurst",
+            "PressurePoint",
+            "RapidStrikes",
+            "PalmThrust",
+            "FlowingStance",
+            "IronBody"
+        },
+        startingEquipment = {
+            weapon = nil,
+            body = "MartialGi"
+        },
+        requirements = {
+            Monk = 10
+        }
+    },
+
+    BattlePriest = {
+        name = "Battle Priest",
+        description = "A martial artist who blends divine magic and unarmed combat.",
+        tier = 2,
+        attributeModifiers = {
+            WIL = 3,
+            DEX = 2,
+            WIS = 1
+        },
+        startingSkills = {
+            "SacredPalm",
+            "Renewal"
+        },
+        availableSkills = {
+            "SacredPalm",
+            "Renewal",
+            "BlessingOfEndurance",
+            "PurifyingStrike",
+            "IronBody",
+            "InnerFocus"
+        },
+        startingEquipment = {
+            weapon = nil,
+            body = "BlessedVestments"
+        },
+        requirements = {
+            Monk = 5,
+            Cleric = 5
         }
     },
 
@@ -617,6 +765,71 @@ local jobDefinitions = {
         },
         requirements = {
             SpiritSpeaker = 15
+        }
+    },
+
+    Necromancer = {
+        name = "Necromancer",
+        description = "Master of death who commands undead minions to do their bidding.",
+        tier = 3,
+        attributeModifiers = {
+            INT = 4,
+            WIL = 3,
+            WIS = 2
+        },
+        startingSkills = {
+            "RaiseSkeleton",
+            "DarkCommand"
+        },
+        availableSkills = {
+            "RaiseSkeleton",
+            "RaiseZombie",
+            "RaiseWraith",
+            "DarkCommand",
+            "DeathPact",
+            "UnholyAura",
+            "BoneArmor"
+        },
+        startingEquipment = {
+            weapon = "NecromanticStaff",
+            body = "NecromancerRobes"
+        },
+        requirements = {
+            DarkMage = 2,
+            Hexer = 2
+        }
+    },
+
+    Grandmaster = {
+        name = "Grandmaster",
+        description = "The ultimate martial artist, master of body and spirit.",
+        tier = 3,
+        attributeModifiers = {
+            DEX = 3,
+            WIL = 3,
+            STR = 2,
+            CON = 2
+        },
+        startingSkills = {
+            "GrandmastersFury",
+            "PerfectBody"
+        },
+        availableSkills = {
+            "GrandmastersFury",
+            "PerfectBody",
+            "ChiWave",
+            "Enlightenment",
+            "CounterStance",
+            "IronBody",
+            "Meditate"
+        },
+        startingEquipment = {
+            weapon = nil,
+            body = "GrandmastersRobe"
+        },
+        requirements = {
+            MartialArtist = 15,
+            BattlePriest = 10
         }
     }
 }

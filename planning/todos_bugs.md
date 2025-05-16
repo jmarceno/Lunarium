@@ -1,4 +1,6 @@
 # TODOs
+- Check new skills and implement support for them. For example Dot 
+
 - Level up screen has some overlap with the fonts asking the player to choose the path and the job list
 - Reorganize the character creator screen to make it less tiresome (adding attributes is a pain)
 - Check Message - ESCORT quest population not fully implemented. This is a console message that is being displayed

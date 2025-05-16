@@ -976,6 +976,614 @@ local skillDefinitions = {
                 duration = 4 + level
             }
         end
+    },
+
+    -- Mystic skills
+    MinorBlessing = {
+        name = "Minor Blessing",
+        description = "Buffs one ally's main stat for 3 turns.",
+        type = "support",
+        target = "single_ally",
+        mpCost = 6,
+        basePower = 0,
+        effect = {
+            stat = "main_stat",
+            value = 2,
+            duration = 3
+        },
+        maxLevel = 5,
+        levelModifier = function(level)
+            return { value = 2 + level, duration = 3 + math.floor(level/2) }
+        end
+    },
+    Weaken = {
+        name = "Weaken",
+        description = "Reduces one enemy's attack for 3 turns.",
+        type = "debuff",
+        target = "single_enemy",
+        mpCost = 6,
+        basePower = 0,
+        effect = {
+            stat = "attack",
+            value = -2,
+            duration = 3
+        },
+        maxLevel = 5,
+        levelModifier = function(level)
+            return { value = -2 - level, duration = 3 + math.floor(level/2) }
+        end
+    },
+    Focus = {
+        name = "Focus",
+        description = "Increases self's magic power for 2 turns.",
+        type = "support",
+        target = "self",
+        mpCost = 4,
+        basePower = 0,
+        effect = {
+            stat = "magic_power",
+            value = 3,
+            duration = 2
+        },
+        maxLevel = 5,
+        levelModifier = function(level)
+            return { value = 3 + level, duration = 2 + math.floor(level/2) }
+        end
+    },
+    QuickRecovery = {
+        name = "Quick Recovery",
+        description = "Removes a debuff from an ally.",
+        type = "support",
+        target = "single_ally",
+        mpCost = 5,
+        basePower = 0,
+        effect = {
+            removeDebuff = true
+        },
+        maxLevel = 3
+    },
+    DullBlade = {
+        name = "Dull Blade",
+        description = "Reduces enemy's physical damage for 3 turns.",
+        type = "debuff",
+        target = "single_enemy",
+        mpCost = 6,
+        basePower = 0,
+        effect = {
+            stat = "physical_damage",
+            value = -10,
+            duration = 3
+        },
+        maxLevel = 5,
+        levelModifier = function(level)
+            return { value = -10 - (level * 2), duration = 3 + math.floor(level/2) }
+        end
+    },
+    Clarity = {
+        name = "Clarity",
+        description = "Increases MP regen for 3 turns.",
+        type = "support",
+        target = "self",
+        mpCost = 5,
+        basePower = 0,
+        effect = {
+            stat = "mp_regen",
+            value = 5,
+            duration = 3
+        },
+        maxLevel = 5,
+        levelModifier = function(level)
+            return { value = 5 + (level * 2), duration = 3 + math.floor(level/2) }
+        end
+    },
+
+    -- Hexer skills
+    Hex = {
+        name = "Hex",
+        description = "Applies a strong curse, reducing all stats for 3 turns.",
+        type = "debuff",
+        target = "single_enemy",
+        mpCost = 10,
+        basePower = 0,
+        effect = {
+            stat = "all",
+            value = -2,
+            duration = 3
+        },
+        maxLevel = 5,
+        levelModifier = function(level)
+            return { value = -2 - level, duration = 3 + math.floor(level/2) }
+        end
+    },
+    CurseOfFrailty = {
+        name = "Curse of Frailty",
+        description = "Reduces enemy defense for 3 turns.",
+        type = "debuff",
+        target = "single_enemy",
+        mpCost = 8,
+        basePower = 0,
+        effect = {
+            stat = "defense",
+            value = -3,
+            duration = 3
+        },
+        maxLevel = 5,
+        levelModifier = function(level)
+            return { value = -3 - level, duration = 3 + math.floor(level/2) }
+        end
+    },
+    Wither = {
+        name = "Wither",
+        description = "Deals damage over time for 3 turns.",
+        type = "debuff",
+        target = "single_enemy",
+        mpCost = 8,
+        basePower = 20,
+        effect = {
+            type = "dot",
+            value = 20,
+            duration = 3
+        },
+        maxLevel = 5,
+        levelModifier = function(level)
+            return { value = 20 + (level * 5), duration = 3 + math.floor(level/2) }
+        end
+    },
+    Silence = {
+        name = "Silence",
+        description = "Prevents enemy from casting spells for 2 turns.",
+        type = "debuff",
+        target = "single_enemy",
+        mpCost = 7,
+        basePower = 0,
+        effect = {
+            stat = "silence",
+            value = true,
+            duration = 2
+        },
+        maxLevel = 3,
+        levelModifier = function(level)
+            return { duration = 2 + level } end
+    },
+    EvilEye = {
+        name = "Evil Eye",
+        description = "Reduces enemy accuracy for 3 turns.",
+        type = "debuff",
+        target = "single_enemy",
+        mpCost = 6,
+        basePower = 0,
+        effect = {
+            stat = "accuracy",
+            value = -10,
+            duration = 3
+        },
+        maxLevel = 5,
+        levelModifier = function(level)
+            return { value = -10 - (level * 2), duration = 3 + math.floor(level/2) }
+        end
+    },
+    Torment = {
+        name = "Torment",
+        description = "Reduces healing received for 3 turns.",
+        type = "debuff",
+        target = "single_enemy",
+        mpCost = 8,
+        basePower = 0,
+        effect = {
+            stat = "healing_received",
+            value = -25,
+            duration = 3
+        },
+        maxLevel = 5,
+        levelModifier = function(level)
+            return { value = -25 - (level * 5), duration = 3 + math.floor(level/2) }
+        end
+    },
+
+    -- Enchanter skills
+    GreaterBlessing = {
+        name = "Greater Blessing",
+        description = "Strong buff to all stats for 3 turns.",
+        type = "support",
+        target = "single_ally",
+        mpCost = 12,
+        basePower = 0,
+        effect = {
+            stat = "all",
+            value = 3,
+            duration = 3
+        },
+        maxLevel = 5,
+        levelModifier = function(level)
+            return { value = 3 + level, duration = 3 + math.floor(level/2) }
+        end
+    },
+    Haste = {
+        name = "Haste",
+        description = "Increases speed for 3 turns.",
+        type = "support",
+        target = "single_ally",
+        mpCost = 8,
+        basePower = 0,
+        effect = {
+            stat = "speed",
+            value = 10,
+            duration = 3
+        },
+        maxLevel = 5,
+        levelModifier = function(level)
+            return { value = 10 + (level * 2), duration = 3 + math.floor(level/2) }
+        end
+    },
+    Fortify = {
+        name = "Fortify",
+        description = "Increases defense for 3 turns.",
+        type = "support",
+        target = "single_ally",
+        mpCost = 8,
+        basePower = 0,
+        effect = {
+            stat = "defense",
+            value = 5,
+            duration = 3
+        },
+        maxLevel = 5,
+        levelModifier = function(level)
+            return { value = 5 + (level * 2), duration = 3 + math.floor(level/2) }
+        end
+    },
+    Inspire = {
+        name = "Inspire",
+        description = "Increases attack for 3 turns.",
+        type = "support",
+        target = "single_ally",
+        mpCost = 8,
+        basePower = 0,
+        effect = {
+            stat = "attack",
+            value = 5,
+            duration = 3
+        },
+        maxLevel = 5,
+        levelModifier = function(level)
+            return { value = 5 + (level * 2), duration = 3 + math.floor(level/2) }
+        end
+    },
+    MagicWard = {
+        name = "Magic Ward",
+        description = "Increases magic defense for 3 turns.",
+        type = "support",
+        target = "single_ally",
+        mpCost = 8,
+        basePower = 0,
+        effect = {
+            stat = "magic_defense",
+            value = 5,
+            duration = 3
+        },
+        maxLevel = 5,
+        levelModifier = function(level)
+            return { value = 5 + (level * 2), duration = 3 + math.floor(level/2) }
+        end
+    },
+    Regeneration = {
+        name = "Regeneration",
+        description = "Restores HP over 3 turns.",
+        type = "healing",
+        target = "single_ally",
+        mpCost = 10,
+        basePower = 0,
+        effect = {
+            stat = "hp_regen",
+            value = 10,
+            duration = 3
+        },
+        maxLevel = 5,
+        levelModifier = function(level)
+            return { value = 10 + (level * 3), duration = 3 + math.floor(level/2) }
+        end
+    },
+
+    -- Monk skills
+    UnarmedStrike = {
+        name = "Unarmed Strike",
+        description = "A basic unarmed attack.",
+        type = "physical",
+        target = "single_enemy",
+        mpCost = 0,
+        basePower = 100,
+        formula = "physical",
+        damageType = "bludgeoning",
+        maxLevel = 5,
+        levelModifier = function(level) return 1 + (level * 0.05) end
+    },
+    InnerFocus = {
+        name = "Inner Focus",
+        description = "Buff self's evasion and accuracy for 3 turns.",
+        type = "support",
+        target = "self",
+        mpCost = 6,
+        basePower = 0,
+        effect = {
+            stats = {
+                evasion = 10,
+                accuracy = 10
+            },
+            duration = 3
+        },
+        maxLevel = 5,
+        levelModifier = function(level)
+            return { evasion = 10 + (level * 2), accuracy = 10 + (level * 2), duration = 3 + math.floor(level/2) }
+        end
+    },
+    Meditate = {
+        name = "Meditate",
+        description = "Heal self over 2 turns.",
+        type = "healing",
+        target = "self",
+        mpCost = 4,
+        basePower = 0,
+        effect = {
+            stat = "hp_regen",
+            value = 15,
+            duration = 2
+        },
+        maxLevel = 5,
+        levelModifier = function(level)
+            return { value = 15 + (level * 5), duration = 2 + math.floor(level/2) }
+        end
+    },
+    CounterStance = {
+        name = "Counter Stance",
+        description = "Prepare to counterattack when hit for 2 turns.",
+        type = "support",
+        target = "self",
+        mpCost = 8,
+        basePower = 0,
+        effect = {
+            stat = "counter",
+            value = true,
+            duration = 2
+        },
+        maxLevel = 3,
+        levelModifier = function(level)
+            return { duration = 2 + level } end
+    },
+    IronBody = {
+        name = "Iron Body",
+        description = "Increase defense for 3 turns.",
+        type = "support",
+        target = "self",
+        mpCost = 7,
+        basePower = 0,
+        effect = {
+            stat = "defense",
+            value = 10,
+            duration = 3
+        },
+        maxLevel = 5,
+        levelModifier = function(level)
+            return { value = 10 + (level * 3), duration = 3 + math.floor(level/2) }
+        end
+    },
+    Flurry = {
+        name = "Flurry",
+        description = "A rapid series of unarmed strikes.",
+        type = "physical",
+        target = "single_enemy",
+        mpCost = 10,
+        basePower = 50,
+        hits = 3,
+        formula = "physical",
+        damageType = "bludgeoning",
+        maxLevel = 5,
+        levelModifier = function(level) return 1 + (level * 0.05) end
+    },
+
+    -- Martial Artist skills
+    ChiBurst = {
+        name = "Chi Burst",
+        description = "A ranged burst of spiritual energy.",
+        type = "magical",
+        target = "single_enemy",
+        mpCost = 10,
+        basePower = 120,
+        formula = "magical",
+        damageType = "force",
+        maxLevel = 5,
+        levelModifier = function(level) return 1 + (level * 0.08) end
+    },
+    PressurePoint = {
+        name = "Pressure Point",
+        description = "Strike a weak spot, reducing enemy attack and defense for 2 turns.",
+        type = "debuff",
+        target = "single_enemy",
+        mpCost = 8,
+        basePower = 0,
+        effect = {
+            stats = {
+                attack = -5,
+                defense = -5
+            },
+            duration = 2
+        },
+        maxLevel = 5,
+        levelModifier = function(level)
+            return { attack = -5 - level, defense = -5 - level, duration = 2 + math.floor(level/2) }
+        end
+    },
+    RapidStrikes = {
+        name = "Rapid Strikes",
+        description = "A flurry of quick blows.",
+        type = "physical",
+        target = "single_enemy",
+        mpCost = 12,
+        basePower = 40,
+        hits = 4,
+        formula = "physical",
+        damageType = "bludgeoning",
+        maxLevel = 5,
+        levelModifier = function(level) return 1 + (level * 0.05) end
+    },
+    PalmThrust = {
+        name = "Palm Thrust",
+        description = "A powerful strike with high critical chance.",
+        type = "physical",
+        target = "single_enemy",
+        mpCost = 10,
+        basePower = 120,
+        formula = "physical",
+        critModifier = 2.0,
+        critChance = 0.3,
+        damageType = "bludgeoning",
+        maxLevel = 5,
+        levelModifier = function(level)
+            return { power = 1 + (level * 0.08), critChance = 0.3 + (level * 0.03) }
+        end
+    },
+    FlowingStance = {
+        name = "Flowing Stance",
+        description = "Adopt a stance that increases dodge and counter chance for 2 turns.",
+        type = "support",
+        target = "self",
+        mpCost = 8,
+        basePower = 0,
+        effect = {
+            stats = {
+                dodge = 15,
+                counter = 15
+            },
+            duration = 2
+        },
+        maxLevel = 5,
+        levelModifier = function(level)
+            return { dodge = 15 + (level * 2), counter = 15 + (level * 2), duration = 2 + math.floor(level/2) }
+        end
+    },
+
+    -- Battle Priest skills
+    SacredPalm = {
+        name = "Sacred Palm",
+        description = "A holy unarmed attack.",
+        type = "magical",
+        element = "holy",
+        target = "single_enemy",
+        mpCost = 10,
+        basePower = 110,
+        formula = "magical",
+        damageType = "holy",
+        maxLevel = 5,
+        levelModifier = function(level) return 1 + (level * 0.08) end
+    },
+    Renewal = {
+        name = "Renewal",
+        description = "Heal self or an ally.",
+        type = "healing",
+        target = "single_ally",
+        mpCost = 10,
+        basePower = 100,
+        formula = "healing",
+        maxLevel = 5,
+        levelModifier = function(level) return 1 + (level * 0.12) end
+    },
+    BlessingOfEndurance = {
+        name = "Blessing of Endurance",
+        description = "Buff, increase max HP and defense for 3 turns.",
+        type = "support",
+        target = "single_ally",
+        mpCost = 10,
+        basePower = 0,
+        effect = {
+            stats = {
+                maxHP = 20,
+                defense = 10
+            },
+            duration = 3
+        },
+        maxLevel = 5,
+        levelModifier = function(level)
+            return { maxHP = 20 + (level * 5), defense = 10 + (level * 2), duration = 3 + math.floor(level/2) }
+        end
+    },
+    PurifyingStrike = {
+        name = "Purifying Strike",
+        description = "Attack that removes debuffs from self or ally.",
+        type = "physical",
+        target = "single_enemy",
+        mpCost = 8,
+        basePower = 90,
+        formula = "physical",
+        effect = {
+            removeDebuff = true
+        },
+        maxLevel = 5,
+        levelModifier = function(level) return 1 + (level * 0.08) end
+    },
+
+    -- Grandmaster skills
+    GrandmastersFury = {
+        name = "Grandmaster's Fury",
+        description = "A devastating multi-hit attack.",
+        type = "physical",
+        target = "single_enemy",
+        mpCost = 20,
+        basePower = 60,
+        hits = 5,
+        formula = "physical",
+        damageType = "bludgeoning",
+        maxLevel = 5,
+        levelModifier = function(level) return 1 + (level * 0.08) end
+    },
+    PerfectBody = {
+        name = "Perfect Body",
+        description = "Massive self-buff to all stats and regeneration for 3 turns.",
+        type = "support",
+        target = "self",
+        mpCost = 20,
+        basePower = 0,
+        effect = {
+            stats = {
+                STR = 5,
+                DEX = 5,
+                WIL = 5,
+                CON = 5,
+                hp_regen = 20
+            },
+            duration = 3
+        },
+        maxLevel = 3,
+        levelModifier = function(level)
+            return { STR = 5 + level, DEX = 5 + level, WIL = 5 + level, CON = 5 + level, hp_regen = 20 + (level * 5), duration = 3 + level }
+        end
+    },
+    ChiWave = {
+        name = "Chi Wave",
+        description = "A wave of spiritual energy that damages all enemies.",
+        type = "magical",
+        target = "all_enemies",
+        mpCost = 18,
+        basePower = 90,
+        formula = "magical",
+        damageType = "force",
+        maxLevel = 5,
+        levelModifier = function(level) return 1 + (level * 0.08) end
+    },
+    Enlightenment = {
+        name = "Enlightenment",
+        description = "Party-wide buff to all stats for 3 turns.",
+        type = "support",
+        target = "all_allies",
+        mpCost = 20,
+        basePower = 0,
+        effect = {
+            stat = "all",
+            value = 5,
+            duration = 3
+        },
+        maxLevel = 3,
+        levelModifier = function(level)
+            return { value = 5 + level, duration = 3 + level }
+        end
     }
 }
 
