@@ -6,7 +6,8 @@ alwaysApply: true
 This is First Person Dungeon Crawler game written in Lua using the Love2D framework
 In Lua function finish with the end keyword and not with }
 When adding new UI elements that need callbacks, do not forget to check if the main.lua file has the proper callbacks in place, if not, add it
-If you are using a function/value from another file, do not forget to import it
+Remember that if you are using a function/value from another file/module, you need to import it using thre require statement
+Remember that you are using Lua, a language that do not have types and can have nil values, if you are not sure a value has been initialized, check for nil before using it in any operation
 Do not try to run any script/program inside the project if you were not explicitly asked to
 
 Do not commit code unless you were specifically asked to

@@ -3,7 +3,7 @@
 - Portraits
   - Not working on battle screen
   - Too Small on level up screen
-
+  
 - Level up screen has some overlap with the fonts asking the player to choose the path and the job list
 - Reorganize the character creator screen to make it less tiresome (adding attributes is a pain)
 - Check Message - ESCORT quest population not fully implemented. This is a console message that is being displayed
@@ -18,6 +18,9 @@
 - Quests:
   - Quest were someone was cursed and is haunting the dungeon (given on tavern as a more personal request)
   - Quest were someones wife/husbasd died and became an undead (given on tavern as a more personal request)
+  - Final Job Progression Hidden Quests:
+    - Some jobs could have final progressions that are hidden and only trigger after a certain condition
+      - Example: After reaching level 20 as Necromancer a hidden quest can appear on the Inn, that once completed will allow the character to progress to from Necromancer to Lich
 
 
 # Bugs
