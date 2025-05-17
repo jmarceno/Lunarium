@@ -1,4 +1,10 @@
 # TODOs
+- How to deal with damage out of combat in the dungeon?
+  - Deaths
+  - DoTs
+- Add visual tips and texts for traps and interactables
+- Add sounds for traps and interactables
+- Check if Walls and interactables detection is properly working
 - Check new skills and implement support for them. For example Dot 
 - Portraits
   - Not working on battle screen

@@ -204,7 +204,12 @@ function trapSystem:activateTrap(trap, target, allTargets)
     
     -- Execute the trap effect based on trap type
     if trapEffects[trap.trapType] and #allAffectedTargets > 0 then
-        return trapEffects[trap.trapType](allAffectedTargets, trap)
+        local totalDamage = trapEffects[trap.trapType](allAffectedTargets, trap)
+        
+        -- Set the trap to inactive after triggering
+        trap.isTrapActive = false
+        
+        return totalDamage
     end
     
     return false
@@ -359,7 +364,7 @@ function trapSystem:checkTrapDetection(trap)
         end
 
         if hasRogue then
-            detectionChance = 0.7  -- 60% for rogues
+            detectionChance = 0.7  -- 70% for rogues
             highestPriorityClass = "Rogue"
         elseif hasMage then
             detectionChance = 0.3  -- 30% for mages
@@ -468,12 +473,12 @@ function trapSystem:updateTrapHintFactors(map, playerX, playerY)
         end
 
         if hasRogue then
-            detectionRange = 7.5
-            hintMultiplier = 1.5
+            detectionRange = 10.0  -- Increased from 7.5 to 10.0 for rogues
+            hintMultiplier = 2.0   -- Increased from 1.5 to 2.0
             -- bestClassType = "Rogue"
         elseif hasMage then
-            detectionRange = 4.0
-            hintMultiplier = 1.2
+            detectionRange = 6.0   -- Increased from 4.0 to 6.0
+            hintMultiplier = 1.5   -- Increased from 1.2 to 1.5
             -- bestClassType = "Mage"
         end
     end
@@ -483,28 +488,28 @@ function trapSystem:updateTrapHintFactors(map, playerX, playerY)
         if trap.isTrapActive and not trap.isTrapDisarmed then
             -- If already detected, maintain a minimum hint level
             if trap.isTrapDetected then
-                trap.hintFactor = 0.6
+                trap.hintFactor = 0.8  -- Increased from 0.6 to make detected traps more visible
             else
                 local distance = math.sqrt((trap.x - playerX)^2 + (trap.y - playerY)^2)
                 if distance <= detectionRange then
                     -- Calculate hint factor based on distance and multiplier
                     local baseFactor = (1.0 - (distance / detectionRange)) * hintMultiplier
-                    trap.hintFactor = math.min(0.3, baseFactor)  -- Cap at 0.3 for subtle hints
+                    trap.hintFactor = math.min(0.5, baseFactor)  -- Increased cap from 0.3 to 0.5 for more visible hints
                     
                     -- Small chance to detect the trap passively
-                    local passiveDetectBaseChance = 0.01
+                    local passiveDetectBaseChance = 0.03  -- Increased from 0.01
                     local rogueBonus = 0
                     if GAME.party then
                          for _, member in ipairs(GAME.party) do
                             if member.class == "Rogue" then
-                                rogueBonus = 0.04 -- Rogue specific bonus for passive detection
+                                rogueBonus = 0.1  -- Increased from 0.04 to 0.1 for better passive detection
                                 break
                             end
                         end
                     end
 
                     if math.random() < (passiveDetectBaseChance + rogueBonus) then
-                        self:checkTrapDetection(trap) -- Updated call, no arguments needed as it checks GAME.party
+                        self:checkTrapDetection(trap)
                     end
                 else
                     trap.hintFactor = 0.0

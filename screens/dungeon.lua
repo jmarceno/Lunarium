@@ -65,6 +65,16 @@ function dungeon:init()
     -- Active chest tracking for trap detection/dialog
     self.activeChestEntity = nil
     
+    -- Add active trap tracking for disarming
+    self.activeTrap = nil
+    self.activeTrapDistance = 4.0 -- Maximum distance to show trap prompt
+    
+    -- Add floating text system
+    self.floatingTexts = {}
+    
+    -- Add detected trap tracking to avoid repeat notifications
+    self.detectedTraps = {}
+    
     -- UI elements (Initialize the table first!)
     self.elements = {}
     
@@ -1477,6 +1487,24 @@ function dungeon:draw()
         if self.elements.partyPanel then
             self.elements.partyPanel:draw()
         end
+        
+        -- Draw active trap disarm prompt if a trap is detected
+        if self.activeTrap and self.activeTrap.isTrapDetected and not self.elements.confirmDialog.visible then
+            love.graphics.setFont(screenManager.fonts.medium)
+            love.graphics.setColor(1, 0.5, 0.5, 0.9)
+            
+            -- Draw trap warning in center of screen
+            love.graphics.printf(
+                "Trap Detected! Disarm [T]", 
+                GAME.width / 2 - 150, 
+                GAME.height / 2 + 80,
+                300, "center"
+            )
+        end
+        
+        -- Draw floating texts
+        self:drawFloatingTexts()
+        
     elseif self.state == STATES.COMBAT then
         -- Draw combat UI
         if self.combat then
@@ -1531,6 +1559,29 @@ function dungeon:draw()
         self.elements.confirmDialog:draw()
     end
     
+end
+
+-- Draw floating texts
+function dungeon:drawFloatingTexts()
+    for _, text in ipairs(self.floatingTexts) do
+        -- Calculate alpha based on time left
+        local alpha = math.min(1, text.timeLeft)
+        
+        -- Set color with proper alpha
+        love.graphics.setColor(text.color[1], text.color[2], text.color[3], alpha)
+        
+        -- Set font
+        love.graphics.setFont(screenManager.fonts.medium)
+        
+        -- Draw text
+        love.graphics.printf(
+            text.text,
+            text.x - 150,
+            text.y,
+            300,
+            "center"
+        )
+    end
 end
 
 function dungeon:keypressed(key, scancode, isrepeat)
@@ -2250,8 +2301,52 @@ function dungeon:updateTrapsAndInteractables(dt)
     interactables:updateHintFactors(self.map, self.playerPos.x, self.playerPos.y)
     trapSystem:updateTrapHintFactors(self.map, self.playerPos.x, self.playerPos.y)
     
-    -- Check if player is standing on a trap
-    if self.map.getTrap then
+    -- Check distance to active trap and clear if too far
+    if self.activeTrap then
+        local distance = math.sqrt(
+            (self.playerPos.x - self.activeTrap.x)^2 + 
+            (self.playerPos.y - self.activeTrap.y)^2
+        )
+        
+        if distance > self.activeTrapDistance then
+            self.activeTrap = nil
+        end
+    end
+    
+    -- Reset active trap
+    self.activeTrap = nil
+    
+    -- Check for nearby traps with hintFactor > 0
+    if self.map.activeTraps then
+        for _, trap in ipairs(self.map.activeTraps) do
+            if trap.isTrapActive and not trap.isTrapDisarmed and trap.hintFactor > 0 then
+                -- For traps with significant hint factor, check for detection
+                if not trap.isTrapDetected and trap.hintFactor > 0.2 then
+                    local detectResult = trapSystem:checkTrapDetection(trap)
+                    
+                    -- If trap was just detected and we haven't shown a notification for it yet
+                    if detectResult and not self.detectedTraps[trap] then
+                        self:showFloatingText("Trap Detected!", 
+                             GAME.width / 2, 
+                             GAME.height / 2 - 80, 
+                             {1, 0.8, 0.2, 1},
+                             3.0)
+                        
+                        -- Mark this trap as having shown a notification
+                        self.detectedTraps[trap] = true
+                    end
+                end
+                
+                -- If trap is detected, make it the active trap
+                if trap.isTrapDetected then
+                    self.activeTrap = trap
+                end
+            end
+        end
+    end
+    
+    -- If no nearby trap was found, check if player is standing on a trap
+    if not self.activeTrap and self.map.getTrap then
         local trapX = math.floor(self.playerPos.x)
         local trapY = math.floor(self.playerPos.y)
         local trap = self.map:getTrap(trapX, trapY)
@@ -2259,55 +2354,25 @@ function dungeon:updateTrapsAndInteractables(dt)
         -- If there's a trap and it's active
         if trap and trap.isTrapActive and not trap.isTrapDisarmed then
             -- Check for trap detection
-            local detectResult = false
             if not trap.isTrapDetected then
-                detectResult = trapSystem:checkTrapDetection(trap) -- Updated call
+                local detectResult = trapSystem:checkTrapDetection(trap)
                 
-                -- If trap was just detected, show a notification
-                if detectResult then
+                -- If trap was just detected and we haven't shown a notification for it yet
+                if detectResult and not self.detectedTraps[trap] then
                     self:showFloatingText("Trap Detected!", 
                          GAME.width / 2, 
                          GAME.height / 2 - 80, 
                          {1, 0.8, 0.2, 1},
-                         1.5)
+                         3.0)
+                    
+                    -- Mark this trap as having shown a notification
+                    self.detectedTraps[trap] = true
                 end
             end
             
-            -- If trap is detected and no other dialog is open, show interact prompt
-            if trap.isTrapDetected and not self.elements.confirmDialog.visible then
-                love.graphics.setFont(screenManager.fonts.medium)
-                love.graphics.setColor(1, 0.5, 0.5, 0.9)
-                
-                -- Draw trap warning in center of screen
-                love.graphics.printf(
-                    "Trap Detected! Disarm [E]", 
-                    GAME.width / 2 - 150, 
-                    GAME.height / 2 + 80,
-                    300, "center"
-                )
-                
-                -- Check for disarm attempt (E key is pressed)
-                if love.keyboard.isDown("e") and not self.trapDisarmCooldown then
-                    -- Try to disarm the trap
-                    local disarmResult = trapSystem:attemptDisarm(trap) -- Updated call
-                    
-                    if disarmResult then
-                        -- Show success message
-                        self:showFloatingText("Trap Disarmed!", GAME.width / 2, GAME.height / 2 - 80, {0.2, 1, 0.2, 1}, 1.5)
-                    else
-                        -- Show failure message
-                        self:showFloatingText(
-                            "Disarm Failed!", 
-                            GAME.width / 2, 
-                            GAME.height / 2 - 80, 
-                            {1, 0.2, 0.2, 1},
-                            1.5
-                        )
-                    end
-                    
-                    -- Set cooldown to prevent spam
-                    self.trapDisarmCooldown = 1.0
-                end
+            -- If trap is detected, set it as the active trap
+            if trap.isTrapDetected then
+                self.activeTrap = trap
             else
                 -- If trap is not detected and not triggered yet, chance to trigger it
                 if not trap.isTrapDetected and math.random() < 0.7 and not self.trapTriggerCooldown then
@@ -2320,7 +2385,7 @@ function dungeon:updateTrapsAndInteractables(dt)
                         GAME.width / 2, 
                         GAME.height / 2 - 80, 
                         {1, 0.2, 0.2, 1},
-                        1.5
+                        3.0
                     )
                     
                     -- Set cooldown
@@ -2328,6 +2393,44 @@ function dungeon:updateTrapsAndInteractables(dt)
                 end
             end
         end
+    end
+    
+    -- Check for disarm attempt (T key is pressed)
+    if self.activeTrap and self.activeTrap.isTrapDetected and love.keyboard.isDown("t") and not self.trapDisarmCooldown then
+        -- Try to disarm the trap
+        local disarmResult = trapSystem:attemptDisarm(self.activeTrap)
+        
+        if disarmResult then
+            -- Show success message
+            self:showFloatingText("Trap Disarmed!", GAME.width / 2, GAME.height / 2 - 80, {0.2, 1, 0.2, 1}, 3.0)
+        else
+            -- Show failure message
+            self:showFloatingText(
+                "Disarm Failed!", 
+                GAME.width / 2, 
+                GAME.height / 2 - 80, 
+                {1, 0.2, 0.2, 1},
+                3.0
+            )
+            
+            -- Trigger the trap
+            local damage = trapSystem:activateTrap(self.activeTrap, GAME.party[1])
+            
+            -- Show triggered message
+            self:showFloatingText(
+                "Trap Triggered! -" .. math.floor(damage or 0) .. " damage", 
+                GAME.width / 2, 
+                GAME.height / 2 - 40, 
+                {1, 0, 0, 1},
+                3.0
+            )
+        end
+        
+        -- Clear the active trap regardless of success or failure - only one attempt allowed
+        self.activeTrap = nil
+        
+        -- Set cooldown to prevent spam
+        self.trapDisarmCooldown = 1.0
     end
     
     -- Update cooldowns
@@ -2351,6 +2454,18 @@ function dungeon:updateTrapsAndInteractables(dt)
             self.trapTriggerCooldown = nil
         end
     end
+    
+    -- Update floating texts
+    for i = #self.floatingTexts, 1, -1 do
+        local text = self.floatingTexts[i]
+        text.timeLeft = text.timeLeft - dt
+        text.y = text.y - dt * 30 -- Make text float upward
+        
+        -- Remove expired texts
+        if text.timeLeft <= 0 then
+            table.remove(self.floatingTexts, i)
+        end
+    end
 end
 
 -- Show floating text on screen
@@ -2359,11 +2474,21 @@ function dungeon:showFloatingText(text, x, y, color, duration)
     x = x or GAME.width / 2
     y = y or GAME.height / 2
     color = color or {1, 1, 1, 1}
-    duration = duration or 1.0
+    duration = duration or 3.0
     
-    -- Create floating text effect
-    -- This is just a stub - in a real implementation, this would add the text
-    -- to a list of floating texts that would be rendered and updated over time
+    -- Create floating text object
+    local floatingText = {
+        text = text,
+        x = x,
+        y = y,
+        color = color,
+        timeLeft = duration
+    }
+    
+    -- Add to floating texts table
+    table.insert(self.floatingTexts, floatingText)
+    
+    -- Print to console as well for debugging
     print("Floating text: " .. text)
 end
 

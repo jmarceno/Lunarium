@@ -2,14 +2,14 @@ function love.conf(t)
     t.identity = "DungeonCrawler"           -- The name of the save directory
     t.appendidentity = true                  -- Search files in source directory before save directory
     t.version = "11.4"                       -- The LÖVE version this game was made for
-    t.console = false                         -- Attach a console (Windows only)
+    t.console = true                         -- Attach a console (Windows only)
     
     t.window.title = "Dungeon Crawler"       -- The window title
     t.window.icon = nil                      -- Filepath to an image to use as the window's icon
     t.window.width = 1280                    -- The window width
     t.window.height = 720                    -- The window height
     t.window.borderless = false              -- Remove all border visuals from the window
-    t.window.resizable = true                -- Let the window be user-resizable
+    t.window.resizable = false                -- Let the window be user-resizable
     t.window.minwidth = 1280                 -- Minimum window width if the window is resizable
     t.window.minheight = 720                 -- Minimum window height if the window is resizable
     t.window.fullscreen = false              -- Enable fullscreen
