@@ -146,8 +146,13 @@ void effect() {
         }
         // Apply hint factor for subtle highlighting - only if hintFactor > 0
         else if (rd.hintFactor > 0.0) {
-            // Add a subtle hint by brightening and slightly tinting the wall
-            colour += rd.hintFactor * vec3(0.2, 0.2, 0.1);
+            // Make the hint more noticeable by blending with a distinct color
+            vec3 hintColor = vec3(0.9, 0.7, 0.2); // A brighter yellowish-orange hint
+            // Mix original color with hint color.
+            // rd.hintFactor for walls can go up to 0.8.
+            // A factor of (rd.hintFactor * 0.5) would mean at 0.8, it's a 40% blend.
+            // At 0.3 passive, it's a 15% blend.
+            colour = mix(colour, hintColor, clamp(rd.hintFactor * 0.7, 0.0, 1.0));
         }
         
         love_Canvases[MAIN_CANVAS] = vec4(colour, diffuseColor.a);

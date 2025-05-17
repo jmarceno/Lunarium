@@ -128,9 +128,15 @@ vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords)
     }
     // Apply hint factor for subtle trap highlighting - only if hintFactor > 0
     else if (hintFactor > 0.0) {
-        // Add a subtle hint by adding a reddish tint
-        colour += hintFactor * vec3(0.2, 0.05, 0.05);
-    }
+        // Make the hint more noticeable by blending with a distinct color
+        vec3 hintColor = vec3(0.9, 0.7, 0.2); // A brighter yellowish-orange hint
+        // Mix original color with hint color.
+        // hintFactor for floors is typically 0.0-0.3 (passive) or 0.6 (detected).
+        // We'll scale the mix intensity to make it visible.
+        // A factor of (hintFactor * 0.7) would mean at 0.6 detected, it's a 42% blend.
+        // At 0.3 passive, it's a 21% blend.
+        colour = mix(colour, hintColor, clamp(hintFactor * 0.7, 0.0, 1.0));
+    }    
     
     return vec4(colour, 1);
 }

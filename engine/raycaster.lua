@@ -403,45 +403,54 @@ end
 
 -- Prepare map data for GPU-based floor/ceiling rendering
 function raycaster:prepareMapData(map)
-    if not map.floorsTexture or not map.ceilingsTexture then
-        -- Create floor and ceiling data textures
-        local floorImageData = love.image.newImageData(map.width, map.height, "rgba16f")
-        local ceilingImageData = love.image.newImageData(map.width, map.height, "rgba16f")
+    -- Ensure ImageData objects exist for the map
+    if not map.floorImageData then
+        map.floorImageData = love.image.newImageData(map.width, map.height, "rgba16f")
+        map.floorsTexture = love.graphics.newImage(map.floorImageData)
+    end
+    if not map.ceilingImageData then
+        map.ceilingImageData = love.image.newImageData(map.width, map.height, "rgba16f")
+        map.ceilingsTexture = love.graphics.newImage(map.ceilingImageData)
+    end
+
+    -- Always update floor and ceiling data textures
+    -- This ensures dynamic data like hintFactor is refreshed each frame for floors.
+    local floorImageData = map.floorImageData
+    local ceilingImageData = map.ceilingImageData
         
-        -- Fill textures with tile IDs
-        for y = 0, map.height - 1 do
-            for x = 0, map.width - 1 do
-                local floorTile = map:getFloorTexture(x, y)
-                local ceilingTile = map:getCeilingTexture(x, y)
-                
-                local floorId = type(floorTile) == "string" and assetManager.textureIds.floors[floorTile] or 0
-                local ceilingId = type(ceilingTile) == "string" and assetManager.textureIds.ceilings[ceilingTile] or 0
-                
-                -- Get hint factor for floor (traps)
-                local floorHintFactor = 0.0
-                if map.getHintFactor then
-                    floorHintFactor = map:getHintFactor(x, y, "floor")
-                end
-                
-                -- Debug mode for traps
-                if GAME.debug and map.isTileTrap and map:isTileTrap(x, y) then
-                    floorHintFactor = -1.0  -- Special value for debug visualization
-                end
-                
-                -- Store data: R = textureId, G = hintFactor, B and A unused
-                floorImageData:setPixel(x, y, floorId, floorHintFactor, 0, 0)
-                ceilingImageData:setPixel(x, y, ceilingId, 0, 0, 0) -- No ceiling traps for now
+    -- Fill textures with tile IDs and other dynamic data (like hintFactor for floors)
+    for y = 0, map.height - 1 do
+        for x = 0, map.width - 1 do
+            local floorTile = map:getFloorTexture(x, y)
+            local ceilingTile = map:getCeilingTexture(x, y)
+            
+            local floorId = type(floorTile) == "string" and assetManager.textureIds.floors[floorTile] or 0
+            local ceilingId = type(ceilingTile) == "string" and assetManager.textureIds.ceilings[ceilingTile] or 0
+            
+            -- Get hint factor for floor (traps)
+            local floorHintFactor = 0.0
+            if map.getHintFactor then
+                floorHintFactor = map:getHintFactor(x, y, "floor")
             end
+            
+            -- Debug mode for traps
+            if GAME.debug and map.isTileTrap and map:isTileTrap(x, y) then
+                floorHintFactor = -1.0  -- Special value for debug visualization
+            end
+            
+            -- Store data: R = textureId, G = hintFactor, B and A unused
+            floorImageData:setPixel(x, y, floorId, floorHintFactor, 0, 0)
+            ceilingImageData:setPixel(x, y, ceilingId, 0, 0, 0) -- No ceiling traps for now
         end
-        
-        -- Create textures from the image data
-        map.floorsTexture = love.graphics.newImage(floorImageData)
-        map.ceilingsTexture = love.graphics.newImage(ceilingImageData)
-        map.dimensions = {map.width, map.height}
-        
-        -- Clean up image data
-        floorImageData:release()
-        ceilingImageData:release()
+    end
+    
+    -- Update textures from the image data
+    map.floorsTexture:replacePixels(floorImageData)
+    map.ceilingsTexture:replacePixels(ceilingImageData)
+    
+    -- Ensure map dimensions are set (usually done once, but good to have here)
+    if not map.dimensions then
+      map.dimensions = {map.width, map.height}
     end
     
     return map

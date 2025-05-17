@@ -296,11 +296,11 @@ function interactables:updateHintFactors(map, playerX, playerY)
         end
 
         if hasRogue then
-            detectionRange = 5.0
+            detectionRange = 7.0
             hintMultiplier = 1.5
             -- bestClassType = "Rogue"
         elseif hasMage then
-            detectionRange = 4.0
+            detectionRange = 5.0
             hintMultiplier = 1.2
             -- bestClassType = "Mage"
         end

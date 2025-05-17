@@ -1990,14 +1990,39 @@ function dungeon:drawExploringState()
     if GAME.debug then
         love.graphics.setColor(1, 1, 0)
         love.graphics.setFont(screenManager.fonts.small)
-        love.graphics.print("Player Pos: " .. string.format("%.2f, %.2f", self.playerPos.x, self.playerPos.y), 10, 10)
-        love.graphics.print("Player Angle: " .. string.format("%.2f", self.playerPos.angle), 10, 30)
-        love.graphics.print("Map size: " .. self.map.width .. "x" .. self.map.height, 10, 50)
-        
-        -- Draw entity info
-        for i, entity in ipairs(self.entities) do
-            love.graphics.print("Entity " .. i .. ": " .. string.format("%.2f, %.2f", entity.x, entity.y), 10, 70 + (i-1) * 20)
+        love.graphics.print("Player Pos: " .. string.format("%.2f, %.2f", self.playerPos.x, self.playerPos.y), 10, 70)
+        love.graphics.print("Player Angle: " .. string.format("%.2f", self.playerPos.angle), 10, 90)
+        love.graphics.print("Map size: " .. self.map.width .. "x" .. self.map.height, 10, 110)
+
+        if self.map and self.map.getHintFactor then
+            local playerCellX = math.floor(self.playerPos.x)
+            local playerCellY = math.floor(self.playerPos.y)
+            local floorHint = self.map:getHintFactor(playerCellX, playerCellY, "floor")
+            love.graphics.print("Floor Hint (Player Tile): " .. string.format("%.2f", floorHint or 0), 10, 130)
+
+            -- For wall hint factor: Cast a short ray to find the wall in front.
+            local rayDirX = math.cos(self.playerPos.angle)
+            local rayDirY = math.sin(self.playerPos.angle)
+            -- Check a short distance in front of the player (e.g., 0.5 units)
+            local wallCheckX = self.playerPos.x + rayDirX * 0.5 
+            local wallCheckY = self.playerPos.y + rayDirY * 0.5
+            local wallCellX = math.floor(wallCheckX)
+            local wallCellY = math.floor(wallCheckY)
+            local wallHintText = "Wall Hint (Front): N/A"
+
+            -- Check if the cell in front is actually a wall before getting its hint factor
+            if self.map:getCell(wallCellX, wallCellY) > 0 then 
+                local wallHint = self.map:getHintFactor(wallCellX, wallCellY, "wall")
+                wallHintText = "Wall Hint (Front): " .. string.format("%.2f", wallHint or 0)
+            end
+            love.graphics.print(wallHintText, 10, 150)
         end
+        
+        -- Draw entity info, starting further down to accommodate new hint prints
+        -- local entityStartY = 110 
+        -- for i, entity in ipairs(self.entities) do
+        --     love.graphics.print("Entity " .. i .. ": " .. string.format("%.2f, %.2f", entity.x, entity.y), 10, entityStartY + (i-1) * 20)
+        -- end
     end
 end
 
@@ -2220,10 +2245,7 @@ end
 function dungeon:updateTrapsAndInteractables(dt)
     -- Skip if map is not initialized
     if not self.map then return end
-    
-    -- Get player's current class for detection calculations
-    -- local playerClass = GAME.party[1] and GAME.party[1].class or "Warrior" -- Removed: logic moved into called systems
-
+        
     -- Update hint factors for secret passages and traps based on player position and party composition
     interactables:updateHintFactors(self.map, self.playerPos.x, self.playerPos.y)
     trapSystem:updateTrapHintFactors(self.map, self.playerPos.x, self.playerPos.y)

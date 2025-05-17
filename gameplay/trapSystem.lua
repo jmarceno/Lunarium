@@ -38,7 +38,11 @@ function trapSystem:initializeMap(map)
         if elementType == "floor" then
             local trap = self:getTrap(x, y)
             if trap then
-                return trap.isTrapDetected and not trap.isTrapDisarmed and trap.hintFactor or 0.0
+                -- Directly return the trap's current hintFactor.
+                -- This factor is managed by updateTrapHintFactors based on proximity, detection, and state.
+                -- It will be 0.0 if too far, disarmed, or inactive.
+                -- It will be > 0 for passive hints or detected traps.
+                return trap.hintFactor or 0.0
             end
         end
         return 0.0
@@ -355,7 +359,7 @@ function trapSystem:checkTrapDetection(trap)
         end
 
         if hasRogue then
-            detectionChance = 0.6  -- 60% for rogues
+            detectionChance = 0.7  -- 60% for rogues
             highestPriorityClass = "Rogue"
         elseif hasMage then
             detectionChance = 0.3  -- 30% for mages
@@ -452,7 +456,7 @@ end
 
 -- Update hint factors for traps based on player position and class
 function trapSystem:updateTrapHintFactors(map, playerX, playerY)
-    local detectionRange = 2.0  -- Base detection range (e.g., Warrior or default)
+    local detectionRange = 3.0  -- Base detection range (e.g., Warrior or default)
     local hintMultiplier = 1.0  -- Base hint multiplier
     -- local bestClassType = "Default" -- For logging if needed
 
@@ -464,11 +468,11 @@ function trapSystem:updateTrapHintFactors(map, playerX, playerY)
         end
 
         if hasRogue then
-            detectionRange = 3.0
+            detectionRange = 7.5
             hintMultiplier = 1.5
             -- bestClassType = "Rogue"
         elseif hasMage then
-            detectionRange = 2.5
+            detectionRange = 4.0
             hintMultiplier = 1.2
             -- bestClassType = "Mage"
         end
