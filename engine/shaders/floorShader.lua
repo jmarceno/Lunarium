@@ -20,6 +20,7 @@ uniform float globalDarkness;
 uniform bool torchEnabled;
 uniform float normalMapBlur;
 uniform vec3 lightDir;
+uniform bool gameDebugActive;
 
 // Gaussian blur function for normal maps
 vec3 blurNormal(ArrayImage normalMap, vec3 texCoord, float blurAmount) {
@@ -71,7 +72,11 @@ vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords)
     float uy = floor(ppy);          
     float u = ppx - ux;
     float v = ppy - uy;
-    float tileId = Texel(map, vec2(ux +0.5, uy+0.5) / mapDimensions).r;
+    
+    // Get floor data - now using vec4 to fetch additional data
+    vec4 floorData = Texel(map, vec2(ux +0.5, uy+0.5) / mapDimensions);
+    float tileId = floorData.r;
+    float hintFactor = floorData.g; // Get hint factor from the green channel
     
     vec3 colour;
     if (int(ux) < 0 || int(ux) >= mapDimensions.x || int(uy) < 0 || int(uy) >= mapDimensions.y || tileId < 0) {
@@ -115,6 +120,16 @@ vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords)
         colour.r += intensity * torchRedTint;
         colour.g += intensity * (1.0 - torchRedTint) * 0.5;
         colour.b += intensity * (1.0 - torchRedTint) * 0.2;
+    }
+    
+    // Debug mode for traps - if hintFactor is -1.0, show magenta
+    if (gameDebugActive && hintFactor < -0.5) {
+        colour = vec3(1.0, 0.0, 1.0); // Magenta for debug
+    }
+    // Apply hint factor for subtle trap highlighting - only if hintFactor > 0
+    else if (hintFactor > 0.0) {
+        // Add a subtle hint by adding a reddish tint
+        colour += hintFactor * vec3(0.2, 0.05, 0.05);
     }
     
     return vec4(colour, 1);

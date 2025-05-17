@@ -685,4 +685,70 @@ function character:getAvailableSkills(char)
     return allSkills
 end
 
+-- Apply damage to a character
+function character:applyDamage(char, amount, damageType)
+    if not char or not amount then
+        return 0
+    end
+    
+    -- Default to physical damage if type not specified
+    damageType = damageType or "physical"
+    
+    -- Calculate damage reduction based on defense stats
+    local reduction = 0
+    if damageType == "physical" then
+        -- Use physical defense
+        local defense = char.defense or self:calculateDefense(char)
+        reduction = math.min(0.75, defense / (defense + 50))  -- Cap at 75% reduction
+    elseif damageType == "magic" or damageType == "poison" then
+        -- Use magic defense
+        local magicDefense = char.magicDefense or self:calculateMagicDefense(char)
+        reduction = math.min(0.75, magicDefense / (magicDefense + 50))  -- Cap at 75% reduction
+    end
+    
+    -- Apply damage reduction
+    local finalDamage = math.floor(amount * (1 - reduction))
+    finalDamage = math.max(1, finalDamage)  -- Ensure at least 1 damage
+    
+    -- Apply damage to character
+    char.currentHP = math.max(0, char.currentHP - finalDamage)
+    
+    -- Debug output
+    print(char.name .. " took " .. finalDamage .. " " .. damageType .. " damage (" .. 
+          amount .. " base, " .. math.floor(reduction * 100) .. "% reduction)")
+    
+    return finalDamage
+end
+
+-- Apply status effect to a character
+function character:applyStatusEffect(char, effectType, params)
+    if not char then
+        return false
+    end
+    
+    -- Initialize status effects table if it doesn't exist
+    if not char.statusEffects then
+        char.statusEffects = {}
+    end
+    
+    -- Apply the new status effect
+    char.statusEffects[effectType] = {
+        type = effectType,
+        duration = params.duration or 3, -- Default 3 turns if not specified
+        damage = params.damage or 0,     -- Damage per turn for DoT effects
+        damageType = params.type or "physical",
+        statMods = params.statMods or {} -- For effects that modify stats
+    }
+    
+    -- Debug output
+    local effectDesc = effectType
+    if params.damage and params.damage > 0 then
+        effectDesc = effectDesc .. " (" .. params.damage .. " " .. (params.type or "physical") .. " damage per turn)"
+    end
+    
+    print(char.name .. " affected by " .. effectDesc .. " for " .. (params.duration or 3) .. " turns")
+    
+    return true
+end
+
 return character

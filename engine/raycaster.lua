@@ -186,7 +186,7 @@ function raycaster:init(width, height)
     -- Create data buffer for wall rendering
     -- Data buffer layout:
     -- Row 0: [textureId, wallHeight, texture U, shade]
-    -- Row 1: [rayLength, normalized z, rayDirX, rayDirY]
+    -- Row 1: [rayLength, normalized z, hintFactor, unused]
     self.dataBuffer = love.image.newImageData(self.viewWidth, 2, "rgba16f")
     self.dataBufferTexture = love.graphics.newImage(self.dataBuffer)
     
@@ -417,8 +417,20 @@ function raycaster:prepareMapData(map)
                 local floorId = type(floorTile) == "string" and assetManager.textureIds.floors[floorTile] or 0
                 local ceilingId = type(ceilingTile) == "string" and assetManager.textureIds.ceilings[ceilingTile] or 0
                 
-                floorImageData:setPixel(x, y, floorId, 0, 0, 0)
-                ceilingImageData:setPixel(x, y, ceilingId, 0, 0, 0)
+                -- Get hint factor for floor (traps)
+                local floorHintFactor = 0.0
+                if map.getHintFactor then
+                    floorHintFactor = map:getHintFactor(x, y, "floor")
+                end
+                
+                -- Debug mode for traps
+                if GAME.debug and map.isTileTrap and map:isTileTrap(x, y) then
+                    floorHintFactor = -1.0  -- Special value for debug visualization
+                end
+                
+                -- Store data: R = textureId, G = hintFactor, B and A unused
+                floorImageData:setPixel(x, y, floorId, floorHintFactor, 0, 0)
+                ceilingImageData:setPixel(x, y, ceilingId, 0, 0, 0) -- No ceiling traps for now
             end
         end
         
@@ -477,16 +489,27 @@ function raycaster:renderWalls(map)
                 end
             end
             
+            -- Get hint factor for this wall segment
+            local hintFactor = 0.0
+            if map.getHintFactor then
+                hintFactor = map:getHintFactor(self.result.x, self.result.y, "wall")
+            end
+            
+            -- Check if we need to show debug markers
+            if GAME.debug and map.isWallTrapRelated and map:isWallTrapRelated(self.result.x, self.result.y) then
+                hintFactor = -1.0  -- Special value for debug visualization
+            end
+            
             -- Store wall rendering data in data buffer
             self.dataBuffer:setPixel(x, 0, textureId, wallHeight, self.result.u, shade)
-            self.dataBuffer:setPixel(x, 1, correctedRayLength, correctedRayLength / self.maxDistance, rayDir.x, rayDir.y)
+            self.dataBuffer:setPixel(x, 1, correctedRayLength, correctedRayLength / self.maxDistance, hintFactor, 0)
             
             -- Update Z-buffer for sprite rendering
             self.zBuffer[x + 1] = correctedRayLength
         else
             -- Ray reached max length without hitting anything
             self.dataBuffer:setPixel(x, 0, 0, 0, 0, 0)
-            self.dataBuffer:setPixel(x, 1, self.maxDistance, 1, rayDir.x, rayDir.y)
+            self.dataBuffer:setPixel(x, 1, self.maxDistance, 1, 0, 0)
             self.zBuffer[x + 1] = self.maxDistance
         end
         
@@ -524,6 +547,9 @@ function raycaster:renderWalls(map)
     
     -- Send normal map blur amount
     self.wallShader:send("normalMapBlur", self.normalMapBlur)
+    
+    -- Send game debug flag
+    self.wallShader:send("gameDebugActive", GAME.debug)
     
     -- Draw walls
     love.graphics.rectangle("fill", 0, 0, self.viewWidth, self.viewHeight)
@@ -573,6 +599,9 @@ function raycaster:renderFloorAndCeiling(map)
     -- Send normal map blur amount
     self.ceilingShader:send("normalMapBlur", self.normalMapBlur)
     
+    -- Send game debug flag
+    self.ceilingShader:send("gameDebugActive", GAME.debug)
+    
     -- Draw ceiling
     love.graphics.rectangle("fill", 0, 0, self.viewWidth, self.halfHeight + self.camera.tilt)
     
@@ -604,6 +633,9 @@ function raycaster:renderFloorAndCeiling(map)
     
     -- Send normal map blur amount
     self.floorShader:send("normalMapBlur", self.normalMapBlur)
+    
+    -- Send game debug flag
+    self.floorShader:send("gameDebugActive", GAME.debug)
     
     -- Draw floor
     love.graphics.rectangle("fill", 0, self.halfHeight + self.camera.tilt, self.viewWidth, self.halfHeight - self.camera.tilt)

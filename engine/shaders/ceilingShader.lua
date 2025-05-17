@@ -20,6 +20,7 @@ uniform float globalDarkness;
 uniform bool torchEnabled;
 uniform float normalMapBlur;
 uniform vec3 lightDir;
+uniform bool gameDebugActive;
 
 // Gaussian blur function for normal maps
 vec3 blurNormal(ArrayImage normalMap, vec3 texCoord, float blurAmount) {
@@ -62,25 +63,24 @@ vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords)
     vec2 dir = vec2(cos(rayAngle), sin(rayAngle));
     
     float offsetCorrection = (1*width-(height*2)) / 2;
-    float z = (height+cameraOffset+offsetCorrection)/(height - screen_coords.y + cameraTilt);
-    
-    float s = 1.0f - (z/shadeDepth);
+    float z = -1.0*(height+cameraOffset+offsetCorrection)/(screen_coords.y-cameraTilt-(height));
+    float s = 1.0f - (-z/shadeDepth);
     s = clamp(s, 0.0, 1.0); // Allow complete darkness at max distance
-    
     float ppx = position.x + dir.x * (z/cos(rayAngle-angle));
     float ppy = position.y + dir.y * (z/cos(rayAngle-angle));
-    
     float ux = floor(ppx);
-    float uy = floor(ppy);
-    
+    float uy = floor(ppy);          
     float u = ppx - ux;
     float v = ppy - uy;
     
-    float tileId = Texel(map, vec2(ux +0.5, uy+0.5) / mapDimensions).r;
+    // Get ceiling data - now using vec4 to fetch additional data
+    vec4 ceilingData = Texel(map, vec2(ux +0.5, uy+0.5) / mapDimensions);
+    float tileId = ceilingData.r;
+    float hintFactor = ceilingData.g; // For future ceiling traps if needed
     
     vec3 colour;
     if (int(ux) < 0 || int(ux) >= mapDimensions.x || int(uy) < 0 || int(uy) >= mapDimensions.y || tileId < 0) {
-        colour = vec3(0.1, 0.1, 0.3) * s; // Default ceiling color
+        colour = vec3(0.2, 0.2, 0.4) * s; // Default color for out of bounds
     } else {
         // Get diffuse color from texture
         vec4 diffuseColor = Texel(textures, vec3(u, v, tileId));
@@ -95,8 +95,8 @@ vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords)
         // Blend between down vector and perturbed normal based on normal map intensity
         vec3 ceilingNormal = normalize(vec3(normal.xy * 0.5, -1.0));
         
-        // Calculate diffuse lighting (invert light direction for ceiling)
-        float diffuse = max(0.3, dot(ceilingNormal, -lightDir));
+        // Calculate diffuse lighting
+        float diffuse = max(0.3, dot(ceilingNormal, lightDir));
         
         // Apply lighting and distance shading
         colour = diffuseColor.rgb * diffuse * s;
@@ -111,7 +111,7 @@ vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords)
         float pulse = 0.5 + 0.5 * sin(torchTime);
         
         // Distance-based torch light (stronger near camera)
-        float torchFactor = max(0.0, 1.0 - (z / torchRange));
+        float torchFactor = max(0.0, 1.0 - (-z / torchRange));
         
         // Combine pulse with distance for torch intensity
         float intensity = torchIntensity * pulse * torchFactor;
@@ -120,6 +120,16 @@ vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords)
         colour.r += intensity * torchRedTint;
         colour.g += intensity * (1.0 - torchRedTint) * 0.5;
         colour.b += intensity * (1.0 - torchRedTint) * 0.2;
+    }
+    
+    // Debug mode for ceiling traps (if we implement them in the future)
+    if (gameDebugActive && hintFactor < -0.5) {
+        colour = vec3(1.0, 0.0, 1.0); // Magenta for debug
+    }
+    // Apply hint factor for future ceiling trap highlighting
+    else if (hintFactor > 0.0) {
+        // Add a subtle hint
+        colour += hintFactor * vec3(0.2, 0.2, 0.05);
     }
     
     return vec4(colour, 1);

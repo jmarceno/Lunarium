@@ -11,6 +11,8 @@ local layoutHelper = screenManager.layoutHelper
 local characterSystem = require("gameplay/character")
 local gameState = require("states/gameState")
 local minionManager = require("gameplay/minionManager")
+local interactables = require("gameplay/interactables")
+local trapSystem = require("gameplay/trapSystem")
 local dungeon = screenManager:createScreen("Dungeon")
 local partyPanel = require("screens/ui_slices/partyPanel")
 
@@ -59,6 +61,9 @@ function dungeon:init()
     
     -- Entrance entity tracking for dialog
     self.activeEntranceEntity = nil
+    
+    -- Active chest tracking for trap detection/dialog
+    self.activeChestEntity = nil
     
     -- UI elements (Initialize the table first!)
     self.elements = {}
@@ -226,6 +231,76 @@ function dungeon:init()
                 end
             end
             
+            -- Draw traps in debug mode
+            if GAME.debug and dungeon.map.activeTraps then
+                for _, trap in ipairs(dungeon.map.activeTraps) do
+                    -- Draw all traps on minimap with cyan color
+                    love.graphics.setColor(0, 1, 1) -- Cyan color for traps in debug mode
+                    love.graphics.rectangle("fill", 
+                        self.x + trap.x * cellSize + cellSize/4, 
+                        self.y + trap.y * cellSize + cellSize/4, 
+                        cellSize/2, cellSize/2)
+                    
+                    -- Draw X for disarmed traps
+                    if trap.isTrapDisarmed then
+                        love.graphics.setColor(0.8, 0, 0) -- Red color for X
+                        -- Draw an X by using two lines
+                        love.graphics.line(
+                            self.x + trap.x * cellSize + cellSize/4,
+                            self.y + trap.y * cellSize + cellSize/4,
+                            self.x + trap.x * cellSize + cellSize*3/4,
+                            self.y + trap.y * cellSize + cellSize*3/4
+                        )
+                        love.graphics.line(
+                            self.x + trap.x * cellSize + cellSize*3/4,
+                            self.y + trap.y * cellSize + cellSize/4,
+                            self.x + trap.x * cellSize + cellSize/4,
+                            self.y + trap.y * cellSize + cellSize*3/4
+                        )
+                    end
+                end
+            end
+            
+            -- Draw secret passages in debug mode
+            if GAME.debug and dungeon.map.secretPassages then
+                for _, passage in ipairs(dungeon.map.secretPassages) do
+                    -- Use a special color for secret passages
+                    if passage.secretPassageRevealed then
+                        -- Green for revealed passages
+                        love.graphics.setColor(0, 0.8, 0.2)
+                    else
+                        -- Magenta for hidden passages
+                        love.graphics.setColor(1, 0, 1)
+                    end
+                    
+                    -- Draw a diamond shape for secret passages
+                    local centerX = self.x + passage.x * cellSize + cellSize/2
+                    local centerY = self.y + passage.y * cellSize + cellSize/2
+                    local size = cellSize/2
+                    
+                    love.graphics.polygon("fill", 
+                        centerX, centerY - size/2,  -- Top point
+                        centerX + size/2, centerY,  -- Right point
+                        centerX, centerY + size/2,  -- Bottom point
+                        centerX - size/2, centerY   -- Left point
+                    )
+                end
+            end
+            
+            -- Draw interactable walls in debug mode
+            if GAME.debug and dungeon.map.interactableWalls then
+                for _, wall in ipairs(dungeon.map.interactableWalls) do
+                    -- Use orange for interactable walls
+                    love.graphics.setColor(1, 0.5, 0)
+                    
+                    -- Draw a smaller square for interactable walls
+                    love.graphics.rectangle("fill", 
+                        self.x + wall.x * cellSize + cellSize/3, 
+                        self.y + wall.y * cellSize + cellSize/3, 
+                        cellSize/3, cellSize/3)
+                end
+            end
+            
             -- Draw objective if revealed
             local objX = math.floor(dungeon.objective.x)
             local objY = math.floor(dungeon.objective.y)
@@ -325,6 +400,17 @@ function dungeon:init()
     minionManager:init()
     
     return self
+end
+
+function dungeon:partyHasRogue()
+    if GAME.party then
+        for _, member in ipairs(GAME.party) do
+            if member.class == "Rogue" then
+                return true
+            end
+        end
+    end
+    return false
 end
 
 function dungeon:enter(params)
@@ -791,9 +877,143 @@ function dungeon:addFillerEntities(difficulty, count, avoidEnd)
                 color = {1, 0.8, 0},
                 contents = {}
             }
+            
+            -- Determine if chest is trapped (25% chance + higher chance with higher difficulty)
+            local trapChance = 0.25 + (difficulty * 0.05)
+            if math.random() < trapChance then
+                item.isTrapped = true
+                
+                -- Determine trap type
+                local trapTypes = {"poison_needle", "gas_cloud", "magic_blast"}
+                item.trapType = trapTypes[math.random(1, #trapTypes)]
+                
+                -- Optional: Set a different texture for trapped chests
+                -- item.texture = "chest_trapped_subtle"
+                
+                print("Added trapped chest with " .. item.trapType .. " trap")
+            end
+            
             -- Add random loot to chest
-            item.contents = itemSystem:generateRandomLoot(difficulty, math.random(1,2)) -- Use itemSystem
-            itemSystem:addToInventory(item)
+            item.contents = itemSystem:generateRandomLoot(difficulty, math.random(1,2))
+            
+            -- Add chest to entities
+            table.insert(self.entities, item)
+        end
+    end
+    
+    -- Add traps and secret passages
+    self:addTrapsAndSecretPassages(difficulty)
+end
+
+-- Add traps and secret passages to the dungeon
+function dungeon:addTrapsAndSecretPassages(difficulty)
+    -- Initialize interactables and trap systems for the map
+    self.map = interactables:initializeMap(self.map)
+    self.map = trapSystem:initializeMap(self.map)
+    
+    -- Calculate number of traps and secret passages based on difficulty
+    local numTraps = math.floor(3 + (difficulty * 2))
+    local numSecretPassages = math.floor(1 + (difficulty * 0.5))
+    
+    print("Adding " .. numTraps .. " traps and " .. numSecretPassages .. " secret passages")
+    
+    -- Add floor traps
+    for i = 1, numTraps do
+        local x, y = self:findValidSpawnPosition(false)
+        if x then
+            -- Select a random trap type
+            local trapTypes = {"spike", "gas", "dart"}
+            local trapType = trapTypes[math.random(1, #trapTypes)]
+            
+            -- Add trap to the map
+            trapSystem:addTrap(self.map, x, y, {
+                trapType = trapType,
+                hintFactor = 0 -- Initially not visible
+            })
+            
+            print("Added " .. trapType .. " trap at " .. x .. "," .. y)
+        end
+    end
+    
+    -- Create some interactable walls that reveal secret passages
+    for i = 1, numSecretPassages do
+        -- Find a wall tile that isn't on the edge of the map
+        local attempts = 0
+        local maxAttempts = 50
+        local wallX, wallY, passageX, passageY
+        
+        while attempts < maxAttempts do
+            attempts = attempts + 1
+            
+            -- Get a random wall tile
+            wallX = math.random(2, self.map.width - 3)
+            wallY = math.random(2, self.map.height - 3)
+            
+            -- Only use wall tiles
+            if self.map:getCell(wallX, wallY) > 0 then
+                -- Look for an adjacent wall to turn into a passage
+                -- Try all 4 directions
+                local dirs = {{1,0}, {0,1}, {-1,0}, {0,-1}}
+                local shuffled = {}
+                for j, dir in ipairs(dirs) do shuffled[j] = dir end
+                
+                -- Shuffle directions
+                for j = #shuffled, 2, -1 do
+                    local k = math.random(1, j)
+                    shuffled[j], shuffled[k] = shuffled[k], shuffled[j]
+                end
+                
+                -- Check each direction
+                for _, dir in ipairs(shuffled) do
+                    passageX = wallX + dir[1]
+                    passageY = wallY + dir[2]
+                    
+                    -- Make sure the passage is a wall
+                    if self.map:getCell(passageX, passageY) > 0 then
+                        -- Check if there's open space beyond the passage
+                        local beyondX = passageX + dir[1]
+                        local beyondY = passageY + dir[2]
+                        
+                        if beyondX > 0 and beyondX < self.map.width and
+                           beyondY > 0 and beyondY < self.map.height and
+                           self.map:getCell(beyondX, beyondY) == 0 then
+                            -- We found a suitable place for a secret passage
+                            
+                            -- Create an interactable wall
+                            interactables:addInteractableWall(self.map, wallX, wallY, {
+                                interactionPrompt = "Examine Wall [E]",
+                                revealsPassageAt = {x = passageX, y = passageY}
+                            })
+                            
+                            -- Create a secret passage
+                            interactables:addSecretPassage(self.map, passageX, passageY, {
+                                secretPassageType = "slide"
+                            })
+                            
+                            print("Added secret passage at " .. passageX .. "," .. passageY .. " revealed by wall at " .. wallX .. "," .. wallY)
+                            
+                            -- Add some treasure beyond the passage
+                            local treasureItem = {
+                                x = beyondX + 0.5,
+                                y = beyondY + 0.5,
+                                type = "chest",
+                                color = {1, 0.8, 0},
+                                contents = {}
+                            }
+                            
+                            -- Make the secret chest loot more valuable
+                            treasureItem.contents = itemSystem:generateRandomLoot(difficulty + 1, math.random(2, 3))
+                            
+                            -- Add chest to entities
+                            table.insert(self.entities, treasureItem)
+                            
+                            -- Break out of both loops
+                            attempts = maxAttempts
+                            break
+                        end
+                    end
+                end
+            end
         end
     end
 end
@@ -811,8 +1031,14 @@ function dungeon:update(dt)
     -- Update minion durations
     minionManager:updateDurations(dt)
 
+    -- Update traps and interactables for all states
+    self:updateTrapsAndInteractables(dt)
+    
     -- Update based on current state
     if self.state == STATES.EXPLORING then
+        -- Check wall interactions (needs to be in exploring state)
+        self:checkWallInteraction()
+        
         -- Check if a kill quest was just completed
         if self.currentQuest and self.currentQuest.type == "KILL" and 
            self.currentQuest.objective.current >= self.currentQuest.objective.count and
@@ -1085,47 +1311,60 @@ function dungeon:checkEntityInteraction()
                 
                 break
             elseif entity.type == "chest" then
-                -- Open chest/collect item
-                self.state = STATES.LOOT
-                print("Opening chest...") -- Debug
-                self.currentLoot = entity
+                -- If the confirmation dialog is already visible AND it's for this current chest entity,
+                -- we've already processed it. Don't re-evaluate message or re-show, to prevent flicker.
+                if self.elements.confirmDialog.visible and self.activeChestEntity == entity then
+                    break -- Interaction with this chest is already active via its dialog.
+                end
+
+                -- Otherwise, (no dialog visible, or dialog is for a different entity),
+                -- we proceed to interact with THIS chest.
+                self.activeChestEntity = entity -- Mark this chest as the current interaction focus.
                 
-                -- For now, automatically collect loot
-                if GAME.inventory and entity.contents then
-                    for _, item in ipairs(entity.contents) do
-                        if item.type == "gold" then
-                            GAME.gold = (GAME.gold or 0) + item.amount
-                            print("Collected Gold: " .. item.amount) -- Debug
-                        else
-                            -- Check if this collected item is a quest item
-                            if item.questItemId and self.currentQuest and 
-                               self.currentQuest.type == "COLLECT" and 
-                               item.questItemId == self.currentQuest.objective.itemId then
-                                print("Collected QUEST ITEM from chest: " .. item.name)
-                                questSystem:updateProgress("item_pickup", {itemId = item.questItemId, count = item.count or 1})
-                            end
-                            itemSystem:addToInventory(item)
-                            print("Collected Item: " .. item.name) -- Debug
-                            -- Notify quest system if it's a regular item pickup (might be relevant for some quests)
+                -- Construct confirmation message
+                local message = "Open this chest?"
+                
+                -- If player is a Rogue or has high enough perception and chest is trapped, 
+                -- show warning message instead of the standard message.
+                -- This random check will now effectively run only once when the dialog for this chest is first shown.
+                if entity.isTrapped then
+                    local partyHasRogue = self:partyHasRogue()
+                    if partyHasRogue then
+                        message = "This chest seems suspicious. Open it anyway?"
+                    elseif math.random() < 0.3 then -- Fallback perception check if no Rogue in party
+                        message = "This chest seems suspicious. Open it anyway?"
+                    end
+                end
+                
+                -- Show confirmation dialog
+                self.elements.confirmDialog:show(
+                    message,
+                    function() -- onConfirm (Yes - Open the chest)
+                        -- If chest is trapped, trigger the trap
+                        if entity.isTrapped then
+                            self:triggerChestTrap(entity)
                         end
+                        
+                        -- Collect loot regardless of trap
+                        self:collectChestLoot(entity)
+                        
+                        -- Remove chest from entities
+                        for i = #self.entities, 1, -1 do
+                            if self.entities[i] == entity then
+                                table.remove(self.entities, i)
+                                break
+                            end
+                        end
+                        
+                        -- Reset active chest (dialog's onConfirm should also ensure visibility = false)
+                        self.activeChestEntity = nil 
+                    end,
+                    function() -- onCancel (No - Leave the chest)
+                        -- Reset active chest (dialog's onCancel should also ensure visibility = false)
+                        self.activeChestEntity = nil
                     end
-                end
-                
-                -- Play pickup sound
-                assetManager:playSound("pickup")
-                
-                -- Remove chest from entities
-                for i = #self.entities, 1, -1 do
-                    if self.entities[i] == entity then
-                        table.remove(self.entities, i)
-                        break
-                    end
-                end
-                
-                -- Return to exploring state
-                self.state = STATES.EXPLORING
-                self.currentLoot = nil
-                -- No break here, check other interactions too
+                )
+                break
             elseif entity.type == "objective" and entity.isObjective then
                 -- Mark objective as reached (but don't complete it yet)
                 self.objective.reached = true
@@ -1825,6 +2064,285 @@ function dungeon:refreshCharacterStats()
     end
     
     print("Character stats refreshed to reflect equipment changes")
+end
+
+-- Trigger a chest trap effect (called from confirm dialog)
+function dungeon:triggerChestTrap(chestEntity)
+    if not chestEntity or not chestEntity.isTrapped or not chestEntity.trapType then
+        return false
+    end
+    
+    -- Target is always the lead character
+    local target = GAME.party[1]
+    
+    -- Call the trap system to apply trap effects
+    local damage = trapSystem:triggerChestTrap(chestEntity, target)
+    
+    -- Show floating text for damage
+    if damage and damage > 0 then
+        self:showFloatingText(
+            string.format("-%d", damage), 
+            GAME.width / 2, 
+            GAME.height / 2 - 50, 
+            {1, 0.2, 0.2, 1},
+            1.5
+        )
+    end
+    
+    return true
+end
+
+-- Collect loot from a chest (called after trap check)
+function dungeon:collectChestLoot(chestEntity)
+    if not chestEntity or not chestEntity.contents then
+        return false
+    end
+    
+    -- Add all items to inventory
+    for _, item in ipairs(chestEntity.contents) do
+        if item.type == "gold" then
+            GAME.gold = (GAME.gold or 0) + item.amount
+            print("Collected Gold: " .. item.amount) -- Debug
+        else
+            -- Check if this collected item is a quest item
+            if item.questItemId and self.currentQuest and 
+               self.currentQuest.type == "COLLECT" and 
+               item.questItemId == self.currentQuest.objective.itemId then
+                print("Collected QUEST ITEM from chest: " .. item.name)
+                questSystem:updateProgress("item_pickup", {itemId = item.questItemId, count = item.count or 1})
+            end
+            itemSystem:addToInventory(item)
+            print("Collected Item: " .. item.name) -- Debug
+        end
+    end
+    
+    -- Play pickup sound
+    assetManager:playSound("pickup")
+    
+    return true
+end
+
+-- Check if player is looking at an interactable wall and handle interaction
+function dungeon:checkWallInteraction()
+    -- Skip if a dialog is already visible
+    if self.elements.confirmDialog.visible then
+        return
+    end
+    
+    -- Define ray parameters
+    local maxRayLength = 1.5 -- Maximum interaction distance
+    local rayDir = {
+        x = math.cos(self.playerPos.angle),
+        y = math.sin(self.playerPos.angle)
+    }
+    
+    -- Simple ray cast to check for walls in front of player
+    local rayX = self.playerPos.x
+    local rayY = self.playerPos.y
+    local distTraveled = 0
+    local step = 0.05 -- Step size for ray
+    
+    while distTraveled < maxRayLength do
+        -- Move ray forward
+        rayX = rayX + rayDir.x * step
+        rayY = rayY + rayDir.y * step
+        distTraveled = distTraveled + step
+        
+        -- Get map cell at ray position
+        local cellX = math.floor(rayX)
+        local cellY = math.floor(rayY)
+        
+        -- Check if we hit a wall
+        if self.map:getCell(cellX, cellY) > 0 then
+            -- Check if it's an interactable wall
+            if self.map.isWallInteractable and self.map:isWallInteractable(cellX, cellY) then
+                -- Show interaction prompt
+                love.graphics.setFont(screenManager.fonts.medium)
+                love.graphics.setColor(1, 1, 1, 0.9)
+                
+                -- Get the interactable wall for prompt text
+                local wall = self.map:getInteractableWall(cellX, cellY)
+                local promptText = wall and wall.interactionPrompt or "Interact [E]"
+                
+                -- Draw prompt in center of screen
+                love.graphics.printf(
+                    promptText, 
+                    GAME.width / 2 - 150, 
+                    GAME.height / 2 + 50,
+                    300, "center"
+                )
+                
+                -- Check for interaction (E key is pressed)
+                if love.keyboard.isDown("e") then
+                    -- Interact with the wall
+                    if interactables:activateWall(self.map, cellX, cellY, GAME.party[1]) then
+                        -- If successful, don't allow interaction for a short time to prevent spam
+                        self.wallInteractionCooldown = 0.5
+                    end
+                end
+            end
+            
+            -- Check if it's a secret passage
+            if self.map.isSecretPassage and self.map:isSecretPassage(cellX, cellY) then
+                local passage = self.map:getSecretPassage(cellX, cellY)
+                
+                -- If passage is not yet revealed, show interaction prompt
+                if passage and not passage.secretPassageRevealed then
+                    love.graphics.setFont(screenManager.fonts.medium)
+                    love.graphics.setColor(1, 1, 1, 0.9)
+                    
+                    -- Draw prompt in center of screen
+                    love.graphics.printf(
+                        "Examine wall [E]", 
+                        GAME.width / 2 - 150, 
+                        GAME.height / 2 + 50,
+                        300, "center"
+                    )
+                    
+                    -- Check for interaction (E key is pressed)
+                    if love.keyboard.isDown("e") then
+                        -- Try to reveal the passage
+                        if interactables:revealSecretPassage(self.map, cellX, cellY) then
+                            -- If successful, don't allow interaction for a short time
+                            self.wallInteractionCooldown = 0.5
+                        end
+                    end
+                end
+            end
+            
+            -- Don't need to check further
+            break
+        end
+    end
+end
+
+-- Update trap detection and interaction hints based on player position
+function dungeon:updateTrapsAndInteractables(dt)
+    -- Skip if map is not initialized
+    if not self.map then return end
+    
+    -- Get player's current class for detection calculations
+    -- local playerClass = GAME.party[1] and GAME.party[1].class or "Warrior" -- Removed: logic moved into called systems
+
+    -- Update hint factors for secret passages and traps based on player position and party composition
+    interactables:updateHintFactors(self.map, self.playerPos.x, self.playerPos.y)
+    trapSystem:updateTrapHintFactors(self.map, self.playerPos.x, self.playerPos.y)
+    
+    -- Check if player is standing on a trap
+    if self.map.getTrap then
+        local trapX = math.floor(self.playerPos.x)
+        local trapY = math.floor(self.playerPos.y)
+        local trap = self.map:getTrap(trapX, trapY)
+        
+        -- If there's a trap and it's active
+        if trap and trap.isTrapActive and not trap.isTrapDisarmed then
+            -- Check for trap detection
+            local detectResult = false
+            if not trap.isTrapDetected then
+                detectResult = trapSystem:checkTrapDetection(trap) -- Updated call
+                
+                -- If trap was just detected, show a notification
+                if detectResult then
+                    self:showFloatingText("Trap Detected!", 
+                         GAME.width / 2, 
+                         GAME.height / 2 - 80, 
+                         {1, 0.8, 0.2, 1},
+                         1.5)
+                end
+            end
+            
+            -- If trap is detected and no other dialog is open, show interact prompt
+            if trap.isTrapDetected and not self.elements.confirmDialog.visible then
+                love.graphics.setFont(screenManager.fonts.medium)
+                love.graphics.setColor(1, 0.5, 0.5, 0.9)
+                
+                -- Draw trap warning in center of screen
+                love.graphics.printf(
+                    "Trap Detected! Disarm [E]", 
+                    GAME.width / 2 - 150, 
+                    GAME.height / 2 + 80,
+                    300, "center"
+                )
+                
+                -- Check for disarm attempt (E key is pressed)
+                if love.keyboard.isDown("e") and not self.trapDisarmCooldown then
+                    -- Try to disarm the trap
+                    local disarmResult = trapSystem:attemptDisarm(trap) -- Updated call
+                    
+                    if disarmResult then
+                        -- Show success message
+                        self:showFloatingText("Trap Disarmed!", GAME.width / 2, GAME.height / 2 - 80, {0.2, 1, 0.2, 1}, 1.5)
+                    else
+                        -- Show failure message
+                        self:showFloatingText(
+                            "Disarm Failed!", 
+                            GAME.width / 2, 
+                            GAME.height / 2 - 80, 
+                            {1, 0.2, 0.2, 1},
+                            1.5
+                        )
+                    end
+                    
+                    -- Set cooldown to prevent spam
+                    self.trapDisarmCooldown = 1.0
+                end
+            else
+                -- If trap is not detected and not triggered yet, chance to trigger it
+                if not trap.isTrapDetected and math.random() < 0.7 and not self.trapTriggerCooldown then
+                    -- Trigger the trap
+                    trapSystem:activateTrap(trap, GAME.party[1])
+                    
+                    -- Show damage message
+                    self:showFloatingText(
+                        "Triggered Trap!", 
+                        GAME.width / 2, 
+                        GAME.height / 2 - 80, 
+                        {1, 0.2, 0.2, 1},
+                        1.5
+                    )
+                    
+                    -- Set cooldown
+                    self.trapTriggerCooldown = 1.0
+                end
+            end
+        end
+    end
+    
+    -- Update cooldowns
+    if self.wallInteractionCooldown then
+        self.wallInteractionCooldown = self.wallInteractionCooldown - dt
+        if self.wallInteractionCooldown <= 0 then
+            self.wallInteractionCooldown = nil
+        end
+    end
+    
+    if self.trapDisarmCooldown then
+        self.trapDisarmCooldown = self.trapDisarmCooldown - dt
+        if self.trapDisarmCooldown <= 0 then
+            self.trapDisarmCooldown = nil
+        end
+    end
+    
+    if self.trapTriggerCooldown then
+        self.trapTriggerCooldown = self.trapTriggerCooldown - dt
+        if self.trapTriggerCooldown <= 0 then
+            self.trapTriggerCooldown = nil
+        end
+    end
+end
+
+-- Show floating text on screen
+function dungeon:showFloatingText(text, x, y, color, duration)
+    -- Default values
+    x = x or GAME.width / 2
+    y = y or GAME.height / 2
+    color = color or {1, 1, 1, 1}
+    duration = duration or 1.0
+    
+    -- Create floating text effect
+    -- This is just a stub - in a real implementation, this would add the text
+    -- to a list of floating texts that would be rendered and updated over time
+    print("Floating text: " .. text)
 end
 
 return dungeon

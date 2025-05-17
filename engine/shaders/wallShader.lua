@@ -9,6 +9,7 @@ struct RenderData {
     float shade;
     float rayLength;
     float z;
+    float hintFactor;
 };
 
 uniform Image dataBuffer;
@@ -24,6 +25,7 @@ uniform float globalDarkness;
 uniform bool torchEnabled;
 uniform float normalMapBlur;
 uniform vec3 lightDir;
+uniform bool gameDebugActive;
 
 // Gaussian blur function for normal maps
 vec3 blurNormal(ArrayImage normalMap, vec3 texCoord, float blurAmount) {
@@ -71,6 +73,7 @@ RenderData extractRenderData(float screenU) {
     result.shade = row1.a;
     result.rayLength = row2.r;
     result.z = row2.g;
+    result.hintFactor = row2.b;
     
     return result;
 }
@@ -135,6 +138,16 @@ void effect() {
             colour.r += intensity * torchRedTint;
             colour.g += intensity * (1.0 - torchRedTint) * 0.5;
             colour.b += intensity * (1.0 - torchRedTint) * 0.2;
+        }
+        
+        // Debug mode for traps/secret walls - if hintFactor is -1.0, show magenta
+        if (gameDebugActive && rd.hintFactor < -0.5) {
+            colour = vec3(1.0, 0.0, 1.0); // Magenta for debug
+        }
+        // Apply hint factor for subtle highlighting - only if hintFactor > 0
+        else if (rd.hintFactor > 0.0) {
+            // Add a subtle hint by brightening and slightly tinting the wall
+            colour += rd.hintFactor * vec3(0.2, 0.2, 0.1);
         }
         
         love_Canvases[MAIN_CANVAS] = vec4(colour, diffuseColor.a);
