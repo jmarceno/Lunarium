@@ -1,16 +1,18 @@
 # TODOs
 - How to deal with damage out of combat in the dungeon?
   - Deaths
-  - DoTs
-  - Add pain sounds - male and female
-- Add visual tips and texts for traps and interactables
-- Add sounds for traps and interactables
+
+- Add pain sounds - male and female
+
 - Check if Walls and interactables detection is properly working
-- Check new skills and implement support for them. For example Dot 
+
 - Portraits
   - Not working on battle screen
   - Too Small on level up screen
   
+- Check music on E:\Game Development\Sons\IDA_Music_Pack\Wavs\
+- Check textures from F:\Backup\Game Development\Textures
+
 - Level up screen has some overlap with the fonts asking the player to choose the path and the job list
 - Reorganize the character creator screen to make it less tiresome (adding attributes is a pain)
 - Check Message - ESCORT quest population not fully implemented. This is a console message that is being displayed

@@ -25,9 +25,24 @@ function levelUpScreen:init()
         attributes = {},
         newSkills = {}
     }
+    
+    -- Scroll position for job options
+    self.jobOptionsScroll = 0
+    self.maxJobOptionsVisible = 6 -- Max number of job options visible at once
 
     self.elements = {}
     self:createUI()
+    
+    -- Attribute descriptions
+    self.attributeDescriptions = {
+        STR = "Strength: Increases physical damage and hit chance. Essential for melee fighters.",
+        INT = "Intelligence: Boosts magic power and maximum mana. Critical for spellcasters.",
+        CON = "Constitution: Enhances health points and physical resilience. Important for tanks.",
+        WIL = "Will: Improves magic resistance and mental fortitude. Useful against magical attacks.",
+        CHA = "Charisma: Affects NPC interactions and certain persuasion skills. Helps in social situations.",
+        DEX = "Dexterity: Improves ranged attacks, dodge chance, and action speed. Key for rogues.",
+        WIS = "Wisdom: Enhances healing power, skill effectiveness, and mana regeneration. Important for healers."
+    }
 end
 
 function levelUpScreen:createUI()
@@ -39,15 +54,46 @@ function levelUpScreen:createUI()
         height = GAME.height - 100
     }
 
+    -- Option Buttons Panel (with scrolling)
+    self.elements.optionsPanel = {
+        x = self.elements.mainPanel.x + 20,
+        y = self.elements.mainPanel.y + 150,
+        width = self.elements.mainPanel.width / 2 - 60,
+        height = 300
+    }
+
     -- Option Buttons (will be created dynamically)
     self.elements.optionButtons = {}
 
-    -- Gains Display Area
+    -- Scroll buttons for job options
+    self.elements.scrollUpButton = screenManager.UI.Button(
+        self.elements.optionsPanel.x + self.elements.optionsPanel.width - 30,
+        self.elements.optionsPanel.y,
+        30, 30, "▲",
+        function() self:scrollJobOptions(-1) end
+    )
+    
+    self.elements.scrollDownButton = screenManager.UI.Button(
+        self.elements.optionsPanel.x + self.elements.optionsPanel.width - 30,
+        self.elements.optionsPanel.y + self.elements.optionsPanel.height - 30,
+        30, 30, "▼",
+        function() self:scrollJobOptions(1) end
+    )
+
+    -- Gains Display Area (with more details)
     self.elements.gainsPanel = {
         x = self.elements.mainPanel.x + self.elements.mainPanel.width / 2 - 20,
         y = self.elements.mainPanel.y + 150,
         width = self.elements.mainPanel.width / 2,
         height = self.elements.mainPanel.height - 250
+    }
+
+    -- Job Description Panel
+    self.elements.jobDescPanel = {
+        x = self.elements.optionsPanel.x,
+        y = self.elements.optionsPanel.y + self.elements.optionsPanel.height + 20,
+        width = self.elements.optionsPanel.width,
+        height = 120
     }
 
     -- Confirmation Button
@@ -85,11 +131,14 @@ function levelUpScreen:enter(params)
     self.charactersToLevel = {}
     self.currentCharacterIndex = 1
     self.selectedOption = nil
+    self.jobOptionsScroll = 0 -- Reset scroll position
     self.potentialGains = { attributes = {}, newSkills = {} }
     self.elements.confirmButton.visible = false
     self.elements.backButton.visible = false
     self.elements.finishButton.visible = false
     self.elements.optionButtons = {} -- Clear old buttons
+    self.elements.scrollUpButton.visible = false
+    self.elements.scrollDownButton.visible = false
 
     if params and params.charactersToLevelUp then
         self.charactersToLevel = params.charactersToLevelUp
@@ -180,18 +229,31 @@ end
 function levelUpScreen:generateOptionButtons(character)
     self.elements.optionButtons = {}
     local availableOptions = self:getAvailableLevelUpOptions(character)
-    local buttonY = self.elements.mainPanel.y + 150
-    local buttonX = self.elements.mainPanel.x + 20
-    local buttonWidth = self.elements.mainPanel.width / 2 - 60
     local buttonHeight = 40
     local spacing = 10
-
+    
+    -- Configure button dimensions
+    local buttonWidth = self.elements.optionsPanel.width - 40 -- Account for scroll buttons
+    local buttonY = self.elements.optionsPanel.y
+    local buttonX = self.elements.optionsPanel.x
+    
+    -- Show scroll buttons if needed
+    local showScrollButtons = #availableOptions > self.maxJobOptionsVisible
+    self.elements.scrollUpButton.visible = showScrollButtons
+    self.elements.scrollDownButton.visible = showScrollButtons
+    
+    -- Create a button for each option
     for i, option in ipairs(availableOptions) do
         local btn = screenManager.UI.Button(
-            buttonX, buttonY + (i-1) * (buttonHeight + spacing),
-            buttonWidth, buttonHeight, option.displayName,
+            buttonX, 
+            buttonY + (i-1) * (buttonHeight + spacing),
+            buttonWidth, 
+            buttonHeight, 
+            option.displayName,
             function() self:selectOption(option) end
         )
+        -- Store job data in the button for convenience
+        btn.jobData = option.jobData
         table.insert(self.elements.optionButtons, btn)
     end
 end
@@ -210,7 +272,8 @@ function levelUpScreen:selectOption(option)
     for _, btn in ipairs(self.elements.optionButtons) do
         btn.disabled = true -- Assuming Button class handles disabled state visually
     end
-     assetManager:playSound("click")
+    
+    assetManager:playSound("click")
 end
 
 function levelUpScreen:calculateGains(character, chosenJobName, isNewJob)
@@ -337,7 +400,7 @@ function levelUpScreen:draw()
     love.graphics.rectangle("fill", 0, 0, GAME.width, GAME.height)
 
     -- Draw Main Panel Background
-    screenManager:drawPanel("Level Up!", self.elements.mainPanel.x, self.elements.mainPanel.y, self.elements.mainPanel.width, self.elements.mainPanel.height)
+    screenManager:drawPanel("Level Up! - Choose a Path", self.elements.mainPanel.x, self.elements.mainPanel.y, self.elements.mainPanel.width, self.elements.mainPanel.height)
 
     if self.state == STATES.FINISHED then
         -- Draw Finished Message
@@ -398,25 +461,81 @@ function levelUpScreen:draw()
     local newTotalLevel = totalLevel + 1  -- One level up will increase total level by 1
     love.graphics.print("Total Level: " .. totalLevel .. " -> " .. newTotalLevel, portraitX + 100, portraitY + 80)
 
-    -- Draw Options Area (Left Side)
-    love.graphics.setFont(screenManager.fonts.medium)
-    love.graphics.setColor(1, 1, 0)
-    love.graphics.print("Choose Level Up Path:", self.elements.mainPanel.x + 20, self.elements.mainPanel.y + 120)
+    -- Draw Options Panel
+    love.graphics.setColor(0.2, 0.25, 0.3)
+    love.graphics.rectangle("fill", self.elements.optionsPanel.x, self.elements.optionsPanel.y, 
+        self.elements.optionsPanel.width, self.elements.optionsPanel.height, 5, 5)
+    love.graphics.setColor(0.5, 0.5, 0.6)
+    love.graphics.rectangle("line", self.elements.optionsPanel.x, self.elements.optionsPanel.y, 
+        self.elements.optionsPanel.width, self.elements.optionsPanel.height, 5, 5)
 
-    -- Draw Option Buttons
-    for _, btn in ipairs(self.elements.optionButtons) do
-        if btn.visible == nil or btn.visible then -- Check visibility if property exists
-             btn:draw()
+    -- -- Draw Options Area Title
+    -- love.graphics.setFont(screenManager.fonts.medium)
+    -- love.graphics.setColor(1, 1, 0)
+    -- love.graphics.print("Choose Level Up Path:", self.elements.optionsPanel.x, self.elements.optionsPanel.y - 30)
+
+    -- Draw Option Buttons with scrolling
+    local visibleStart = self.jobOptionsScroll + 1
+    local visibleEnd = math.min(#self.elements.optionButtons, visibleStart + self.maxJobOptionsVisible - 1)
+    
+    -- Clip to options panel area (prevents buttons from drawing outside the panel)
+    love.graphics.setScissor(
+        self.elements.optionsPanel.x, 
+        self.elements.optionsPanel.y, 
+        self.elements.optionsPanel.width, 
+        self.elements.optionsPanel.height
+    )
+    
+    -- Draw visible buttons
+    for i = visibleStart, visibleEnd do
+        local btn = self.elements.optionButtons[i]
+        if btn then
+            -- Adjust button position for scrolling
+            local originalY = btn.y
+            btn.y = self.elements.optionsPanel.y + (i - visibleStart) * (btn.height + 10)
+            btn:draw()
+            btn.y = originalY -- Restore original position for hit detection
         end
     end
+    
+    -- Reset scissor
+    love.graphics.setScissor()
+    
+    -- Draw scroll buttons if more options than we can display
+    if #self.elements.optionButtons > self.maxJobOptionsVisible then
+        self.elements.scrollUpButton:draw()
+        self.elements.scrollDownButton:draw()
+    end
+    
+    -- Draw Job Description Panel
+    love.graphics.setColor(0.2, 0.25, 0.3) 
+    love.graphics.rectangle("fill", self.elements.jobDescPanel.x, self.elements.jobDescPanel.y, 
+        self.elements.jobDescPanel.width, self.elements.jobDescPanel.height, 5, 5)
+    love.graphics.setColor(0.5, 0.5, 0.6)
+    love.graphics.rectangle("line", self.elements.jobDescPanel.x, self.elements.jobDescPanel.y, 
+        self.elements.jobDescPanel.width, self.elements.jobDescPanel.height, 5, 5)
+    
+    -- Show job description if option is selected
+    if self.selectedOption and self.selectedOption.jobData then
+        love.graphics.setFont(screenManager.fonts.small)
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.printf(
+            "Job: " .. self.selectedOption.jobData.name .. " (Tier " .. self.selectedOption.jobData.tier .. ")\n" ..
+            (self.selectedOption.jobData.description or "No description available"),
+            self.elements.jobDescPanel.x + 10, 
+            self.elements.jobDescPanel.y + 10,
+            self.elements.jobDescPanel.width - 20,
+            "left"
+        )
+    end
 
-    -- Draw Gains Preview Area (Right Side)
+    -- Draw Gains Preview Area
     local gainsX = self.elements.gainsPanel.x
     local gainsY = self.elements.gainsPanel.y
     local gainsW = self.elements.gainsPanel.width
     local gainsH = self.elements.gainsPanel.height
 
-    love.graphics.setColor(0.2, 0.25, 0.3) -- Slightly different background for gains
+    love.graphics.setColor(0.2, 0.25, 0.3)
     love.graphics.rectangle("fill", gainsX, gainsY, gainsW, gainsH, 5, 5)
     love.graphics.setColor(0.5, 0.5, 0.6)
     love.graphics.rectangle("line", gainsX, gainsY, gainsW, gainsH, 5, 5)
@@ -437,17 +556,40 @@ function levelUpScreen:draw()
         for attr, mod in pairs(self.potentialGains.attributes) do
              if mod > 0 then
                  love.graphics.setColor(0, 1, 0) -- Green for gains
-                 love.graphics.print("  " .. attr .. ": +" .. mod, gainsX + 30, gainTextY)
-                 gainTextY = gainTextY + 20
+                 
+                 -- Print attribute name and value
+                 local attrText = attr .. ": +" .. mod
+                 love.graphics.print(attrText, gainsX + 30, gainTextY)
+                 
+                 -- Print attribute description with wrapping
+                 if self.attributeDescriptions[attr] then
+                     love.graphics.setColor(0.9, 0.9, 0.9) -- Light gray for description text
+                     love.graphics.printf(
+                         self.attributeDescriptions[attr], 
+                         gainsX + 150, 
+                         gainTextY,
+                         gainsW - 180, -- Width for wrapping
+                         "left"
+                     )
+                 end
+                 
+                 -- Calculate text height with wrapping for proper spacing
+                 local _, textLines = screenManager.fonts.small:getWrap(
+                     self.attributeDescriptions[attr] or "", 
+                     gainsW - 180
+                 )
+                 local textHeight = #textLines * screenManager.fonts.small:getHeight()
+                 
+                 -- Add extra space for multi-line descriptions (min 30 pixels)
+                 gainTextY = gainTextY + math.max(30, textHeight + 10)
                  hasAttrGains = true
              end
         end
-         if not hasAttrGains then
+        if not hasAttrGains then
             love.graphics.setColor(0.7, 0.7, 0.7)
             love.graphics.print("  (None)", gainsX + 30, gainTextY)
             gainTextY = gainTextY + 20
         end
-
 
         -- New Skills
         gainTextY = gainTextY + 15
@@ -455,10 +597,30 @@ function levelUpScreen:draw()
         love.graphics.print("New Skills Learned:", gainsX + 20, gainTextY)
         gainTextY = gainTextY + 25
         if #self.potentialGains.newSkills > 0 then
-            love.graphics.setColor(0.8, 0.8, 1) -- Light blue for skills
             for _, skill in ipairs(self.potentialGains.newSkills) do
-                love.graphics.print("  - " .. skill.name, gainsX + 30, gainTextY)
-                gainTextY = gainTextY + 20
+                love.graphics.setColor(0.8, 0.8, 1) -- Light blue for skills
+                
+                -- Print skill name
+                love.graphics.print("• " .. skill.name .. " (" .. (skill.type or "Unknown") .. ")", gainsX + 30, gainTextY)
+                                
+                -- Print skill type and description with wrapping
+                love.graphics.setColor(0.9, 0.9, 0.9) -- Light gray for description text
+                local skillDesc = "\n" .. (skill.description or "No description available")
+                
+                love.graphics.printf(
+                    skillDesc, 
+                    gainsX + 45, 
+                    gainTextY,
+                    gainsW - 75, -- Width for wrapping
+                    "left"
+                )
+                
+                -- Calculate text height with wrapping for proper spacing
+                local _, textLines = screenManager.fonts.small:getWrap(skillDesc, gainsW - 75)
+                local textHeight = #textLines * screenManager.fonts.small:getHeight()
+                
+                -- Add space after description
+                gainTextY = gainTextY + textHeight + 15
             end
         else
              love.graphics.setColor(0.7, 0.7, 0.7)
@@ -466,7 +628,7 @@ function levelUpScreen:draw()
              gainTextY = gainTextY + 20
         end
 
-        -- Skill Point
+        -- Skill Point Info
         gainTextY = gainTextY + 15
         love.graphics.setColor(1, 1, 1)
         -- Show next skill to be gained if this is an odd level after 1
@@ -498,10 +660,6 @@ function levelUpScreen:draw()
                 gainTextY = gainTextY + 20
             end
         end
-        gainTextY = gainTextY + 15
-        love.graphics.setColor(1, 1, 1)
-
-
     else
         love.graphics.setFont(screenManager.fonts.small)
         love.graphics.setColor(0.8, 0.8, 0.8)
@@ -513,7 +671,6 @@ function levelUpScreen:draw()
         self.elements.confirmButton:draw()
         self.elements.backButton:draw()
     end
-
 end
 
 function levelUpScreen:mousepressed(x, y, button, istouch, presses)
@@ -522,25 +679,39 @@ function levelUpScreen:mousepressed(x, y, button, istouch, presses)
         return false -- Consume clicks on finished screen
     end
 
+    -- Check scroll buttons
+    if self.elements.scrollUpButton.visible and self.elements.scrollUpButton:clicked(x, y, button) then
+        return true
+    end
+    
+    if self.elements.scrollDownButton.visible and self.elements.scrollDownButton:clicked(x, y, button) then
+        return true
+    end
+
     if self.state == STATES.SELECT_OPTION then
         -- Check option buttons
-        for _, btn in ipairs(self.elements.optionButtons) do
-            if btn:clicked(x, y, button) then return true end
+        for i, btn in ipairs(self.elements.optionButtons) do
+            -- Only check visible buttons
+            if i >= self.jobOptionsScroll + 1 and i <= self.jobOptionsScroll + self.maxJobOptionsVisible then
+                -- Adjust position for scrolling
+                local originalY = btn.y
+                btn.y = self.elements.optionsPanel.y + (i - self.jobOptionsScroll - 1) * (btn.height + 10)
+                local clicked = btn:clicked(x, y, button)
+                btn.y = originalY -- Restore original position
+                
+                if clicked then return true end
+            end
         end
     elseif self.state == STATES.CONFIRM then
         -- Check confirm button
         if self.elements.confirmButton:clicked(x, y, button) then
-            -- Apply the level up and move to next character
-            self:finishCharacterLevelUp()
             return true
         end
         
         -- Check back button
         if self.elements.backButton:clicked(x, y, button) then return true end
-
-        -- Allow clicking options again even in confirm state? No, use Back button.
     end
-
+    
     -- Consume clicks within the main panel area even if not on a button
     if x >= self.elements.mainPanel.x and x <= self.elements.mainPanel.x + self.elements.mainPanel.width and
        y >= self.elements.mainPanel.y and y <= self.elements.mainPanel.y + self.elements.mainPanel.height then
@@ -556,12 +727,55 @@ function levelUpScreen:keypressed(key, scancode, isrepeat)
         return true
     end
 
-     if self.state == STATES.CONFIRM and key == "escape" then
-         self:changeChoice()
-         return true
-     end
+    if self.state == STATES.CONFIRM and key == "escape" then
+        self:changeChoice()
+        return true
+    end
+    
+    -- Scrolling with keyboard
+    if key == "up" then
+        self:scrollJobOptions(-1)
+        return true
+    elseif key == "down" then
+        self:scrollJobOptions(1)
+        return true
+    end
+    
+    -- Number keys for quick selection (1-9)
+    local num = tonumber(key)
+    if num and num >= 1 and num <= 9 then
+        local index = num + self.jobOptionsScroll
+        if index <= #self.elements.optionButtons then
+            local option = self.elements.optionButtons[index]
+            if option and option.jobData then
+                -- Create a proper option object
+                local fullOption = {
+                    jobName = option.jobData.name,
+                    displayName = option.text,
+                    isNewJob = option.jobData.name ~= self.charactersToLevel[self.currentCharacterIndex].job,
+                    jobData = option.jobData
+                }
+                self:selectOption(fullOption)
+                return true
+            end
+        end
+    end
+    
+    -- Confirm with enter/return
+    if self.state == STATES.CONFIRM and (key == "return" or key == "space") then
+        self:confirmLevelUp()
+        return true
+    end
 
-    -- Add shortcuts maybe? e.g., number keys for options, enter to confirm
+    return false
+end
+
+function levelUpScreen:wheelmoved(x, y)
+    -- Mouse wheel scrolling for job options
+    if y ~= 0 and #self.elements.optionButtons > self.maxJobOptionsVisible then
+        self:scrollJobOptions(-math.floor(y)) -- Scrolling up (y > 0) should move list up (jobOptionsScroll down)
+        return true
+    end
     return false
 end
 
@@ -641,6 +855,17 @@ function levelUpScreen:finishCharacterLevelUp()
             self:close()
         end
     end
+end
+
+function levelUpScreen:scrollJobOptions(direction)
+    local totalOptions = #self.elements.optionButtons
+    local maxScroll = math.max(0, totalOptions - self.maxJobOptionsVisible)
+    
+    self.jobOptionsScroll = self.jobOptionsScroll + direction
+    if self.jobOptionsScroll < 0 then self.jobOptionsScroll = 0 end
+    if self.jobOptionsScroll > maxScroll then self.jobOptionsScroll = maxScroll end
+    
+    assetManager:playSound("click")
 end
 
 return levelUpScreen 

@@ -211,6 +211,15 @@ function interactables:revealSecretPassage(map, x, y)
     
     -- Set the cell to walkable (0)
     map:setCell(x, y, 0)
+
+    -- Update the physicalLayoutTexture (wallMap) to reflect the removed wall
+    if map.physicalLayoutImageData and map.physicalLayoutTexture then
+        map.physicalLayoutImageData:setPixel(x, y, 0, 0, 0, 1) -- Set to floor (R=0)
+        map.physicalLayoutTexture:replacePixels(map.physicalLayoutImageData)
+        print("Updated physicalLayoutTexture for revealed secret passage at: " .. x .. "," .. y)
+    else
+        print("Warning: physicalLayoutImageData or physicalLayoutTexture not found when revealing secret passage.")
+    end
     
     -- Play sound
     if assetManager.sounds.secret_passage_open then
