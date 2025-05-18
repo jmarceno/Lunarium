@@ -604,14 +604,25 @@ function assetManager:loadSounds()
     
     -- Load standard UI sounds
     local uiSounds = {
-        "click", 
-        "hover", 
-        "pickup", 
-        "drop", 
-        "attack", 
-        "hit", 
+        "click",
+        "hover",
+        "pickup",
+        "drop",
+        "attack",
+        "hit",
         "spell",
-        "footstep_gravel_walk_01"  -- Add our footstep sound
+        "footstep_gravel_walk_01",  -- Add our footstep sound
+        "trap_arrow_fire", -- sound for fire arrow trap
+        "trap_disarm_start", -- sound for disarm attempt
+        "trap_disarm_success", -- sound for disarm success
+        "trap_disarm_fail", -- sound for disarm fail
+        "trap_spike_trigger", -- sound for spike trap
+        "chest_trap_trigger_generic", -- sound for chest trap
+        "trap_gas_trigger", -- sound for gas trap
+        "trap_detected", -- sound for trap detected
+        "missing_item", -- sound for missing item
+        "secret_passage_switch_click", -- sound for secret passage switch click
+        "secret_passage_open" -- sound for secret passage open
     }
     
     -- Try to load UI sounds

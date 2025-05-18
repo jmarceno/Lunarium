@@ -2,6 +2,7 @@
 - How to deal with damage out of combat in the dungeon?
   - Deaths
   - DoTs
+  - Add pain sounds - male and female
 - Add visual tips and texts for traps and interactables
 - Add sounds for traps and interactables
 - Check if Walls and interactables detection is properly working
