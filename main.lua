@@ -98,6 +98,9 @@ function love.update(dt)
             local minionManager = require("gameplay/minionManager")
             minionManager:init()
             
+            -- Initialize out-of-combat effects system
+            local outOfCombatEffects = require("gameplay/outOfCombatEffects")
+            
             -- Initialize debug console
             debugConsole:init()
             
@@ -129,6 +132,10 @@ function love.update(dt)
     
     -- Update debug console
     debugConsole:update(dt)
+    
+    -- Update out-of-combat effects (status and buffs)
+    local outOfCombatEffects = require("gameplay/outOfCombatEffects")
+    outOfCombatEffects:update(dt)
     
     -- Update current screen
     if GAME.currentState then

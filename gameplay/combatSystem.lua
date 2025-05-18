@@ -278,6 +278,9 @@ function combatSystem:createCombat(party, enemy, isAmbush)
     
     -- Initialize combat
     combat.init = function(self)
+        -- Set the combat flag to inform other systems
+        GAME.inCombat = true
+        
         -- Handle backward compatibility - convert single enemy to enemies array
         if enemy then
             if type(enemy) == "table" and enemy[1] then

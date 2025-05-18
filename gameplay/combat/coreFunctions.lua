@@ -337,6 +337,49 @@ end
 
 -- Move to next character's turn
 local function nextTurn(self)
+    -- Process status effects for the current character/entity at the end of their turn
+    local statusEffects = require("gameplay/statusEffects")
+
+    -- Process status effects for the current player if applicable
+    if self.state == combatSystem.STATE.PLAYER_TURN and 
+       self.currentCharacter >= 1 and 
+       self.currentCharacter <= #self.party then
+        local character = self.party[self.currentCharacter]
+        local expired = statusEffects:processTurnEnd(character)
+        
+        -- Display messages about expired effects
+        for _, effect in ipairs(expired) do
+            self:addLog(effect.message, effect.color)
+        end
+    end
+    
+    -- Process status effects for the current minion if applicable
+    if self.state == combatSystem.STATE.MINION_TURN and self.activeMinion then
+        local charIndex = self.activeMinion.charIndex
+        local minionIndex = self.activeMinion.minionIndex
+        local minion = self.minions[charIndex][minionIndex]
+        
+        local expired = statusEffects:processTurnEnd(minion)
+        
+        -- Display messages about expired effects
+        for _, effect in ipairs(expired) do
+            self:addLog(effect.message, effect.color)
+        end
+    end
+
+    -- When transitioning from enemy state to player state, process all enemy status effects
+    if self.state == combatSystem.STATE.ENEMY_TURN then
+        for _, enemy in ipairs(self.enemies) do
+            if enemy.active then
+                local expired = statusEffects:processTurnEnd(enemy)
+                -- Display messages about expired effects
+                for _, effect in ipairs(expired) do
+                    self:addLog(effect.message, effect.color)
+                end
+            end
+        end
+    end
+    
     -- Mark the current character's turn as taken if applicable
     if self.state == combatSystem.STATE.PLAYER_TURN and 
        self.currentCharacter >= 1 and 
@@ -497,6 +540,9 @@ local function partyDefeated(self)
     
     -- Set defeat state
     self.state = combatSystem.STATE.DEFEAT
+    
+    -- Reset the combat flag
+    GAME.inCombat = false
     
     -- Reset party panel
     partyPanel:setCombatMode(false, nil)

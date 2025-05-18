@@ -245,6 +245,21 @@ statusEffects.effects = {
                 color = {1.0, 0.6, 0.6}
             }
         end
+    },
+    -- Add mana shield effect definition
+    ["mana_shield"] = {
+        name = "Mana Shield",
+        description = "Converts a portion of incoming damage to mana loss",
+        icon = "assets/Icons/StatusEffects/barrier.png", -- Temporary icon, replace with proper one when available
+        iconSize = 24,
+        statusType = "positive",
+        onTurnStart = function(entity, strength)
+            return {
+                message = entity.name .. " is protected by a mana shield!",
+                value = 0,
+                color = {0.4, 0.4, 1.0}
+            }
+        end
     }
 }
 
@@ -412,6 +427,7 @@ function statusEffects:processTurnStart(entity)
     local updates = {}
     
     for effectType, effect in pairs(entity.status) do
+        -- Check if effect exists in the effects table before trying to use it
         if self.effects[effectType] and self.effects[effectType].onTurnStart then
             -- Execute the turn start function for this effect
             local extraParams = effect.extraParams or {}
@@ -459,6 +475,11 @@ function statusEffects:processTurnStart(entity)
                     end
                 end
             end
+        else
+            -- Effect doesn't exist in the effects table, log warning if in debug mode
+            if GAME.debug then
+                print("WARNING: Missing effect definition or onTurnStart for " .. effectType)
+            end
         end
     end
     
@@ -474,6 +495,7 @@ function statusEffects:processTurnEnd(entity)
     end
     
     local expired = {}
+    local uiFunctions = require("gameplay/combat/uiFunctions")
     
     for effectType, effect in pairs(entity.status) do
         -- Decrease the duration
@@ -481,11 +503,49 @@ function statusEffects:processTurnEnd(entity)
         
         -- Check if the effect has expired
         if effect.duration <= 0 then
+            -- Get effect name with safety check
+            local effectName = "Unknown"
+            if self.effects[effectType] then
+                effectName = self.effects[effectType].name
+            else
+                -- If we don't have a definition for this effect, use a formatted version of the effect type
+                effectName = effectType:gsub("_", " "):gsub("^%l", string.upper)
+                if GAME.debug then
+                    print("WARNING: Missing effect definition for " .. effectType)
+                end
+            end
+            
+            -- Create expiry message
+            local message = entity.name .. " is no longer " .. effectName
+            local messageColor = {0.7, 0.7, 0.7}
+            
+            -- Show floating text at an appropriate position
+            -- For positioning, we need to determine where the entity is on screen
+            local x, y
+            if entity.isPlayer then
+                -- For player characters, position near their UI element in combat
+                x = 200 + (entity.index or 1) * 150  -- Approximate position based on party layout
+                y = GAME.height - 200
+            else
+                -- For enemies, position near center of screen
+                x = GAME.width / 2
+                y = GAME.height / 3
+            end
+            
+            -- Display floating text
+            -- Look for the dungeon screen's floatingTexts collection in the current game state
+            local floatingTexts = nil
+            if GAME.currentState and GAME.currentState.floatingTexts then
+                floatingTexts = GAME.currentState.floatingTexts
+                uiFunctions.showFloatingText(message, x, y, messageColor, 2.0, floatingTexts)
+            end
+            
+            -- Add to expired effects list for combat log
             entity.status[effectType] = nil
             table.insert(expired, {
                 type = effectType,
-                message = entity.name .. " is no longer " .. self.effects[effectType].name,
-                color = {0.7, 0.7, 0.7}
+                message = message,
+                color = messageColor
             })
         end
     end

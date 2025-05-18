@@ -158,6 +158,34 @@ function Map:setRoomId(x, y, roomId)
     return true
 end
 
+-- New method to create a texture representing the physical layout (walls/floors)
+function Map:createPhysicalLayoutTexture()
+    if not love or not love.image or not love.graphics then
+        print("Error: LÖVE graphics modules not available for createPhysicalLayoutTexture.")
+        return
+    end
+
+    self.physicalLayoutImageData = love.image.newImageData(self.width, self.height, "rgba8") -- Use rgba8, one channel is enough
+
+    for y = 0, self.height - 1 do
+        for x = 0, self.width - 1 do
+            local cellType = self:getCell(x, y) -- 0 for floor, >0 for any wall type
+            if cellType > 0 then -- If cellType is any positive number, it's a wall
+                self.physicalLayoutImageData:setPixel(x, y, 1, 0, 0, 1) -- Red channel = 1 for wall
+            else -- cellType is 0 (floor)
+                self.physicalLayoutImageData:setPixel(x, y, 0, 0, 0, 1) -- Red channel = 0 for floor
+            end
+        end
+    end
+
+    if self.physicalLayoutTexture then
+        self.physicalLayoutTexture:replacePixels(self.physicalLayoutImageData)
+    else
+        self.physicalLayoutTexture = love.graphics.newImage(self.physicalLayoutImageData)
+    end
+    print("Physical layout texture created for wallMap.")
+end
+
 function Map:isCellWalkable(x, y)
     return self:getCell(x, y) == 0  -- 0 means floor
 end
@@ -232,6 +260,9 @@ function dungeonGenerator:generate(width, height, seed, options)
     
     -- Add textures to the map
     self:assignTextures(map)
+    
+    -- Create the physical layout texture for AO shaders
+    map:createPhysicalLayoutTexture()
     
     -- Restore original parameters
     self.maxWallTextureTypes = tempWallTypes

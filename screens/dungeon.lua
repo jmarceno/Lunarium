@@ -15,6 +15,7 @@ local interactables = require("gameplay/interactables")
 local trapSystem = require("gameplay/trapSystem")
 local dungeon = screenManager:createScreen("Dungeon")
 local partyPanel = require("screens/ui_slices/partyPanel")
+local uiFunctions = require("gameplay/combat/uiFunctions")
 
 -- Dungeon states
 local STATES = {
@@ -2156,12 +2157,13 @@ function dungeon:triggerChestTrap(chestEntity)
     
     -- Show floating text for damage
     if damage and damage > 0 then
-        self:showFloatingText(
+        uiFunctions.showFloatingText(
             string.format("-%d", damage), 
             GAME.width / 2, 
             GAME.height / 2 - 50, 
             {1, 0.2, 0.2, 1},
-            1.5
+            1.5,
+            self.floatingTexts
         )
     end
     
@@ -2326,11 +2328,12 @@ function dungeon:updateTrapsAndInteractables(dt)
                     
                     -- If trap was just detected and we haven't shown a notification for it yet
                     if detectResult and not self.detectedTraps[trap] then
-                        self:showFloatingText("Trap Detected!", 
+                        uiFunctions.showFloatingText("Trap Detected!", 
                              GAME.width / 2, 
                              GAME.height / 2 - 80, 
                              {1, 0.8, 0.2, 1},
-                             3.0)
+                             3.0,
+                             self.floatingTexts)
                         
                         -- Mark this trap as having shown a notification
                         self.detectedTraps[trap] = true
@@ -2359,11 +2362,12 @@ function dungeon:updateTrapsAndInteractables(dt)
                 
                 -- If trap was just detected and we haven't shown a notification for it yet
                 if detectResult and not self.detectedTraps[trap] then
-                    self:showFloatingText("Trap Detected!", 
+                    uiFunctions.showFloatingText("Trap Detected!", 
                          GAME.width / 2, 
                          GAME.height / 2 - 80, 
                          {1, 0.8, 0.2, 1},
-                         3.0)
+                         3.0,
+                         self.floatingTexts)
                     
                     -- Mark this trap as having shown a notification
                     self.detectedTraps[trap] = true
@@ -2380,12 +2384,13 @@ function dungeon:updateTrapsAndInteractables(dt)
                     trapSystem:activateTrap(trap, GAME.party[1])
                     
                     -- Show damage message
-                    self:showFloatingText(
+                    uiFunctions.showFloatingText(
                         "Triggered Trap!", 
                         GAME.width / 2, 
                         GAME.height / 2 - 80, 
                         {1, 0.2, 0.2, 1},
-                        3.0
+                        3.0,
+                        self.floatingTexts
                     )
                     
                     -- Set cooldown
@@ -2402,27 +2407,29 @@ function dungeon:updateTrapsAndInteractables(dt)
         
         if disarmResult then
             -- Show success message
-            self:showFloatingText("Trap Disarmed!", GAME.width / 2, GAME.height / 2 - 80, {0.2, 1, 0.2, 1}, 3.0)
+            uiFunctions.showFloatingText("Trap Disarmed!", GAME.width / 2, GAME.height / 2 - 80, {0.2, 1, 0.2, 1}, 3.0, self.floatingTexts)
         else
             -- Show failure message
-            self:showFloatingText(
+            uiFunctions.showFloatingText(
                 "Disarm Failed!", 
                 GAME.width / 2, 
                 GAME.height / 2 - 80, 
                 {1, 0.2, 0.2, 1},
-                3.0
+                3.0,
+                self.floatingTexts
             )
             
             -- Trigger the trap
             local damage = trapSystem:activateTrap(self.activeTrap, GAME.party[1])
             
             -- Show triggered message
-            self:showFloatingText(
+            uiFunctions.showFloatingText(
                 "Trap Triggered! -" .. math.floor(damage or 0) .. " damage", 
                 GAME.width / 2, 
                 GAME.height / 2 - 40, 
                 {1, 0, 0, 1},
-                3.0
+                3.0,
+                self.floatingTexts
             )
         end
         
@@ -2466,30 +2473,6 @@ function dungeon:updateTrapsAndInteractables(dt)
             table.remove(self.floatingTexts, i)
         end
     end
-end
-
--- Show floating text on screen
-function dungeon:showFloatingText(text, x, y, color, duration)
-    -- Default values
-    x = x or GAME.width / 2
-    y = y or GAME.height / 2
-    color = color or {1, 1, 1, 1}
-    duration = duration or 3.0
-    
-    -- Create floating text object
-    local floatingText = {
-        text = text,
-        x = x,
-        y = y,
-        color = color,
-        timeLeft = duration
-    }
-    
-    -- Add to floating texts table
-    table.insert(self.floatingTexts, floatingText)
-    
-    -- Print to console as well for debugging
-    print("Floating text: " .. text)
 end
 
 return dungeon

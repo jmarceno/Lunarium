@@ -1617,6 +1617,30 @@ local function drawStatusEffectTooltips(self)
     end
 end
 
+-- Show floating text on screen
+local function showFloatingText(text, x, y, color, duration, floatingTexts)
+    -- Default values
+    x = x or GAME.width / 2
+    y = y or GAME.height / 2
+    color = color or {1, 1, 1, 1}
+    duration = duration or 3.0
+    
+    -- Create floating text object
+    local floatingText = {
+        text = text,
+        x = x,
+        y = y,
+        color = color,
+        timeLeft = duration
+    }
+    
+    -- Add to floating texts table
+    table.insert(floatingTexts, floatingText)
+    
+    -- Print to console as well for debugging
+    print("Floating text: " .. text)
+end
+
 combatSystem.STATE = {
     INIT = 1,
     PLAYER_TURN = 2,
@@ -1650,5 +1674,6 @@ return {
     selectAction = selectAction,
     cancelSelection = cancelSelection,
     handleMouseScroll = handleMouseScroll,
-    drawStatusEffectTooltips = drawStatusEffectTooltips
+    drawStatusEffectTooltips = drawStatusEffectTooltips,
+    showFloatingText = showFloatingText
 }

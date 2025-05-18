@@ -281,11 +281,21 @@ end
 
 -- Handle victory state
 local function victory(self)
-    -- Set victory state immediately to block any other processing
+    local assetManager = require("assets/assetManager")
+    
+    -- Play victory sound
+    assetManager:playSound("victory")
+    
+    -- Set state to victory
     self.state = combatSystem.STATE.VICTORY
     
-    -- Calculate rewards (safe to call multiple times due to the rewardsCalculated check)
-    self:calculateVictoryRewards()
+    -- Reset the combat flag
+    GAME.inCombat = false
+    
+    -- Calculate rewards if not already done
+    if not self.rewardsCalculated then
+        self:calculateVictoryRewards()
+    end
     
     self:addLog("All enemies defeated!", {0, 1, 0})
     
@@ -304,18 +314,16 @@ local function victory(self)
     partyPanel:setCombatMode(false, nil)
     partyPanel:setActiveCharacter(nil)
     
+    -- Hide combat UI
+    self:hideAllUI()
+    
     -- Create continue button
     self.elements.continueButton = screenManager.UI.Button(
-        GAME.width / 2 - 125, GAME.height / 3 + 250,
-        250, 50, "Continue",
+        GAME.width / 2 - 100, GAME.height / 2 + 100,
+        200, 40, "Continue",
         function() return true end
     )
     self.elements.continueButton.visible = true
-    self.elements.continueButton.color = {0.3, 0.7, 0.3}
-    self.elements.continueButton.hoverColor = {0.4, 0.8, 0.4}
-    
-    -- Hide all UI elements
-    self:hideAllUI()
 end
 
 -- Define the combat system states for reference
