@@ -26,6 +26,11 @@ uniform bool torchEnabled;
 uniform float normalMapBlur;
 uniform vec3 lightDir;
 uniform bool gameDebugActive;
+// Separate ambient occlusion parameters for ceiling and floor
+uniform float aoIntensityFloor = 0.5;  // Floor intersection darkness
+uniform float aoIntensityCeiling = 0.8; // Ceiling intersection darkness (more pronounced)
+uniform float aoDistanceFloor = 0.1;
+uniform float aoDistanceCeiling = 0.15; // Slightly larger AO area for ceiling
 
 // Gaussian blur function for normal maps
 vec3 blurNormal(ArrayImage normalMap, vec3 texCoord, float blurAmount) {
@@ -78,6 +83,26 @@ RenderData extractRenderData(float screenU) {
     return result;
 }
 
+// Calculate ambient occlusion factor separately for ceiling and floor
+float calculateAO(float v) {
+    // Distance from top (ceiling) of wall
+    float distFromCeiling = v;
+    // Distance from bottom (floor) of wall
+    float distFromFloor = 1.0 - v;
+    
+    // Calculate AO factor for ceiling (top of wall)
+    float ceilingAO = smoothstep(0.0, aoDistanceCeiling, distFromCeiling);
+    ceilingAO = 1.0 - ((1.0 - ceilingAO) * aoIntensityCeiling);
+    
+    // Calculate AO factor for floor (bottom of wall)
+    float floorAO = smoothstep(0.0, aoDistanceFloor, distFromFloor);
+    floorAO = 1.0 - ((1.0 - floorAO) * aoIntensityFloor);
+    
+    // Combine AO factors (multiply so both top and bottom get darkened)
+    // Each factor is already scaled by its respective intensity
+    return ceilingAO * floorAO;
+}
+
 void effect() {
     vec2 screen_coords = love_PixelCoord;
     RenderData rd = extractRenderData((screen_coords.x)/love_ScreenSize.x);
@@ -118,6 +143,10 @@ void effect() {
         
         // Apply global darkness
         colour *= (1.0 - globalDarkness);
+        
+        // Apply ambient occlusion effect with separate ceiling/floor intensities
+        float aoFactor = calculateAO(v);
+        colour *= aoFactor;
         
         // Apply torch effect if enabled
         if (torchEnabled) {

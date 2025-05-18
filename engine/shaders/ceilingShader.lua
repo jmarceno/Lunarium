@@ -21,6 +21,35 @@ uniform bool torchEnabled;
 uniform float normalMapBlur;
 uniform vec3 lightDir;
 uniform bool gameDebugActive;
+// Added ambient occlusion parameters
+uniform float aoIntensity = 0.7;
+uniform float aoDistance = 0.2;
+
+// Ceiling-specific darkness multiplier to differentiate from floor
+float ceilingDarknessMultiplier = 0.7;
+
+// Noise function for subtle ceiling texture variations - based on improved Perlin noise
+vec2 hash(vec2 p) {
+    p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
+    return -1.0 + 2.0 * fract(sin(p) * 43758.5453123);
+}
+
+float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    
+    // Cubic Hermite interpolation
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    
+    // Bilinear interpolation between hash values
+    return mix(
+        mix(dot(hash(i + vec2(0.0, 0.0)), f - vec2(0.0, 0.0)),
+            dot(hash(i + vec2(1.0, 0.0)), f - vec2(1.0, 0.0)), u.x),
+        mix(dot(hash(i + vec2(0.0, 1.0)), f - vec2(0.0, 1.0)),
+            dot(hash(i + vec2(1.0, 1.0)), f - vec2(1.0, 1.0)), u.x),
+        u.y
+    ) * 0.5 + 0.5; // Normalize to 0-1 range
+}
 
 // Gaussian blur function for normal maps
 vec3 blurNormal(ArrayImage normalMap, vec3 texCoord, float blurAmount) {
@@ -56,6 +85,23 @@ vec3 blurNormal(ArrayImage normalMap, vec3 texCoord, float blurAmount) {
     return result;
 }
 
+// Calculate ambient occlusion based on proximity to walls
+float calculateAO(float u, float v) {
+    // Distance from edges/walls (closest to u=0,1 or v=0,1 is darkest)
+    // Calculate how close we are to each wall
+    float distFromWallU = min(u, 1.0 - u);
+    float distFromWallV = min(v, 1.0 - v);
+    
+    // Use the closest distance to any wall
+    float distFromWall = min(distFromWallU, distFromWallV);
+    
+    // Smooth transition from dark to light
+    float aoFactor = smoothstep(0.0, aoDistance, distFromWall);
+    
+    // Scale by intensity and invert (1.0 = no darkening, 0.0 = full darkening)
+    return 1.0 - ((1.0 - aoFactor) * aoIntensity);
+}
+
 vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords)
 {
     float step = fov / width;
@@ -64,8 +110,12 @@ vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords)
     
     float offsetCorrection = (1*width-(height*2)) / 2;
     float z = -1.0*(height+cameraOffset+offsetCorrection)/(screen_coords.y-cameraTilt-(height));
-    float s = 1.0f - (-z/shadeDepth);
+    
+    // Fixed shading calculation to match floor shader approach but adapted for ceiling
+    float distanceFromCamera = abs(z); // Use absolute distance
+    float s = 1.0f - (distanceFromCamera/shadeDepth);
     s = clamp(s, 0.0, 1.0); // Allow complete darkness at max distance
+    
     float ppx = position.x + dir.x * (z/cos(rayAngle-angle));
     float ppy = position.y + dir.y * (z/cos(rayAngle-angle));
     float ux = floor(ppx);
@@ -80,7 +130,8 @@ vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords)
     
     vec3 colour;
     if (int(ux) < 0 || int(ux) >= mapDimensions.x || int(uy) < 0 || int(uy) >= mapDimensions.y || tileId < 0) {
-        colour = vec3(0.2, 0.2, 0.4) * s; // Default color for out of bounds
+        // Darker default color for ceiling out of bounds
+        colour = vec3(0.15, 0.15, 0.35) * s;
     } else {
         // Get diffuse color from texture
         vec4 diffuseColor = Texel(textures, vec3(u, v, tileId));
@@ -95,11 +146,41 @@ vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords)
         // Blend between down vector and perturbed normal based on normal map intensity
         vec3 ceilingNormal = normalize(vec3(normal.xy * 0.5, -1.0));
         
-        // Calculate diffuse lighting
-        float diffuse = max(0.3, dot(ceilingNormal, lightDir));
+        // Calculate diffuse lighting - slightly reduced for ceiling
+        float diffuse = max(0.25, dot(ceilingNormal, lightDir));
         
         // Apply lighting and distance shading
         colour = diffuseColor.rgb * diffuse * s;
+        
+        // Apply ceiling-specific darkness
+        colour *= ceilingDarknessMultiplier;
+        
+        // Apply ambient occlusion
+        float aoFactor = calculateAO(u, v);
+        colour *= aoFactor;
+        
+        // Apply subtle noise pattern to ceiling texture
+        // Scale noise by world position for consistent pattern size
+        float noiseValue = noise(vec2(ppx * 0.5, ppy * 0.5));
+        
+        // Adjust noise intensity based on distance (more visible up close)
+        float noiseIntensity = 0.08 * (1.0 - min(distanceFromCamera / (shadeDepth * 0.5), 1.0));
+        
+        // Apply the noise as a subtle darkening/lightening effect
+        colour *= 1.0 + (noiseValue - 0.5) * noiseIntensity;
+        
+        // Add subtle dust spots occasionally
+        float dustSpot = noise(vec2(ppx * 2.0, ppy * 2.0));
+        if (dustSpot > 0.85) {
+            // Only apply dust spots to ~15% of ceiling
+            float dustIntensity = (dustSpot - 0.85) * 0.5; // Scale to 0-0.075 range
+            // Dust appears as subtle darkening
+            colour *= 1.0 - dustIntensity;
+        }
+        
+        // Slightly shift to cooler tones for ceiling
+        colour.r *= 0.9; // Reduce red
+        colour.b *= 1.1; // Increase blue
     }
     
     // Apply global darkness
@@ -111,7 +192,7 @@ vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords)
         float pulse = 0.5 + 0.5 * sin(torchTime);
         
         // Distance-based torch light (stronger near camera)
-        float torchFactor = max(0.0, 1.0 - (-z / torchRange));
+        float torchFactor = max(0.0, 1.0 - (distanceFromCamera / torchRange));
         
         // Combine pulse with distance for torch intensity
         float intensity = torchIntensity * pulse * torchFactor;
@@ -121,6 +202,11 @@ vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords)
         colour.g += intensity * (1.0 - torchRedTint) * 0.5;
         colour.b += intensity * (1.0 - torchRedTint) * 0.2;
     }
+    
+    // Add a subtle vignette to the ceiling to enhance depth perception
+    float distanceFromCenter = length(vec2(u - 0.5, v - 0.5));
+    float vignette = 1.0 - distanceFromCenter * 0.3;
+    colour *= vignette;
     
     // Debug mode for ceiling traps (if we implement them in the future)
     if (gameDebugActive && hintFactor < -0.5) {

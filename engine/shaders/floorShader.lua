@@ -21,6 +21,9 @@ uniform bool torchEnabled;
 uniform float normalMapBlur;
 uniform vec3 lightDir;
 uniform bool gameDebugActive;
+// Added ambient occlusion parameters
+uniform float aoIntensity = 0.6;
+uniform float aoDistance = 0.2;
 
 // Gaussian blur function for normal maps
 vec3 blurNormal(ArrayImage normalMap, vec3 texCoord, float blurAmount) {
@@ -54,6 +57,23 @@ vec3 blurNormal(ArrayImage normalMap, vec3 texCoord, float blurAmount) {
     }
     
     return result;
+}
+
+// Calculate ambient occlusion based on proximity to walls
+float calculateAO(float u, float v) {
+    // Distance from edges/walls (closest to u=0,1 or v=0,1 is darkest)
+    // Calculate how close we are to each wall
+    float distFromWallU = min(u, 1.0 - u);
+    float distFromWallV = min(v, 1.0 - v);
+    
+    // Use the closest distance to any wall
+    float distFromWall = min(distFromWallU, distFromWallV);
+    
+    // Smooth transition from dark to light
+    float aoFactor = smoothstep(0.0, aoDistance, distFromWall);
+    
+    // Scale by intensity and invert (1.0 = no darkening, 0.0 = full darkening)
+    return 1.0 - ((1.0 - aoFactor) * aoIntensity);
 }
 
 vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords)
@@ -101,6 +121,10 @@ vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords)
         // Apply lighting and distance shading
         colour = diffuseColor.rgb * diffuse * s;
     }
+    
+    // Apply ambient occlusion
+    float aoFactor = calculateAO(u, v);
+    colour *= aoFactor;
     
     // Apply global darkness
     colour *= (1.0 - globalDarkness);
