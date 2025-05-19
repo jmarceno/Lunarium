@@ -6,6 +6,58 @@ local minionManager = require("gameplay/minionManager")
 
 local trapSystem = {}
 
+-- Helper function for Line of Sight
+local function hasLineOfSight(map, x1, y1, x2, y2)
+    if not map or not map.getCell then return false end -- Safety check
+
+    local px1, py1 = math.floor(x1), math.floor(y1)
+    local px2, py2 = math.floor(x2), math.floor(y2)
+
+    local dx = math.abs(px2 - px1)
+    local dy = -math.abs(py2 - py1)
+
+    local sx = (px1 < px2) and 1 or -1
+    local sy = (py1 < py2) and 1 or -1
+
+    local err = dx + dy
+    local e2
+
+    local currentX, currentY = px1, py1
+
+    -- Maximum iterations to prevent infinite loops in unexpected scenarios
+    local maxIterations = (dx + math.abs(dy)) * 2 -- A generous limit
+    local iteration = 0
+
+    while iteration < maxIterations do
+        iteration = iteration + 1
+        -- Check current cell, but skip the very first cell (player's cell)
+        -- and the very last cell (trap's cell) for obstruction.
+        -- We only care about cells *between* player and trap.
+        if not (currentX == px1 and currentY == py1) and not (currentX == px2 and currentY == py2) then
+            if map:getCell(currentX, currentY) > 0 then
+                return false -- Wall in the way
+            end
+        end
+
+        if currentX == px2 and currentY == py2 then
+            break -- Reached target
+        end
+
+        e2 = 2 * err
+        if e2 >= dy then -- Move in x-direction
+            if currentX == px2 then break end -- Avoid overshooting if already at target x
+            err = err + dy
+            currentX = currentX + sx
+        end
+        if e2 <= dx then -- Move in y-direction
+            if currentY == py2 then break end -- Avoid overshooting if already at target y
+            err = err + dx
+            currentY = currentY + sy
+        end
+    end
+    return true -- No obstruction
+end
+
 -- Initialize the trap properties in the map
 function trapSystem:initializeMap(map)
     -- Add active traps property to the map
@@ -62,7 +114,10 @@ function trapSystem:addTrap(map, x, y, props)
         isTrapDetected = props.isTrapDetected or false,
         isTrapDisarmed = props.isTrapDisarmed or false,
         hintFactor = props.hintFactor or 0.0,
-        floorTextureVariant = props.floorTextureVariant
+        floorTextureVariant = props.floorTextureVariant,
+        -- Store integer cell coordinates for quicker access in LOS checks if needed
+        cellX = math.floor(x),
+        cellY = math.floor(y)
     }
     
     -- Set the floor texture if a variant is provided
@@ -347,9 +402,17 @@ function trapSystem:triggerChestTrap(entity, target)
 end
 
 -- Check if a player would detect a trap based on their class and skills
-function trapSystem:checkTrapDetection(trap)
+function trapSystem:checkTrapDetection(trap, map, playerX, playerY)
     if not trap or not trap.isTrapActive or trap.isTrapDetected then
         return false
+    end
+
+    -- Line of Sight Check
+    if not hasLineOfSight(map, playerX, playerY, trap.x, trap.y) then
+        if GAME.debug then
+            print("Trap detection failed for trap at (" .. trap.x .. "," .. trap.y .. "): No line of sight from (" .. playerX .. "," .. playerY .. ")")
+        end
+        return false -- No line of sight, cannot detect
     end
     
     local detectionChance = 0.1  -- Base 10% chance (fallback)
@@ -490,6 +553,12 @@ function trapSystem:updateTrapHintFactors(map, playerX, playerY)
             if trap.isTrapDetected then
                 trap.hintFactor = 0.8  -- Increased from 0.6 to make detected traps more visible
             else
+                -- Line of Sight Check before proximity checks
+                if not hasLineOfSight(map, playerX, playerY, trap.x, trap.y) then
+                    trap.hintFactor = 0.0 -- No line of sight, no hint
+                    goto next_trap -- Continue to the next trap in the loop
+                end
+
                 local distance = math.sqrt((trap.x - playerX)^2 + (trap.y - playerY)^2)
                 if distance <= detectionRange then
                     -- Calculate hint factor based on distance and multiplier
@@ -509,7 +578,7 @@ function trapSystem:updateTrapHintFactors(map, playerX, playerY)
                     end
 
                     if math.random() < (passiveDetectBaseChance + rogueBonus) then
-                        self:checkTrapDetection(trap)
+                        self:checkTrapDetection(trap, map, playerX, playerY) -- Pass map and player coords
                     end
                 else
                     trap.hintFactor = 0.0
@@ -518,6 +587,7 @@ function trapSystem:updateTrapHintFactors(map, playerX, playerY)
         else
             trap.hintFactor = 0.0
         end
+        ::next_trap:: -- Label for goto
     end
 end
 

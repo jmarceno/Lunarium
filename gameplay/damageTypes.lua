@@ -11,7 +11,10 @@ damageTypes.types = {
     ["lightning"] = { name = "Lightning", color = {0.9, 0.9, 0.3}, icon = "assets/Icons/StatusEffects/poison.png", iconSize = 24 },
     ["poison"] = { name = "Poison", color = {0.4, 0.8, 0.4}, icon = "assets/Icons/StatusEffects/poison.png", iconSize = 24 },
     ["necrotic"] = { name = "Necrotic", color = {0.5, 0.2, 0.5}, icon = "assets/Icons/StatusEffects/poison.png", iconSize = 24 },
-    ["arcane"] = { name = "Arcane", color = {0.8, 0.4, 0.8}, icon = "assets/Icons/StatusEffects/poison.png", iconSize = 24 }
+    ["arcane"] = { name = "Arcane", color = {0.8, 0.4, 0.8}, icon = "assets/Icons/StatusEffects/poison.png", iconSize = 24 },
+    ["acid"] = { name = "Acid", color = {0.4, 0.8, 0.2}, icon = "assets/Icons/StatusEffects/poison.png", iconSize = 24 },
+    ["holy"] = { name = "Holy", color = {0.9, 0.9, 0.5}, icon = "assets/Icons/StatusEffects/poison.png", iconSize = 24 },
+    ["psychic"] = { name = "Psychic", color = {0.7, 0.3, 0.7}, icon = "assets/Icons/StatusEffects/poison.png", iconSize = 24 }
 }
 
 -- Calculate damage modifier based on resistances and immunities

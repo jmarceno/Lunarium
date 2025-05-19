@@ -2315,7 +2315,7 @@ function dungeon:updateTrapsAndInteractables(dt)
             if trap.isTrapActive and not trap.isTrapDisarmed and trap.hintFactor > 0 then
                 -- For traps with significant hint factor, check for detection
                 if not trap.isTrapDetected and trap.hintFactor > 0.2 then
-                    local detectResult = trapSystem:checkTrapDetection(trap)
+                    local detectResult = trapSystem:checkTrapDetection(trap, self.map, self.playerPos.x, self.playerPos.y)
                     
                     -- If trap was just detected and we haven't shown a notification for it yet
                     if detectResult and not self.detectedTraps[trap] then
@@ -2355,7 +2355,7 @@ function dungeon:updateTrapsAndInteractables(dt)
         if trap and trap.isTrapActive and not trap.isTrapDisarmed then
             -- Check for trap detection
             if not trap.isTrapDetected then
-                local detectResult = trapSystem:checkTrapDetection(trap)
+                local detectResult = trapSystem:checkTrapDetection(trap, self.map, self.playerPos.x, self.playerPos.y)
                 
                 -- If trap was just detected and we haven't shown a notification for it yet
                 if detectResult and not self.detectedTraps[trap] then

@@ -11,6 +11,14 @@ monsterAbilities.definitions = {
         damageType = "physical",
         description = "A basic physical attack."
     },
+    strong_physical_attack = {
+        name = "Strong Attack",
+        type = "physical",
+        basePower = 130,
+        target = "single_enemy",
+        damageType = "physical",
+        description = "A powerful physical attack."
+    },
     claw_attack = {
         name = "Claw",
         type = "physical",
@@ -191,6 +199,34 @@ monsterAbilities.definitions = {
     },
     
     -- New undead magic attacks
+    arcane_bolt = {
+        name = "Arcane Bolt",
+        type = "magical",
+        basePower = 125,
+        target = "single_enemy",
+        damageType = "arcane",
+        effect = {
+            type = "magic_vulnerability",
+            chance = 0.4,
+            duration = 2,
+            strength = 1
+        },
+        description = "A bolt of arcane energy that increases magic damage taken."
+    },
+    lightning_bolt = {
+        name = "Lightning Bolt",
+        type = "magical",
+        basePower = 130,
+        target = "single_enemy",
+        damageType = "lightning",
+        effect = {
+            type = "paralysis",
+            chance = 0.3,
+            duration = 1,
+            strength = 1
+        },
+        description = "A bolt of lightning that can paralyze the target."
+    },
     ice_bolt = {
         name = "Ice Bolt",
         type = "magical",
@@ -316,6 +352,20 @@ monsterAbilities.definitions = {
         },
         description = "A touch that brings death and vulnerability."
     },
+    necrotic_touch = {
+        name = "Necrotic Touch",
+        type = "magical",
+        basePower = 120,
+        target = "single_enemy",
+        damageType = "necrotic",
+        effect = {
+            type = "weaken",
+            chance = 0.7,
+            duration = 2,
+            strength = 1
+        },
+        description = "A touch that drains life force and weakens the target."
+    },
     arcane_explosion = {
         name = "Arcane Explosion",
         type = "magical",
@@ -335,6 +385,19 @@ monsterAbilities.definitions = {
             count = 2
         },
         description = "Summons minions to aid in battle."
+    },
+    split = {
+        name = "Split",
+        type = "support",
+        basePower = 0,
+        target = "self",
+        effect = {
+            type = "summon_ally",
+            chance = 1.0,
+            summonType = "slime_small",
+            count = 2
+        },
+        description = "Splits into smaller slimes."
     },
     web_shot = {
         name = "Web Shot",
@@ -391,6 +454,32 @@ monsterAbilities.definitions = {
             strength = 1
         },
         description = "Creates an aura that increases allies' defense."
+    },
+    regeneration = {
+        name = "Regeneration",
+        type = "support",
+        basePower = 0,
+        target = "self",
+        effect = {
+            type = "heal_over_time",
+            chance = 1.0,
+            duration = 3,
+            strength = 2
+        },
+        description = "Regenerates health over time."
+    },
+    rage = {
+        name = "Rage",
+        type = "support",
+        basePower = 0,
+        target = "self",
+        effect = {
+            type = "attack_up",
+            chance = 1.0,
+            duration = 3,
+            strength = 2
+        },
+        description = "Increases attack power significantly."
     },
     silence_spell = {
         name = "Silence Spell",
