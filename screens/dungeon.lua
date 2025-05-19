@@ -2303,19 +2303,10 @@ function dungeon:updateTrapsAndInteractables(dt)
     interactables:updateHintFactors(self.map, self.playerPos.x, self.playerPos.y)
     trapSystem:updateTrapHintFactors(self.map, self.playerPos.x, self.playerPos.y)
     
-    -- Check distance to active trap and clear if too far
-    if self.activeTrap then
-        local distance = math.sqrt(
-            (self.playerPos.x - self.activeTrap.x)^2 + 
-            (self.playerPos.y - self.activeTrap.y)^2
-        )
-        
-        if distance > self.activeTrapDistance then
-            self.activeTrap = nil
-        end
-    end
+    -- Store previous active trap for distance checking
+    local previousActiveTrap = self.activeTrap
     
-    -- Reset active trap
+    -- Reset active trap at the beginning of each update
     self.activeTrap = nil
     
     -- Check for nearby traps with hintFactor > 0
@@ -2340,8 +2331,14 @@ function dungeon:updateTrapsAndInteractables(dt)
                     end
                 end
                 
-                -- If trap is detected, make it the active trap
-                if trap.isTrapDetected then
+                -- Calculate distance to trap
+                local distance = math.sqrt(
+                    (self.playerPos.x - trap.x)^2 + 
+                    (self.playerPos.y - trap.y)^2
+                )
+                
+                -- If trap is detected and player is close enough, make it the active trap
+                if trap.isTrapDetected and distance <= self.activeTrapDistance then
                     self.activeTrap = trap
                 end
             end
