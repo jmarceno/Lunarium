@@ -78,6 +78,11 @@ function dungeon:init()
     -- Add floating text system
     self.floatingTexts = {}
     
+    -- Add loot display queue system
+    self.lootDisplayQueue = {}
+    self.lootDisplayTimer = 0
+    self.lootDisplayInterval = 0.6 -- Display a new item every 0.4 seconds
+    
     -- Add detected trap tracking to avoid repeat notifications
     self.detectedTraps = {}
     
@@ -736,6 +741,9 @@ function dungeon:update(dt)
 
     -- Update traps and interactables for all states
     self:updateTrapsAndInteractables(dt)
+    
+    -- Update loot display queue
+    self:updateLootDisplay(dt)
     
     -- Update based on current state
     if self.state == STATES.EXPLORING then
@@ -1685,11 +1693,23 @@ function dungeon:collectChestLoot(chestEntity)
         return false
     end
     
-    -- Add all items to inventory
-    for _, item in ipairs(chestEntity.contents) do
+    -- Calculate base Y position
+    local baseY = GAME.height / 2 - 60
+    
+    -- Add all items to inventory and queue display messages
+    for i, item in ipairs(chestEntity.contents) do
         if item.type == "gold" then
             GAME.gold = (GAME.gold or 0) + item.amount
             print("Collected Gold: " .. item.amount) -- Debug
+            
+            -- Queue floating text for gold
+            table.insert(self.lootDisplayQueue, {
+                text = "Acquired " .. item.amount .. " Gold!",
+                x = GAME.width / 2,
+                y = baseY,
+                color = {1, 0.8, 0.2, 1}, -- Gold color
+                duration = 2.0
+            })
         else
             -- Check if this collected item is a quest item
             if item.questItemId and self.currentQuest and 
@@ -1697,11 +1717,33 @@ function dungeon:collectChestLoot(chestEntity)
                item.questItemId == self.currentQuest.objective.itemId then
                 print("Collected QUEST ITEM from chest: " .. item.name)
                 questSystem:updateProgress("item_pickup", {itemId = item.questItemId, count = item.count or 1})
+                
+                -- Queue floating text for quest item with different color
+                table.insert(self.lootDisplayQueue, {
+                    text = "Acquired Quest Item: " .. item.name,
+                    x = GAME.width / 2,
+                    y = baseY,
+                    color = {0.3, 0.8, 1.0, 1}, -- Blue color for quest items
+                    duration = 2.5
+                })
+            else
+                -- Queue floating text for regular item
+                table.insert(self.lootDisplayQueue, {
+                    text = "Acquired " .. item.name,
+                    x = GAME.width / 2,
+                    y = baseY,
+                    color = {1, 1, 1, 1}, -- White color
+                    duration = 2.0
+                })
             end
+            
             itemSystem:addToInventory(item)
             print("Collected Item: " .. item.name) -- Debug
         end
     end
+    
+    -- Start displaying the queue immediately
+    self.lootDisplayTimer = 0
     
     -- Play pickup sound
     assetManager:playSound("pickup")
@@ -2079,6 +2121,35 @@ function dungeon:_prepareAndChangeState(targetState)
     
     -- gameState is already required at the top
     gameState:changeState(targetState, { from = "dungeon" })
+end
+
+-- Process the loot display queue with delay between items
+function dungeon:updateLootDisplay(dt)
+    -- Return if queue is empty
+    if #self.lootDisplayQueue == 0 then
+        return
+    end
+    
+    -- Update timer
+    self.lootDisplayTimer = self.lootDisplayTimer - dt
+    
+    -- If timer is up, display the next item
+    if self.lootDisplayTimer <= 0 then
+        local lootItem = table.remove(self.lootDisplayQueue, 1)
+        
+        -- Display the floating text
+        uiFunctions.showFloatingText(
+            lootItem.text,
+            lootItem.x,
+            lootItem.y,
+            lootItem.color,
+            lootItem.duration,
+            self.floatingTexts
+        )
+        
+        -- Reset timer for next item
+        self.lootDisplayTimer = self.lootDisplayInterval
+    end
 end
 
 return dungeon
