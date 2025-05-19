@@ -13,9 +13,14 @@ local gameState = require("states/gameState")
 local minionManager = require("gameplay/minionManager")
 local interactables = require("gameplay/interactables")
 local trapSystem = require("gameplay/trapSystem")
-local dungeon = screenManager:createScreen("Dungeon")
+-- Require the new UI slice panels
+local minimapPanel = require("screens/ui_slices/minimap_panel")
+local confirmDialogPanel = require("screens/ui_slices/confirm_dialog_panel")
+local statusBarPanel = require("screens/ui_slices/status_bar_panel")
 local partyPanel = require("screens/ui_slices/partyPanel")
 local uiFunctions = require("gameplay/combat/uiFunctions")
+
+local dungeon = screenManager:createScreen("Dungeon")
 
 -- Dungeon states
 local STATES = {
@@ -79,75 +84,14 @@ function dungeon:init()
     -- UI elements (Initialize the table first!)
     self.elements = {}
     
-    -- Confirmation Dialog
-    self.elements.confirmDialog = {
-        visible = false,
-        message = "",
-        confirmCallback = nil,
-        cancelCallback = nil,
+    -- Confirmation Dialog (now uses confirmDialogPanel)
+    self.elements.confirmDialog = confirmDialogPanel:new({
         x = 20,
-        y = GAME.height - 280,
+        y = GAME.height - 280, -- Initial Y
         width = 350,
-        height = 150,
-        yesButton = nil,
-        noButton = nil,
-
-        init = function(self)
-            self.yesButton = screenManager.UI.Button(
-                self.x + self.width - 110, self.y + self.height - 55,
-                100, 40, "Yes", 
-                function() 
-                    self.visible = false 
-                    if self.confirmCallback then self.confirmCallback() end 
-                end
-            )
-            self.noButton = screenManager.UI.Button(
-                self.x + 10, self.y + self.height - 55, 
-                100, 40, "No", 
-                function() 
-                    self.visible = false 
-                    if self.cancelCallback then self.cancelCallback() end 
-                end
-            )
-        end,
-
-        show = function(self, message, onConfirm, onCancel)
-            if not self.yesButton then self:init() end
-            self.message = message
-            self.confirmCallback = onConfirm
-            self.cancelCallback = onCancel
-            self.visible = true
-        end,
-
-        draw = function(self)
-            if not self.visible then return end
-            -- Draw a semi-transparent panel
-            love.graphics.setColor(0, 0, 0, 0.7) -- Black background with 70% opacity
-            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 5, 5)
-            love.graphics.setColor(0.5, 0.5, 0.8, 0.7) -- Border with 70% opacity
-            love.graphics.rectangle("line", self.x, self.y, self.width, self.height, 5, 5)
-            
-            -- Draw text with slight transparency
-            love.graphics.setFont(screenManager.fonts.medium)
-            love.graphics.setColor(1, 1, 1, 0.9)
-            love.graphics.printf(self.message, self.x + 10, self.y + 20, self.width - 20, "center")
-            
-            -- Draw buttons
-            self.yesButton:draw()
-            self.noButton:draw()
-        end,
-
-        clicked = function(self, x, y, button)
-            if not self.visible then return false end
-            if self.yesButton:clicked(x, y, button) then return true end
-            if self.noButton:clicked(x, y, button) then return true end
-            -- Consume clicks inside the panel
-            if x >= self.x and x <= self.x + self.width and y >= self.y and y <= self.y + self.height then
-               return true
-            end
-            return false
-        end
-    }
+        height = 150
+        -- yOffset will be used internally by the panel for resize
+    })
     
     -- Add other UI elements
     self.elements.completeButton = screenManager.UI.Button(
@@ -173,260 +117,23 @@ function dungeon:init()
         function() self:toggleStatusBar() end
     )
     
-    -- Initialize minimap
-    self.elements.minimap = {
+    -- Initialize minimap (now uses minimapPanel)
+    self.elements.minimap = minimapPanel:new({
         x = GAME.width - 220,
-        y = 10, -- Move down to avoid overlap with status bar
+        y = 10,
         width = 200,
         height = 200,
-        scale = 10,
-        visible = true,
-        
-        draw = function(self)
-            if not dungeon.map then return end
-            
-            -- Draw background
-            love.graphics.setColor(0, 0, 0, 0.7)
-            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height)
-            
-            -- Draw border
-            love.graphics.setColor(1, 1, 1, 0.5)
-            love.graphics.rectangle("line", self.x, self.y, self.width, self.height)
-            
-            -- Calculate minimap scale
-            local cellSize = math.min(self.width / dungeon.map.width, self.height / dungeon.map.height)
-            
-            -- Draw map cells
-            for y = 0, dungeon.map.height - 1 do
-                for x = 0, dungeon.map.width - 1 do
-                    -- Only draw cells that have been revealed (fog of war)
-                    if dungeon.map:isCellVisible(x, y) then
-                        local cellType = dungeon.map:getCell(x, y)
-                        
-                        if cellType > 0 then
-                            -- Wall
-                            love.graphics.setColor(0.7, 0.7, 0.7)
-                            love.graphics.rectangle("fill", 
-                                self.x + x * cellSize, 
-                                self.y + y * cellSize, 
-                                cellSize, cellSize)
-                        else
-                            -- Floor
-                            love.graphics.setColor(0.3, 0.3, 0.3)
-                            love.graphics.rectangle("fill", 
-                                self.x + x * cellSize, 
-                                self.y + y * cellSize, 
-                                cellSize, cellSize)
-                        end
-                        
-                        -- Draw entities only in revealed areas
-                        for _, entity in ipairs(dungeon.entities) do
-                            local entityX = math.floor(entity.x)
-                            local entityY = math.floor(entity.y)
-                            -- Only draw the entity if it's not hidden, or if debug mode is on and it's hidden
-                            if x == entityX and y == entityY and entity.type ~= "objective" and 
-                               (not entity.hidden or (entity.hidden and GAME.debug)) then
-                                -- Use a different color for hidden monsters in debug mode
-                                if entity.hidden and GAME.debug then
-                                    love.graphics.setColor(1, 0, 1) -- Magenta color for hidden monsters in debug mode
-                                else
-                                    love.graphics.setColor(entity.color or {1, 0, 0})
-                                end
-                                love.graphics.circle("fill", 
-                                    self.x + entity.x * cellSize, 
-                                    self.y + entity.y * cellSize, 
-                                    cellSize/2)
-                            end
-                        end
-                    end
-                end
-            end
-            
-            -- Draw traps in debug mode
-            if GAME.debug and dungeon.map.activeTraps then
-                for _, trap in ipairs(dungeon.map.activeTraps) do
-                    -- Choose color based on trap status
-                    if trap.isTrapActive then
-                        love.graphics.setColor(0, 1, 1) -- Cyan color for active traps
-                    else
-                        love.graphics.setColor(0.5, 0.5, 0.5) -- Gray color for triggered traps
-                    end
-                    
-                    -- Draw trap on minimap
-                    love.graphics.rectangle("fill", 
-                        self.x + trap.x * cellSize + cellSize/4, 
-                        self.y + trap.y * cellSize + cellSize/4, 
-                        cellSize/2, cellSize/2)
-                    
-                    -- Draw X for disarmed traps
-                    if trap.isTrapDisarmed then
-                        love.graphics.setColor(0.8, 0, 0) -- Red color for X
-                        -- Draw an X by using two lines
-                        love.graphics.line(
-                            self.x + trap.x * cellSize + cellSize/4,
-                            self.y + trap.y * cellSize + cellSize/4,
-                            self.x + trap.x * cellSize + cellSize*3/4,
-                            self.y + trap.y * cellSize + cellSize*3/4
-                        )
-                        love.graphics.line(
-                            self.x + trap.x * cellSize + cellSize*3/4,
-                            self.y + trap.y * cellSize + cellSize/4,
-                            self.x + trap.x * cellSize + cellSize/4,
-                            self.y + trap.y * cellSize + cellSize*3/4
-                        )
-                    end
-                    
-                    -- Draw T for triggered traps
-                    if not trap.isTrapActive and not trap.isTrapDisarmed then
-                        love.graphics.setColor(1, 0.6, 0) -- Orange color for T
-                        -- Draw a T shape
-                        love.graphics.line(
-                            self.x + trap.x * cellSize + cellSize/4,
-                            self.y + trap.y * cellSize + cellSize/3,
-                            self.x + trap.x * cellSize + cellSize*3/4,
-                            self.y + trap.y * cellSize + cellSize/3
-                        )
-                        love.graphics.line(
-                            self.x + trap.x * cellSize + cellSize/2,
-                            self.y + trap.y * cellSize + cellSize/3,
-                            self.x + trap.x * cellSize + cellSize/2,
-                            self.y + trap.y * cellSize + cellSize*3/4
-                        )
-                    end
-                end
-            end
-            
-            -- Draw secret passages in debug mode
-            if GAME.debug and dungeon.map.secretPassages then
-                for _, passage in ipairs(dungeon.map.secretPassages) do
-                    -- Use a special color for secret passages
-                    if passage.secretPassageRevealed then
-                        -- Green for revealed passages
-                        love.graphics.setColor(0, 0.8, 0.2)
-                    else
-                        -- Magenta for hidden passages
-                        love.graphics.setColor(1, 0, 1)
-                    end
-                    
-                    -- Draw a diamond shape for secret passages
-                    local centerX = self.x + passage.x * cellSize + cellSize/2
-                    local centerY = self.y + passage.y * cellSize + cellSize/2
-                    local size = cellSize/2
-                    
-                    love.graphics.polygon("fill", 
-                        centerX, centerY - size/2,  -- Top point
-                        centerX + size/2, centerY,  -- Right point
-                        centerX, centerY + size/2,  -- Bottom point
-                        centerX - size/2, centerY   -- Left point
-                    )
-                end
-            end
-            
-            -- Draw interactable walls in debug mode
-            if GAME.debug and dungeon.map.interactableWalls then
-                for _, wall in ipairs(dungeon.map.interactableWalls) do
-                    -- Use orange for interactable walls
-                    love.graphics.setColor(1, 0.5, 0)
-                    
-                    -- Draw a smaller square for interactable walls
-                    love.graphics.rectangle("fill", 
-                        self.x + wall.x * cellSize + cellSize/3, 
-                        self.y + wall.y * cellSize + cellSize/3, 
-                        cellSize/3, cellSize/3)
-                end
-            end
-            
-            -- Draw objective if revealed
-            local objX = math.floor(dungeon.objective.x)
-            local objY = math.floor(dungeon.objective.y)
-            if not dungeon.objective.reached and dungeon.map:isCellVisible(objX, objY) then
-                love.graphics.setColor(0, 1, 0)
-                love.graphics.circle("fill", 
-                    self.x + dungeon.objective.x * cellSize + cellSize/2, 
-                    self.y + dungeon.objective.y * cellSize + cellSize/2, 
-                    cellSize/2)
-            end
-            
-            -- Player is always visible
-            love.graphics.setColor(0, 0, 1)
-            love.graphics.circle("fill", 
-                self.x + dungeon.playerPos.x * cellSize, 
-                self.y + dungeon.playerPos.y * cellSize, 
-                cellSize/2)
-            
-            -- Draw player direction
-            local dirX = math.cos(dungeon.playerPos.angle) * cellSize
-            local dirY = math.sin(dungeon.playerPos.angle) * cellSize
-            
-            love.graphics.setColor(1, 1, 0)
-            love.graphics.line(
-                self.x + dungeon.playerPos.x * cellSize,
-                self.y + dungeon.playerPos.y * cellSize,
-                self.x + dungeon.playerPos.x * cellSize + dirX,
-                self.y + dungeon.playerPos.y * cellSize + dirY
-            )
-        end
-    }
+        visible = true
+    })
     
-    -- Status bar
-    self.elements.statusBar = {
+    -- Status bar (now uses statusBarPanel)
+    self.elements.statusBar = statusBarPanel:new({
         x = 10,
         y = 10,
-        width = GAME.width - 240, -- Make room for buttons on the right
+        width = GAME.width - 240,
         height = 60,
-        visible = true,
-        
-        draw = function(self)
-            if not self.visible then return end
-            
-            -- Draw status bar background
-            love.graphics.setColor(0, 0, 0, 0.7)
-            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 5, 5)
-            love.graphics.setColor(0.3, 0.3, 0.5)
-            love.graphics.rectangle("line", self.x, self.y, self.width, self.height, 5, 5)
-            
-            -- Draw quest info
-            if dungeon.currentQuest then
-                love.graphics.setColor(1, 1, 1)
-                love.graphics.setFont(screenManager.fonts.small)
-                love.graphics.print("Current Quest: " .. dungeon.currentQuest.name, self.x + 10, self.y + 10)
-                
-                -- Draw objective status based on quest type
-                local objectiveText = ""
-                local objectiveColor = {1, 0.8, 0}
-                
-                if dungeon.currentQuest.type == "EXPLORE" then
-                    if dungeon.objective.reached then
-                        objectiveText = "Return to entrance"
-                        objectiveColor = {0, 1, 0}
-                    else
-                        objectiveText = "Find the target location"
-                    end
-                elseif dungeon.currentQuest.type == "KILL" then
-                    local current = dungeon.currentQuest.objective.current or 0
-                    local count = dungeon.currentQuest.objective.count or 0
-                    objectiveText = "Defeat " .. current .. "/" .. count .. " " .. dungeon.currentQuest.objective.targetName
-                    
-                    -- Set color to green if objective is complete
-                    if current >= count then
-                        objectiveColor = {0, 1, 0}
-                    end
-                elseif dungeon.currentQuest.type == "COLLECT" then
-                    local current = dungeon.currentQuest.objective.current or 0
-                    local count = dungeon.currentQuest.objective.count or 0
-                    objectiveText = "Collect " .. current .. "/" .. count .. " " .. dungeon.currentQuest.objective.itemName
-                    
-                    -- Set color to green if objective is complete
-                    if current >= count then
-                        objectiveColor = {0, 1, 0}
-                    end
-                end
-                
-                love.graphics.setColor(objectiveColor)
-                love.graphics.print("Objective: " .. objectiveText, self.x + 10, self.y + 30)
-            end
-        end
-    }
+        visible = self.statusBarVisible -- Initialize with dungeon's state
+    })
 
      -- Initialize party panel
      self.elements.partyPanel = partyPanel
@@ -435,6 +142,21 @@ function dungeon:init()
     minionManager:init()
     
     return self
+end
+
+-- Helper function to initialize player position and angle
+function dungeon:_initializePlayerPositionAndAngle(startRoom, mapStartPos)
+    local playerX = math.floor(startRoom.x + startRoom.width / 2) + 0.5
+    local playerY = math.floor(startRoom.y + startRoom.height / 2) + 0.5
+    local playerAngle = 0
+
+    local dirX = playerX - mapStartPos.x
+    local dirY = playerY - mapStartPos.y
+    local length = math.sqrt(dirX*dirX + dirY*dirY)
+    if length > 0 then
+        playerAngle = math.atan2(dirY, dirX)
+    end
+    return {x = playerX, y = playerY, angle = playerAngle}
 end
 
 function dungeon:partyHasRogue()
@@ -507,104 +229,51 @@ function dungeon:enter(params)
     raycaster.texturesEnabled = self.textureSettings.wallTexturesEnabled
     raycaster.floorTexturesEnabled = self.textureSettings.floorTexturesEnabled
     
-    -- Calculate fog of war radius based on dungeon size and difficulty
-    local baseFogRadius = 5 -- Base visibility radius
-    if params and params.quest and params.quest.difficulty then
-        -- Scale fog radius with difficulty, but not as aggressively as dungeon size
-        self.fogOfWarRadius = baseFogRadius + math.floor(params.quest.difficulty * 1.5)
-    else
-        self.fogOfWarRadius = baseFogRadius -- Default for non-quest dungeons
-    end
-    
     self.killQuestNotificationShown = false -- Reset notification flag for kill quests
     
     -- Start playing dungeon music
     assetManager:playMusic("dungeon")
     
     -- Load or generate dungeon
+    local seedValue
+    local dungeonSize
+    local difficultyValue
+    local baseFogRadius = 5 -- Base visibility radius
+
     if params and params.quest then
         self.currentQuest = params.quest
-        
-        -- Generate dungeon from quest seed or create a new one
-        local seed = params.quest.seed or os.time()
-        self.seed = seed
+        seedValue = params.quest.seed or os.time()
+        difficultyValue = params.quest.difficulty or 1
         
         -- Calculate dungeon size based on difficulty
-        local difficulty = params.quest.difficulty or 1
         local baseSize = 20 -- Minimum size 
-        local dungeonSize = baseSize * (2 ^ (difficulty - 1)) -- Scale by 2^(difficulty-1)
-        
-        -- Cap size to prevent performance issues (optional)
+        dungeonSize = baseSize * (2 ^ (difficultyValue - 1)) -- Scale by 2^(difficulty-1)
         dungeonSize = math.min(dungeonSize, 160) -- Cap at 160x160
         
-        self.map = dungeonGenerator:generate(dungeonSize, dungeonSize, seed)
-        
         -- Scale movement speed based on dungeon size
-        -- Increase movement speed for larger dungeons to reduce travel time
-        local speedMultiplier = 1.0 + (math.min(difficulty, 5) * 0.2) -- Cap at 2x speed at difficulty 5
+        local speedMultiplier = 1.0 + (math.min(difficultyValue, 5) * 0.2) -- Cap at 2x speed at difficulty 5
         self.moveSpeed = self.baseMoveSpeed * speedMultiplier
         
-        -- Get the first room which is the starting room
-        local startRoom = self.map.rooms[1]
-        
-        -- Place player in the center of the starting room
-        self.playerPos = {
-            x = math.floor(startRoom.x + startRoom.width / 2) + 0.5,
-            y = math.floor(startRoom.y + startRoom.height / 2) + 0.5,
-            angle = 0
-        }
-        
-        -- Set player's angle to face away from entrance (toward dungeon center)
-        local dirX = self.playerPos.x - self.map.start.x
-        local dirY = self.playerPos.y - self.map.start.y
-        
-        -- Normalize the direction vector
-        local length = math.sqrt(dirX*dirX + dirY*dirY)
-        if length > 0 then
-            -- Set player's angle to face away from entrance
-            self.playerPos.angle = math.atan2(dirY, dirX)
-        end
-        
-        -- Set objective position
-        self.objective = {
-            x = self.map.end_.x,
-            y = self.map.end_.y,
-            completed = false,
-            reached = false
-        }
-        
-        -- Populate dungeon with monsters and items
-        self:populateDungeon(params.quest.difficulty or 1)
+        self.fogOfWarRadius = baseFogRadius + math.floor(difficultyValue * 1.5)
     else
-        -- Create a default dungeon if no quest is provided
-        -- Use the minimum size (40x40) for default dungeons
-        self.map = dungeonGenerator:generate(40, 40, os.time())
-        
-        -- Use base movement speed for default dungeons
-        self.moveSpeed = self.baseMoveSpeed
+        self.currentQuest = nil -- Ensure currentQuest is nil if no quest params
+        seedValue = os.time()
+        difficultyValue = 1 -- Default difficulty for non-quest dungeons
+        dungeonSize = 40 -- Use the minimum size (40x40) for default dungeons
+        self.moveSpeed = self.baseMoveSpeed -- Use base movement speed for default dungeons
+        self.fogOfWarRadius = baseFogRadius -- Default for non-quest dungeons
+    end
+    
+    self.seed = seedValue -- Store the determined seed
+    self.map = dungeonGenerator:generate(dungeonSize, dungeonSize, seedValue)
         
         -- Get the first room which is the starting room
         local startRoom = self.map.rooms[1]
         
-        -- Place player in the center of the starting room
-        self.playerPos = {
-            x = math.floor(startRoom.x + startRoom.width / 2) + 0.5,
-            y = math.floor(startRoom.y + startRoom.height / 2) + 0.5,
-            angle = 0
-        }
+    -- Place player in the center of the starting room using helper
+    self.playerPos = self:_initializePlayerPositionAndAngle(startRoom, self.map.start)
         
-        -- Set player's angle to face away from entrance (toward dungeon center)
-        local dirX = self.playerPos.x - self.map.start.x
-        local dirY = self.playerPos.y - self.map.start.y
-        
-        -- Normalize the direction vector
-        local length = math.sqrt(dirX*dirX + dirY*dirY)
-        if length > 0 then
-            -- Set player's angle to face away from entrance
-            self.playerPos.angle = math.atan2(dirY, dirX)
-        end
-        
-        -- Set objective position
+    -- Set objective position (common logic)
         self.objective = {
             x = self.map.end_.x,
             y = self.map.end_.y,
@@ -612,9 +281,8 @@ function dungeon:enter(params)
             reached = false
         }
         
-        -- Populate dungeon with default monsters and items
-        self:populateDungeon(1)
-    end
+    -- Populate dungeon with monsters and items based on difficultyValue
+    self:populateDungeon(difficultyValue)
     
     -- Add Entrance marker entity at the start
     table.insert(self.entities, { 
@@ -1059,7 +727,7 @@ function dungeon:update(dt)
         self.statusBarTimer = self.statusBarTimer - dt
         if self.statusBarTimer <= 0 then
             self.statusBarVisible = false
-            self.elements.statusBar.visible = false
+            self.elements.statusBar:setVisible(false) -- Sync with panel
         end
     end
 
@@ -1560,7 +1228,7 @@ function dungeon:draw()
 
         -- Draw UI elements that should appear in exploring state
         if self.elements.minimap then
-            self.elements.minimap:draw()
+            self.elements.minimap:draw(self) -- Pass dungeon instance (self)
         end
         
         -- Display party members with basic stats (bottom of screen)
@@ -1705,120 +1373,16 @@ function dungeon:keypressed(key, scancode, isrepeat)
         -- Handle key presses for exploring state (like minimap toggle)
         if key == "m" then
             -- Toggle minimap
-            self.elements.minimap.visible = not self.elements.minimap.visible
+            if self.elements.minimap and self.elements.minimap.toggleVisibility then
+                self.elements.minimap:toggleVisibility()
+            end
             return true -- Handled
         end
     elseif self.state == STATES.COMBAT and self.combat then
         if self.combat:keypressed(key) then
             -- If combat system signals completion via keypress, handle victory/defeat immediately
             if self.combat:isVictory() then
-                -- Get loot and enemy info before potential state change
-                local loot = self.combat:getLoot()
-                local enemyToRemove = self.combat.enemy
-
-                -- Handle victory rewards (loot, remove enemy)
-                if GAME.inventory and loot then
-                    for _, item in ipairs(loot) do 
-                        itemSystem:addToInventory(item)
-                    end
-                end
-                
-                -- Handle multiple enemies if present
-                if self.combat.enemies and #self.combat.enemies > 0 then
-                    -- Track entities to remove
-                    local entitiesToRemove = {}
-                    
-                    -- Find enemies to remove
-                    for _, combatEnemy in ipairs(self.combat.enemies) do
-                        for i, entity in ipairs(self.entities) do
-                            if entity.type == "monster" and entity.id == combatEnemy.id then
-                                table.insert(entitiesToRemove, i)
-                                break
-                            end
-                        end
-                    end
-                    
-                    -- Remove entities and update quest progress
-                    table.sort(entitiesToRemove, function(a, b) return a > b end)
-                    for _, index in ipairs(entitiesToRemove) do
-                        -- Get entity before removing it
-                        local entity = self.entities[index]
-                        
-                        -- Make sure entity exists before accessing its properties
-                        if entity then
-                            -- Update quest progress for kill quests
-                            if entity.type == "monster" and self.currentQuest and self.currentQuest.type == "KILL" then
-                                -- Trigger kill event
-                                local questSystem = require("gameplay/questSystem")
-                                questSystem:updateProgress("kill", {monsterId = entity.id})
-                                
-                                if GAME.debug then
-                                    print("Keypressed: Updated kill quest progress for monster ID: " .. entity.id)
-                                end
-                            end
-                            
-                            -- Remove the entity
-                            table.remove(self.entities, index)
-                        else
-                            print("Warning: Tried to access nil entity at index " .. index)
-                        end
-                    end
-                else
-                    -- Handle single enemy for backward compatibility
-                    local enemyToRemove = self.combat.enemy
-                    
-                    -- Make sure enemyToRemove exists before proceeding
-                    if enemyToRemove then
-                        for i = #self.entities, 1, -1 do
-                            if self.entities[i] == enemyToRemove then
-                                -- Update quest progress for kill quests if applicable
-                                if enemyToRemove.type == "monster" and self.currentQuest and self.currentQuest.type == "KILL" then
-                                    -- Trigger kill event through quest system
-                                    local questSystem = require("gameplay/questSystem")
-                                    questSystem:updateProgress("kill", {monsterId = enemyToRemove.id})
-                                    
-                                    if GAME.debug then
-                                        print("Keypressed: Updated kill quest progress for monster ID: " .. enemyToRemove.id)
-                                    end
-                                end
-                                
-                                table.remove(self.entities, i)
-                                break
-                            end
-                        end
-                    else
-                        print("Warning: Tried to handle nil enemyToRemove in single-enemy combat")
-                    end
-                end
-
-                -- Check for level ups
-                local charactersToLevelUp = {}
-                if GAME.party then
-                    for _, char in ipairs(GAME.party) do
-                        -- Check if the character has the flag set from levelUp() function
-                        if char.needsLevelUpScreen then
-                            table.insert(charactersToLevelUp, char)
-                        end
-                    end
-                end
-
-                -- Transition to Level Up Screen or back to Exploring
-                if #charactersToLevelUp > 0 then
-                    print("Combat Victory: Triggering level up for", #charactersToLevelUp, "character(s).")
-                    self.combat = nil -- Clear combat state
-                    gameState:changeState("levelUp", { charactersToLevelUp = charactersToLevelUp })
-                     -- Note: Don't reset killQuestNotificationShown here, LevelUp screen will return
-                else
-                     -- No level ups, return to exploring
-                    print("Combat Victory: No level ups, returning to exploring.")
-                    self.state = STATES.EXPLORING
-                    self.combat = nil
-                    -- Reset kill quest notification flag AFTER victory if no level up occurs
-                    self.killQuestNotificationShown = false
-                    -- Return to dungeon music
-                    assetManager:playMusic("dungeon")
-                end
-
+                self:handleCombatVictory() -- Use new helper function
             else
                 -- Handle defeat                 
                 self:failQuest()
@@ -1854,131 +1418,7 @@ function dungeon:mousepressed(x, y, button, istouch, presses)
         if self.combat:mousepressed(x, y, button) then
             -- If combat system signals completion via mouse click (on Continue button)
             if self.combat:isVictory() then
-                -- Get loot before potential state change
-                local loot = self.combat:getLoot()
-                
-                -- Handle victory rewards (loot, remove enemies)
-                if GAME.inventory and loot then
-                    for _, item in ipairs(loot) do 
-                        itemSystem:addToInventory(item)
-                    end
-                end
-                
-                -- Remove all defeated enemies from the entities list
-                -- With multiple enemies, we need to handle all enemies that were in combat
-                if self.combat.enemies and #self.combat.enemies > 0 then
-                    -- Create a table to track which entities to remove
-                    local entitiesToRemove = {}
-                    
-                    -- Find all of the combat enemies in the dungeon entities
-                    for _, combatEnemy in ipairs(self.combat.enemies) do
-                        for i, entity in ipairs(self.entities) do
-                            -- Match by ID and position if possible
-                            if entity.type == "monster" and entity.id == combatEnemy.id then
-                                -- Check if position values exist before calculating distance
-                                if combatEnemy.x ~= nil and combatEnemy.y ~= nil and entity.x ~= nil and entity.y ~= nil then
-                                    -- If entity positions approximately match the combat enemy
-                                    -- (Using a small tolerance for floating point comparison)
-                                    local distX = entity.x - combatEnemy.x
-                                    local distY = entity.y - combatEnemy.y
-                                    local dist = math.sqrt(distX*distX + distY*distY)
-                                    
-                                    -- Match by position with small tolerance
-                                    if dist < 2.0 then
-                                        table.insert(entitiesToRemove, i)
-                                        break
-                                    end
-                                else
-                                    -- If positions aren't available, match by ID only
-                                    table.insert(entitiesToRemove, i)
-                                    break
-                                end
-                            end
-                        end
-                    end
-                    
-                    -- Remove the entities in reverse order to avoid index shifting issues
-                    table.sort(entitiesToRemove, function(a, b) return a > b end)
-                    for _, index in ipairs(entitiesToRemove) do
-                        -- Get the entity before removing it
-                        local entity = self.entities[index]
-                        
-                        -- Make sure entity exists before accessing its properties
-                        if entity then
-                            -- Update quest progress for kill quests if applicable
-                            if entity.type == "monster" and self.currentQuest and self.currentQuest.type == "KILL" then
-                                -- Trigger kill event through quest system
-                                local questSystem = require("gameplay/questSystem")
-                                questSystem:updateProgress("kill", {monsterId = entity.id})
-                                
-                                if GAME.debug then
-                                    print("Updated kill quest progress for monster ID: " .. entity.id)
-                                end
-                            end
-                            
-                            -- Remove the entity
-                            table.remove(self.entities, index)
-                        else
-                            print("Warning: Tried to access nil entity at index " .. index)
-                        end
-                    end
-                    
-                elseif self.combat.enemy then
-                    -- Backward compatibility for single enemy combat
-                    local enemyToRemove = self.combat.enemy
-                    
-                    -- Make sure enemyToRemove exists before proceeding
-                    if enemyToRemove then
-                        for i = #self.entities, 1, -1 do
-                            if self.entities[i] == enemyToRemove then
-                                -- Update quest progress for kill quests if applicable
-                                if enemyToRemove.type == "monster" and self.currentQuest and self.currentQuest.type == "KILL" then
-                                    -- Trigger kill event through quest system
-                                    local questSystem = require("gameplay/questSystem")
-                                    questSystem:updateProgress("kill", {monsterId = enemyToRemove.id})
-                                    
-                                    if GAME.debug then
-                                        print("Updated kill quest progress for monster ID: " .. enemyToRemove.id)
-                                    end
-                                end
-                                
-                                table.remove(self.entities, i)
-                                break
-                            end
-                        end
-                    else
-                        print("Warning: Tried to handle nil enemyToRemove in single-enemy combat")
-                    end
-                end
-
-                -- Check for level ups
-                local charactersToLevelUp = {}
-                if GAME.party then
-                    for _, char in ipairs(GAME.party) do
-                        -- Check if the character has the flag set from levelUp() function
-                        if char.needsLevelUpScreen then
-                            table.insert(charactersToLevelUp, char)
-                        end
-                    end
-                end
-
-                -- Transition to Level Up Screen or back to Exploring
-                if #charactersToLevelUp > 0 then
-                    print("Combat Victory: Triggering level up for", #charactersToLevelUp, "character(s).")
-                    self.combat = nil -- Clear combat state
-                    gameState:changeState("levelUp", { charactersToLevelUp = charactersToLevelUp })
-                     -- Note: Don't reset killQuestNotificationShown here, LevelUp screen will return
-                else
-                     -- No level ups, return to exploring
-                    print("Combat Victory: No level ups, returning to exploring.")
-                    self.state = STATES.EXPLORING
-                    self.combat = nil
-                    -- Reset kill quest notification flag AFTER victory if no level up occurs
-                    self.killQuestNotificationShown = false
-                    -- Return to dungeon music
-                    assetManager:playMusic("dungeon")
-                end
-
+                self:handleCombatVictory() -- Use new helper function
             else
                 -- Handle defeat                 
                 self:failQuest()
@@ -2056,22 +1496,12 @@ end
 
 -- Open Inventory Screen
 function dungeon:openInventory()
-    -- Store texture settings before switching screens
-    self.textureSettings.wallTexturesEnabled = raycaster.texturesEnabled
-    self.textureSettings.floorTexturesEnabled = raycaster.floorTexturesEnabled
-    
-    local gameState = require("states/gameState")
-    gameState:changeState("inventory", { from = "dungeon" })
+    self:_prepareAndChangeState("inventory")
 end
 
 -- Open Character Info Screen
 function dungeon:openCharacterInfo()
-    -- Store texture settings before switching screens
-    self.textureSettings.wallTexturesEnabled = raycaster.texturesEnabled
-    self.textureSettings.floorTexturesEnabled = raycaster.floorTexturesEnabled
-    
-    local gameState = require("states/gameState")
-    gameState:changeState("characterInfo", { from = "dungeon" })
+    self:_prepareAndChangeState("characterInfo")
 end
 
 -- Function to handle drawing the exploring state
@@ -2101,8 +1531,8 @@ function dungeon:drawExploringState()
     raycaster:render(self.map, self.entities)
     
     -- Draw status bar if it exists and is visible
-    if self.elements.statusBar and self.statusBarVisible then
-        self.elements.statusBar:draw()
+    if self.elements.statusBar and self.statusBarVisible then -- Dungeon's own flag for timer
+        self.elements.statusBar:draw(self) -- Pass dungeon instance
     end
     
     -- Draw objective reached reminder if applicable
@@ -2160,7 +1590,7 @@ end
 -- Toggle Status Bar Visibility
 function dungeon:toggleStatusBar()
     self.statusBarVisible = not self.statusBarVisible
-    self.elements.statusBar.visible = self.statusBarVisible
+    self.elements.statusBar:setVisible(self.statusBarVisible) -- Sync with panel
     if self.statusBarVisible then
         -- Reset timer when manually shown
         self.statusBarTimer = 10
@@ -2572,6 +2002,83 @@ function dungeon:updateTrapsAndInteractables(dt)
             table.remove(self.floatingTexts, i)
         end
     end
+end
+
+-- Helper function to manage combat victory outcomes
+function dungeon:handleCombatVictory()
+    local loot = self.combat:getLoot()
+
+    if GAME.inventory and loot then
+        for _, itemData in ipairs(loot) do
+            itemSystem:addToInventory(itemData)
+        end
+    end
+
+    -- Remove defeated enemies and update quest progress
+    local enemiesDefeatedInCombat = {}
+    if self.combat.enemies and #self.combat.enemies > 0 then
+        enemiesDefeatedInCombat = self.combat.enemies
+    elseif self.combat.enemy then
+        enemiesDefeatedInCombat = {self.combat.enemy}
+    end
+
+    for _, combatEnemyInstance in ipairs(enemiesDefeatedInCombat) do
+        for i = #self.entities, 1, -1 do
+            local entityInDungeon = self.entities[i]
+            -- Match by direct reference first, then by ID as a fallback.
+            if entityInDungeon == combatEnemyInstance or 
+               (entityInDungeon.type == "monster" and combatEnemyInstance.id and entityInDungeon.id == combatEnemyInstance.id) then
+                
+                if entityInDungeon.type == "monster" and self.currentQuest and self.currentQuest.type == "KILL" then
+                    questSystem:updateProgress("kill", {monsterId = entityInDungeon.id})
+                    if GAME.debug then
+                        print("handleCombatVictory: Updated kill quest progress for monster ID: " .. entityInDungeon.id)
+                    end
+                end
+                table.remove(self.entities, i)
+                break -- Move to the next enemy from combat
+            end
+        end
+    end
+
+    -- Check for level ups
+    local charactersToLevelUp = {}
+    if GAME.party then
+        for _, char_member in ipairs(GAME.party) do -- char is a global, use char_member
+            if char_member.needsLevelUpScreen then
+                table.insert(charactersToLevelUp, char_member)
+            end
+        end
+    end
+
+    -- IMPORTANT: Always clear combat state immediately to avoid infinite loops
+    local combatRef = self.combat -- Save a reference in case we need it
+    self.combat = nil
+    self.state = STATES.EXPLORING -- Ensure state is exploring
+    
+    -- Reset music and other combat-related state
+    assetManager:playMusic("dungeon")
+    self.killQuestNotificationShown = false
+    
+    print("Combat state cleared and reset to EXPLORING before any transitions")
+    
+    if #charactersToLevelUp > 0 then
+        print("Combat Victory: Triggering level up for", #charactersToLevelUp, "character(s).")
+        gameState:changeState("levelUp", { charactersToLevelUp = charactersToLevelUp })
+    else
+        print("Combat Victory: No level ups, already back in exploring state.")
+        -- No need to set state again, it's already done above
+    end
+end
+
+-- Helper function to prepare for state change
+function dungeon:_prepareAndChangeState(targetState)
+    -- Store texture settings before switching screens
+    self.textureSettings.wallTexturesEnabled = raycaster.texturesEnabled
+    self.textureSettings.floorTexturesEnabled = raycaster.floorTexturesEnabled
+    
+    -- gameState is already required at the top
+    gameState:changeState(targetState, { from = "dungeon" })
 end
 
 return dungeon

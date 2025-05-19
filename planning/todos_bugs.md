@@ -1,7 +1,7 @@
 # TODOs
 - How to deal with damage out of combat in the dungeon?
   - Deaths
-
+- Add on-screen messages when a item is acquired from a chest
 - Add pain sounds - male and female
 
 - Check if Walls and interactables detection is properly working
