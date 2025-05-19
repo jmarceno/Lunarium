@@ -90,6 +90,86 @@ monsterAbilities.definitions = {
         description = "A blow that may stun the target."
     },
     
+    -- New animal abilities
+    pounce_attack = {
+        name = "Pounce",
+        type = "physical",
+        basePower = 110,
+        target = "single_enemy",
+        damageType = "slashing",
+        effect = {
+            type = "stun",
+            chance = 0.3,
+            duration = 1,
+            strength = 1
+        },
+        description = "Leaps at the target with a chance to stun."
+    },
+    frenzy_attack = {
+        name = "Frenzy",
+        type = "physical",
+        basePower = 100,
+        target = "all_enemies",
+        damageType = "slashing",
+        hits = 3, -- Multiple hits
+        description = "A wild series of attacks that hit randomly."
+    },
+    
+    -- New troll abilities
+    crushing_blow = {
+        name = "Crushing Blow",
+        type = "physical",
+        basePower = 140,
+        target = "single_enemy",
+        damageType = "bludgeoning",
+        effect = {
+            type = "weakness",
+            chance = 0.5,
+            duration = 2,
+            strength = 1
+        },
+        description = "A powerful blow that can weaken the target."
+    },
+    ground_slam = {
+        name = "Ground Slam",
+        type = "physical",
+        basePower = 110,
+        target = "all_enemies",
+        damageType = "bludgeoning",
+        effect = {
+            type = "stun",
+            chance = 0.3,
+            duration = 1,
+            strength = 1
+        },
+        description = "Slams the ground, creating a shockwave that can stun enemies."
+    },
+    
+    -- New slime abilities
+    acid_splash = {
+        name = "Acid Splash",
+        type = "physical",
+        basePower = 80,
+        target = "all_enemies",
+        damageType = "acid",
+        effect = {
+            type = "defense_down",
+            chance = 0.5,
+            duration = 2,
+            strength = 1
+        },
+        description = "Splashes acid that reduces defense."
+    },
+    absorb = {
+        name = "Absorb",
+        type = "physical",
+        basePower = 100,
+        target = "single_enemy",
+        damageType = "acid",
+        healing = 0.5, -- Heals for 50% of damage dealt
+        description = "Absorbs the target's life force, healing the user."
+    },
+    
     -- Magical attacks
     fireball = {
         name = "Fireball",
@@ -98,22 +178,6 @@ monsterAbilities.definitions = {
         target = "single_enemy",
         damageType = "fire",
         description = "A ball of fire."
-    },
-    ice_spike = {
-        name = "Ice Spike",
-        type = "magical",
-        basePower = 120,
-        target = "single_enemy",
-        damageType = "ice",
-        description = "A sharp spike of ice."
-    },
-    lightning_bolt = {
-        name = "Lightning Bolt",
-        type = "magical",
-        basePower = 140,
-        target = "single_enemy",
-        damageType = "lightning",
-        description = "A bolt of lightning."
     },
     
     -- Multi-target magical attacks
@@ -125,21 +189,86 @@ monsterAbilities.definitions = {
         damageType = "fire",
         description = "Breathes fire on all enemies."
     },
-    frost_nova = {
-        name = "Frost Nova",
+    
+    -- New undead magic attacks
+    ice_bolt = {
+        name = "Ice Bolt",
         type = "magical",
+        basePower = 120,
+        target = "single_enemy",
+        damageType = "ice",
+        effect = {
+            type = "slow",
+            chance = 0.4,
+            duration = 2,
+            strength = 1
+        },
+        description = "A bolt of ice that can slow the target."
+    },
+    necrotic_blast = {
+        name = "Necrotic Blast",
+        type = "magical",
+        basePower = 140,
+        target = "single_enemy",
+        damageType = "necrotic",
+        effect = {
+            type = "weaken",
+            chance = 0.5,
+            duration = 2,
+            strength = 1
+        },
+        description = "A blast of necrotic energy that weakens the target."
+    },
+    raise_dead = {
+        name = "Raise Dead",
+        type = "magical",
+        basePower = 0,
+        target = "self",
+        effect = {
+            type = "summon_ally",
+            chance = 1.0,
+            summonType = "zombie"
+        },
+        description = "Raises a dead ally to fight."
+    },
+    
+    -- New demonic abilities
+    hellfire = {
+        name = "Hellfire",
+        type = "magical",
+        basePower = 150,
+        target = "single_enemy",
+        damageType = "fire",
+        effect = {
+            type = "burn",
+            chance = 0.7,
+            duration = 3,
+            strength = 2
+        },
+        description = "Infernal flames that cause severe burning."
+    },
+    demonic_fury = {
+        name = "Demonic Fury",
+        type = "physical",
         basePower = 90,
         target = "all_enemies",
-        damageType = "ice",
-        description = "A burst of freezing energy."
+        damageType = "slashing",
+        hits = 2,
+        description = "A fury of slashes that hit all enemies multiple times."
     },
-    chain_lightning = {
-        name = "Chain Lightning",
+    seduce = {
+        name = "Seduce",
         type = "magical",
-        basePower = 110,
-        target = "all_enemies",
-        damageType = "lightning",
-        description = "Lightning that chains between targets."
+        basePower = 50,
+        target = "single_enemy",
+        damageType = "psychic",
+        effect = {
+            type = "charm",
+            chance = 0.4,
+            duration = 1,
+            strength = 1
+        },
+        description = "Seduces the target with a chance to charm them."
     },
     
     -- Status effect magical attacks
@@ -195,6 +324,46 @@ monsterAbilities.definitions = {
         damageType = "arcane",
         description = "A massive explosion of arcane energy."
     },
+    summon_minions = {
+        name = "Summon Minions",
+        type = "magical",
+        basePower = 0,
+        target = "self",
+        effect = {
+            type = "summon_ally",
+            chance = 1.0,
+            count = 2
+        },
+        description = "Summons minions to aid in battle."
+    },
+    web_shot = {
+        name = "Web Shot",
+        type = "physical",
+        basePower = 70,
+        target = "single_enemy",
+        damageType = "physical",
+        effect = {
+            type = "immobilize",
+            chance = 0.8,
+            duration = 2,
+            strength = 1
+        },
+        description = "Shoots a web that can immobilize the target."
+    },
+    venom_spray = {
+        name = "Venom Spray",
+        type = "physical",
+        basePower = 90,
+        target = "all_enemies",
+        damageType = "poison",
+        effect = {
+            type = "poison",
+            chance = 0.7,
+            duration = 4,
+            strength = 2
+        },
+        description = "Sprays deadly venom that causes severe poisoning."
+    },
     
     -- Buffing abilities
     strengthen_allies = {
@@ -214,14 +383,14 @@ monsterAbilities.definitions = {
         name = "Protective Aura",
         type = "support",
         basePower = 0,
-        target = "self",
+        target = "all_allies",
         effect = {
-            type = "protect",
+            type = "defense_up",
             chance = 1.0,
             duration = 3,
             strength = 1
         },
-        description = "Surrounds self with a protective aura, reducing damage taken."
+        description = "Creates an aura that increases allies' defense."
     },
     silence_spell = {
         name = "Silence Spell",
@@ -241,39 +410,67 @@ monsterAbilities.definitions = {
 
 -- Assign abilities to specific monster types (can be accessed through the ID)
 monsterAbilities.monsterTypes = {
-    -- Bloomers (Fungal monsters)
-    fungal = {
-        low = {"basic_physical_attack", "infected_bite"},
-        medium = {"basic_physical_attack", "infected_bite", "toxic_spores"},
-        high = {"infected_bite", "toxic_spores", "strengthen_allies"}
+    -- Animals
+    animal = {
+        low = {"bite_attack", "claw_attack"},
+        medium = {"bite_attack", "claw_attack", "pounce_attack"},
+        high = {"pounce_attack", "frenzy_attack", "bleeding_slash"}
     },
     
     -- Cultists
     cultist = {
         low = {"basic_physical_attack", "fireball"},
-        medium = {"fireball", "flames_of_agony", "protective_aura"},
+        medium = {"fireball", "flames_of_agony", "silence_spell"},
         high = {"fire_breath", "flames_of_agony", "strengthen_allies", "silence_spell"}
+    },
+    
+    -- Demons
+    demon = {
+        low = {"claw_attack", "fireball"},
+        medium = {"fireball", "hellfire", "demonic_fury"},
+        high = {"hellfire", "demonic_fury", "seduce", "fire_breath"}
+    },
+    
+    -- Goblins
+    goblin = {
+        low = {"basic_physical_attack", "bleeding_slash"},
+        medium = {"fireball", "toxic_spores", "bleeding_slash"},
+        high = {"fire_breath", "toxic_spores", "strengthen_allies"}
+    },
+    
+    -- Insectoids
+    insectoid = {
+        low = {"bite_attack", "infected_bite"},
+        medium = {"bite_attack", "infected_bite", "web_shot"},
+        high = {"infected_bite", "web_shot", "venom_spray"}
+    },
+    
+    -- Slime
+    slime = {
+        low = {"basic_physical_attack", "acid_splash"},
+        medium = {"acid_splash", "absorb"},
+        high = {"acid_splash", "absorb", "toxic_spores"}
+    },
+    
+    -- Troll
+    troll = {
+        low = {"slam_attack", "crushing_blow"},
+        medium = {"slam_attack", "crushing_blow", "ground_slam"},
+        high = {"crushing_blow", "ground_slam", "frenzy_attack"}
     },
     
     -- Undead
     undead = {
         low = {"bite_attack", "claw_attack"},
-        medium = {"bite_attack", "infected_bite", "bleeding_slash"},
-        high = {"infected_bite", "death_touch", "strengthen_allies"}
-    },
-    
-    -- Insects
-    insect = {
-        low = {"bite_attack", "infected_bite"},
-        medium = {"bite_attack", "infected_bite", "toxic_spores"},
-        high = {"infected_bite", "toxic_spores", "concussive_blow"}
+        medium = {"bite_attack", "necrotic_blast", "ice_bolt"},
+        high = {"necrotic_blast", "death_touch", "raise_dead"}
     },
     
     -- Bosses
     boss = {
         low = {"slam_attack", "sweep_attack", "protective_aura"},
-        medium = {"slam_attack", "sweep_attack", "fire_breath", "strengthen_allies"},
-        high = {"arcane_explosion", "death_touch", "strengthen_allies", "protective_aura", "silence_spell"}
+        medium = {"slam_attack", "sweep_attack", "fire_breath", "strengthen_allies", "summon_minions"},
+        high = {"arcane_explosion", "death_touch", "strengthen_allies", "protective_aura", "summon_minions", "venom_spray"}
     }
 }
 
@@ -297,17 +494,25 @@ function monsterAbilities:getAbilitiesForMonster(category, level)
     
     -- Map category to ability type
     local abilityType
-    if monsterCategory:find("bloomer") then
-        abilityType = "fungal"
+    if monsterCategory:find("animal") then
+        abilityType = "animal"
     elseif monsterCategory:find("cultist") then
         abilityType = "cultist"
+    elseif monsterCategory:find("demon") then
+        abilityType = "demon"
+    elseif monsterCategory:find("goblin") then
+        abilityType = "goblin"
+    elseif monsterCategory:find("insectoid") then
+        abilityType = "insectoid"
+    elseif monsterCategory:find("slime") then
+        abilityType = "slime"
+    elseif monsterCategory:find("troll") then
+        abilityType = "troll"
     elseif monsterCategory:find("undead") then
         abilityType = "undead"
-    elseif monsterCategory:find("insect") then
-        abilityType = "insect"
     else
-        -- Default to basic abilities
-        abilityType = "fungal"
+        -- Default to basic abilities (animals as fallback)
+        abilityType = "animal"
     end
     
     -- Use boss abilities if monster is a boss

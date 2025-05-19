@@ -1094,12 +1094,24 @@ function assetManager:loadMonsterSprites()
             for _, file in ipairs(files) do
                 if file:match("%.png$") then
                     local path = subDirPath .. "/" .. file
-                    local id = file:gsub("%.png$", "")
+                    local id_from_filename = file:gsub("%.png$", "") -- Raw name from file, e.g., "Giant_Rat" or "Enraged_Panther_BOSS"
                     
-                    -- Determine if this is a boss based on filename
-                    local isBoss = id:match("_BOSS$") ~= nil
-                    if isBoss then
-                        id = id:gsub("_BOSS$", "_boss") -- Convert to id format in monsterData
+                    local targetKey
+
+                    if id_from_filename:match("_BOSS$") then
+                        local nameStr = id_from_filename:gsub("_BOSS$", "") -- e.g., "Giant_Rat", "Enraged_Panther"
+                        local parts = {}
+                        for part in nameStr:gmatch("([^_]+)") do
+                            -- Capitalize first letter of part, rest of part as is from file
+                            table.insert(parts, part:sub(1,1):upper() .. part:sub(2))
+                        end
+                        targetKey = table.concat(parts, "") .. "_BOSS" -- e.g., "GiantRat_BOSS", "EnragedPanther_BOSS"
+                    else
+                        local parts = {}
+                        for part in id_from_filename:gmatch("([^_]+)") do
+                            table.insert(parts, part:sub(1,1):upper() .. part:sub(2))
+                        end
+                        targetKey = table.concat(parts, "") -- e.g., "GiantRat"
                     end
                     
                     -- First load the image data for normal map generation
@@ -1112,15 +1124,16 @@ function assetManager:loadMonsterSprites()
                         local sprite = love.graphics.newImage(imgData)
                         sprite:setFilter("nearest", "nearest")
                         
-                        -- Store sprite indexed by filename
-                        self.images.monsterSprites[id] = sprite
-                        
                         -- Generate and store normal map
-                        local normalData = self:calculateNormalMap(imgData, assetManager.monsterNormalMapStrength) -- Slightly stronger for monster details
-                        self.normalMaps.monsterSprites[id] = love.graphics.newImage(normalData)
+                        local normalData = self:calculateNormalMap(imgData, assetManager.monsterNormalMapStrength)
+                        local normalMap = love.graphics.newImage(normalData)
+                        
+                        -- Store sprite with the targetKey
+                        self.images.monsterSprites[targetKey] = sprite
+                        self.normalMaps.monsterSprites[targetKey] = normalMap
                         
                         totalLoaded = totalLoaded + 1
-                        print("  - Loaded monster sprite: " .. id)
+                        print(string.format("  - Loaded monster sprite: %s (from file %s, as key %s)", targetKey, file, targetKey))
                     else
                         print("  - Failed to load monster sprite: " .. file)
                     end
@@ -1129,7 +1142,7 @@ function assetManager:loadMonsterSprites()
         end
     end
     
-    print("Loaded " .. totalLoaded .. " monster sprites")
+    print("Successfully loaded " .. totalLoaded .. " monster sprites")
     return self.images.monsterSprites
 end
 

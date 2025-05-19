@@ -4,17 +4,17 @@
 local questData = {
     -- Easy quests
     {
-        id = "fungal_infestation",
-        name = "Fungal Infestation",
-        description = "The forest edge is being overtaken by strange fungal creatures. Clear them out before they spread to town.",
+        id = "rats_infestation",
+        name = "Rat Infestation",
+        description = "The sewers beneath the town are infested with giant rats. Clear them out before they spread disease.",
         type = "KILL",
         level = 1,
         difficulty = 1, -- questSystem.DIFFICULTY.EASY
         giver = "Tavern",
         objective = {
             type = "kill",
-            targetId = "shroomling",
-            targetName = "Shroomling",
+            targetId = "giant_rat",
+            targetName = "Giant Rat",
             count = 5,
             current = 0
         },
@@ -55,8 +55,8 @@ local questData = {
         giver = "Guild",
         objective = {
             type = "kill",
-            targetId = "hooded_cultist", 
-            targetName = "Hooded Cultist",
+            targetId = "cultist", 
+            targetName = "Cultist",
             count = 6,
             current = 0
         },
@@ -125,18 +125,18 @@ local questData = {
         seed = 56789
     },
     {
-        id = "lich_king_battle",
-        name = "The Lich King",
-        description = "An ancient necromancer known as the Lich King has awakened. Stop his undead army from spreading.",
+        id = "lich_battle",
+        name = "The Lich",
+        description = "An ancient necromancer known as the Lich has awakened. Stop his undead army from spreading.",
         type = "BOSS",
         level = 10,
         difficulty = 3, -- questSystem.DIFFICULTY.HARD
         giver = "Guild",
         objective = {
             type = "boss",
-            bossId = "lich_king_boss",
-            bossName = "Lich King",
-            locationId = 4,
+            bossId = "lich_boss",
+            bossName = "Lich",
+            locationId = 3,
             locationName = "Ancient Crypt",
             completed = false
         },
@@ -154,19 +154,19 @@ local questData = {
         seed = 67890
     },
     {
-        id = "fungal_corruption",
-        name = "Fungal Corruption",
-        description = "A powerful entity known as the Spore Lord is corrupting the forest. Defeat it before the corruption spreads.",
+        id = "royal_demon_hunt",
+        name = "Royal Demon Hunt",
+        description = "A powerful entity known as the Royal Demon has emerged from the underworld. Defeat it before more demons arrive.",
         type = "BOSS",
         level = 8,
         difficulty = 3, -- questSystem.DIFFICULTY.HARD
         giver = "Tavern",
         objective = {
             type = "boss",
-            bossId = "spore_lord_boss",
-            bossName = "Spore Lord",
+            bossId = "royal_demon_boss",
+            bossName = "Royal Demon",
             locationId = 5,
-            locationName = "Ancient Grove",
+            locationName = "Demon's Lair",
             completed = false
         },
         rewards = {
@@ -174,7 +174,7 @@ local questData = {
             items = {
                 {
                     type = "armor",
-                    name = "Spore-Resistant Cloak",
+                    name = "Demon-Resistant Cloak",
                     count = 1
                 }
             }
@@ -185,15 +185,15 @@ local questData = {
     {
         id = "insect_invasion",
         name = "Insect Invasion",
-        description = "Swarms of giant insects are attacking farms. Find and eliminate the hive matron.",
+        description = "Swarms of giant insects are attacking farms. Find and eliminate the Broodmother.",
         type = "BOSS",
         level = 9,
         difficulty = 3, -- questSystem.DIFFICULTY.HARD
         giver = "Guild",
         objective = {
             type = "boss",
-            bossId = "matron_zirrk_boss",
-            bossName = "Matron Zirrk",
+            bossId = "broodmother_boss",
+            bossName = "Broodmother",
             locationId = 6,
             locationName = "Insect Hive",
             completed = false
@@ -210,19 +210,80 @@ local questData = {
         },
         status = "available", -- questSystem.STATUS.AVAILABLE
         seed = 89012
+    },
+    {
+        id = "raging_panther",
+        name = "Raging Panther",
+        description = "An unnaturally large and aggressive panther has been terrorizing travelers in the mountain pass.",
+        type = "BOSS",
+        level = 7,
+        difficulty = 3, -- questSystem.DIFFICULTY.HARD
+        giver = "Guild",
+        objective = {
+            type = "boss",
+            bossId = "enraged_panther_boss",
+            bossName = "Enraged Panther",
+            locationId = 7,
+            locationName = "Mountain Pass",
+            completed = false
+        },
+        rewards = {
+            gold = 550,
+            items = {
+                {
+                    type = "accessory",
+                    name = "Panther's Agility Charm",
+                    count = 1
+                }
+            }
+        },
+        status = "available", -- questSystem.STATUS.AVAILABLE
+        seed = 90123
+    },
+    {
+        id = "taming_the_slime",
+        name = "Taming the Slime",
+        description = "A powerful Royal Slime has emerged from the caverns, absorbing smaller slimes and growing larger.",
+        type = "BOSS",
+        level = 6,
+        difficulty = 3, -- questSystem.DIFFICULTY.HARD
+        giver = "Tavern",
+        objective = {
+            type = "boss",
+            bossId = "royal_slime_boss",
+            bossName = "Royal Slime",
+            locationId = 8,
+            locationName = "Slime Caverns",
+            completed = false
+        },
+        rewards = {
+            gold = 500,
+            items = {
+                {
+                    type = "weapon",
+                    name = "Slime Crusher",
+                    count = 1
+                }
+            }
+        },
+        status = "available", -- questSystem.STATUS.AVAILABLE
+        seed = 101234
     }
 }
 
-boss_locations = {
+-- Location definitions for reference by quests
+local bossLocations = {
     {id = 1, name = "Fungal Grove"},
     {id = 2, name = "Cultist Altar"},
     {id = 3, name = "Ancient Crypt"},
     {id = 4, name = "Dragon's Lair"},
-    {id = 5, name = "Insect Hive"},
-    {id = 6, name = "Corrupted Temple"}
+    {id = 5, name = "Demon's Lair"},
+    {id = 6, name = "Insect Hive"},
+    {id = 7, name = "Mountain Pass"},
+    {id = 8, name = "Slime Caverns"}
 }
 
-item_targets = {
+local itemTargets = {
     {id = "item_rare_herb", name = "Rare Healing Herb"},
     {id = "item_magic_crystal", name = "Magic Crystal"},
     {id = "item_ancient_relic", name = "Ancient Relic"},
@@ -230,7 +291,7 @@ item_targets = {
     {id = "item_enchanted_gem", name = "Enchanted Gem"}
 }
 
-explore_locations = {
+local exploreLocations = {
     {id = 1, name = "Foggy Cave"},
     {id = 2, name = "Dark Forest"},
     {id = 3, name = "Ancient Ruins"},
@@ -238,7 +299,7 @@ explore_locations = {
     {id = 5, name = "Frozen Temple"}
 }
 
-escort_npcs = {
+local escortNpcs = {
     {id = 1, name = "Merchant Thomas"},
     {id = 2, name = "Scholar Eliza"},
     {id = 3, name = "Ambassador Krell"},
@@ -246,12 +307,19 @@ escort_npcs = {
     {id = 5, name = "Prince Aldric"}
 }
 
-escort_locations = {
+local escortLocations = {
     {id = 1, name = "Trade Route"},
     {id = 2, name = "Mountain Pass"},
     {id = 3, name = "Ancient Road"},
     {id = 4, name = "Swamp Path"},
     {id = 5, name = "Royal Highway"}
 }
+
+-- Make these tables accessible through the returned questData
+questData.bossLocations = bossLocations
+questData.itemTargets = itemTargets
+questData.exploreLocations = exploreLocations
+questData.escortNpcs = escortNpcs
+questData.escortLocations = escortLocations
 
 return questData

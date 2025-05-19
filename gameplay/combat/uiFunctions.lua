@@ -623,9 +623,8 @@ local function drawSingleEnemy(self, enemy, x, y)
     
     -- Try to load and draw the enemy sprite
     local sprite = nil
-    if enemy.id then
-        -- Use enemy ID to get sprite
-        sprite = assetManager:getImage("monster", enemy.id)
+    if enemy.sprite then -- Use enemy.sprite which should be the correct PascalCase key
+        sprite = assetManager:getImage("monster", enemy.sprite)
     end
     
     if sprite then
@@ -651,6 +650,13 @@ local function drawSingleEnemy(self, enemy, x, y)
         love.graphics.setColor(0.8, 0.4, 0.4)
         love.graphics.setFont(screenManager.fonts.medium)
         love.graphics.printf(enemy.name or "Monster", x + 40, y + 120, 120, "center")
+        
+        -- Debug info for sprite loading failure
+        if GAME.debug and enemy.id then
+            love.graphics.setColor(1, 1, 0)
+            love.graphics.setFont(screenManager.fonts.small)
+            love.graphics.printf("ID: " .. enemy.id .. "\nSpriteKey: " .. (enemy.sprite or "N/A"), x + 40, y + 150, 120, "center")
+        end
     end
     
     -- Draw status effects using the helper function

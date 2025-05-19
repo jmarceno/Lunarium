@@ -1,6 +1,7 @@
 -- Raycaster Engine with Hardware Acceleration
 -- Uses shaders for highly efficient rendering of the 3D environment
 local assetManager = require("assets/assetManager")
+local monsterData = require("gameplay/monsterData") -- Added require for monsterData
 
 -- Create a simple vector class for 2D operations (similar to HUMP library's vector)
 local Vector = {}
@@ -683,6 +684,17 @@ function raycaster:renderEntities(entities)
     self.spriteShader:send("enemyNormalMapBlurEnabled", self.enemyNormalMapBlurEnabled)
     self.spriteShader:send("enemyNormalMapBlur", self.enemyNormalMapBlur)
     
+    -- Helper function to convert snake_case to camelCase
+    local function toCamelCase(str)
+        -- Special case: if the string is already camelCase, return it as is
+        if not str:find("_") then
+            return str
+        end
+        
+        -- Convert snake_case to camelCase
+        return str:gsub("_(%l)", function(c) return c:upper() end)
+    end
+    
     -- Sort entities by distance (farthest to closest for correct drawing order)
     table.sort(entities, function(a, b)
         local distA = (a.x - self.camera.x)^2 + (a.y - self.camera.y)^2
@@ -711,11 +723,22 @@ function raycaster:renderEntities(entities)
             local texture = nil
             local normalTexture = nil
             
-            -- Check for monster sprite - use asset manager
             if entity.type == "monster" and entity.id then
-                if assetManager.images.monsterSprites and assetManager.images.monsterSprites[entity.id] then
-                    texture = assetManager.images.monsterSprites[entity.id]
-                    normalTexture = assetManager.normalMaps.monsterSprites[entity.id]
+                local monsterDefinition = monsterData:getMonsterData(entity.id)
+                if monsterDefinition and monsterDefinition.sprite then
+                    local spriteKey = monsterDefinition.sprite -- This is "GiantRat" or "EnragedPanther_BOSS"
+                    texture = assetManager:getImage("monster", spriteKey)
+                    if texture then
+                        normalTexture = assetManager:getNormalMap("monster", spriteKey)
+                    else
+                        if GAME.debug then
+                            print("Raycaster: Monster sprite not found for key: " .. spriteKey .. " (from entity.id: " .. entity.id .. ")")
+                        end
+                    end
+                else
+                    if GAME.debug then
+                        print("Raycaster: Monster definition or sprite field missing for entity.id: " .. entity.id)
+                    end
                 end
             elseif entity.texture then
                 texture = assetManager.images.entities[entity.texture]
