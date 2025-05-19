@@ -86,13 +86,13 @@ function mainMenu:init()
                 
                 -- Draw profile name
                 love.graphics.setColor(1, 1, 1)
-                love.graphics.print(profile.name, self.x + 20, itemY + 5)
+                love.graphics.print(profile.name, self.x + 20, itemY)
                 
                 -- Draw profile details
                 love.graphics.setFont(screenManager.fonts.small)
                 love.graphics.setColor(0.8, 0.8, 0.8)
                 local detailText = "Level: " .. profile.level .. " • Last played: " .. profile.date
-                love.graphics.print(detailText, self.x + 20, itemY + 30)
+                love.graphics.print(detailText, self.x + 20, itemY + 20)
             end
             
             -- Draw message if no profiles
@@ -267,7 +267,7 @@ function mainMenu:draw()
     -- Draw game title
     love.graphics.setFont(screenManager.fonts.title)
     love.graphics.setColor(screenManager.colors.title)
-    local titleText = "Dungeon Crawler"
+    local titleText = "Lunarium"
     local titleWidth = screenManager.fonts.title:getWidth(titleText)
     love.graphics.print(titleText, (GAME.width - titleWidth) / 2, 50)
     

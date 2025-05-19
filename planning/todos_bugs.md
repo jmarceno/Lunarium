@@ -13,15 +13,11 @@
 - Check music on E:\Game Development\Sons\IDA_Music_Pack\Wavs\
 - Check textures from F:\Backup\Game Development\Textures
 
-- Level up screen has some overlap with the fonts asking the player to choose the path and the job list
-- Reorganize the character creator screen to make it less tiresome (adding attributes is a pain)
 - Check Message - ESCORT quest population not fully implemented. This is a console message that is being displayed
 - Add full keyboard navigation to the combat UI
 - Add "Decals" textures over walls and floor textures to make them look older or broken
 - Add Textures for chests and other ground loot (maybe just a small bag)
-- Add Traps - Check claude chat for the ideas
 - Add a place to revive characters - This is problematic as we will need some kind o church on overworld map (need to be redraw)
-- Check if status is showing on the player
 - Internacionalization
 - Add more quests
 - Quests:
