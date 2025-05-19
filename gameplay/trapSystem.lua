@@ -261,7 +261,8 @@ function trapSystem:activateTrap(trap, target, allTargets)
     if trapEffects[trap.trapType] and #allAffectedTargets > 0 then
         local totalDamage = trapEffects[trap.trapType](allAffectedTargets, trap)
         
-        -- Set the trap to inactive after triggering
+        -- Always set the trap to inactive after triggering
+        -- Traps are one-shot, regardless of whether they were detected or not
         trap.isTrapActive = false
         
         return totalDamage
@@ -415,28 +416,7 @@ function trapSystem:checkTrapDetection(trap, map, playerX, playerY)
         return false -- No line of sight, cannot detect
     end
     
-    local detectionChance = 0.1  -- Base 10% chance (fallback)
-    local highestPriorityClass = "None"
-
-    if GAME.party and #GAME.party > 0 then
-        local hasRogue, hasMage, hasWarrior = false, false, false
-        for _, member in ipairs(GAME.party) do
-            if member.class == "Rogue" then hasRogue = true; break end -- Highest priority
-            if member.class == "Mage" then hasMage = true end
-            if member.class == "Warrior" then hasWarrior = true end
-        end
-
-        if hasRogue then
-            detectionChance = 0.7  -- 70% for rogues
-            highestPriorityClass = "Rogue"
-        elseif hasMage then
-            detectionChance = 0.3  -- 30% for mages
-            highestPriorityClass = "Mage"
-        elseif hasWarrior then
-            detectionChance = 0.2  -- 20% for warriors
-            highestPriorityClass = "Warrior"
-        end
-    end
+        local detectionChance = 0.15  -- Increased base chance from 10% to 15% (fallback)    local highestPriorityClass = "None"    if GAME.party and #GAME.party > 0 then        local hasRogue, hasMage, hasWarrior = false, false, false        for _, member in ipairs(GAME.party) do            if member.class == "Rogue" then hasRogue = true; break end -- Highest priority            if member.class == "Mage" then hasMage = true end            if member.class == "Warrior" then hasWarrior = true end        end        if hasRogue then            detectionChance = 0.85  -- Increased from 70% to 85% for rogues            highestPriorityClass = "Rogue"        elseif hasMage then            detectionChance = 0.45  -- Increased from 30% to 45% for mages            highestPriorityClass = "Mage"        elseif hasWarrior then            detectionChance = 0.3   -- Increased from 20% to 30% for warriors            highestPriorityClass = "Warrior"        end    end        -- Calculate distance to player as a bonus factor (closer = higher chance)    local distance = math.sqrt((trap.x - playerX)^2 + (trap.y - playerY)^2)    if distance < 3.0 then        -- Add a proximity bonus (up to 15% extra chance when very close)        local proximityBonus = 0.15 * (1.0 - (distance / 3.0))        detectionChance = detectionChance + proximityBonus    end
         
     -- Check if trap is detected
     if math.random() < detectionChance then
@@ -524,8 +504,8 @@ end
 
 -- Update hint factors for traps based on player position and class
 function trapSystem:updateTrapHintFactors(map, playerX, playerY)
-    local detectionRange = 3.0  -- Base detection range (e.g., Warrior or default)
-    local hintMultiplier = 1.0  -- Base hint multiplier
+    local detectionRange = 4.0  -- Increased base detection range (from 3.0 to 4.0)
+    local hintMultiplier = 1.2  -- Increased base hint multiplier (from 1.0 to 1.2)
     -- local bestClassType = "Default" -- For logging if needed
 
     if GAME.party and #GAME.party > 0 then
@@ -536,12 +516,12 @@ function trapSystem:updateTrapHintFactors(map, playerX, playerY)
         end
 
         if hasRogue then
-            detectionRange = 10.0  -- Increased from 7.5 to 10.0 for rogues
-            hintMultiplier = 2.0   -- Increased from 1.5 to 2.0
+            detectionRange = 12.0  -- Increased from 10.0 to 12.0 for rogues
+            hintMultiplier = 2.5   -- Increased from 2.0 to 2.5
             -- bestClassType = "Rogue"
         elseif hasMage then
-            detectionRange = 6.0   -- Increased from 4.0 to 6.0
-            hintMultiplier = 1.5   -- Increased from 1.2 to 1.5
+            detectionRange = 8.0   -- Increased from 6.0 to 8.0
+            hintMultiplier = 1.8   -- Increased from 1.5 to 1.8
             -- bestClassType = "Mage"
         end
     end
@@ -565,18 +545,25 @@ function trapSystem:updateTrapHintFactors(map, playerX, playerY)
                     local baseFactor = (1.0 - (distance / detectionRange)) * hintMultiplier
                     trap.hintFactor = math.min(0.5, baseFactor)  -- Increased cap from 0.3 to 0.5 for more visible hints
                     
-                    -- Small chance to detect the trap passively
-                    local passiveDetectBaseChance = 0.03  -- Increased from 0.01
+                    -- Increased chance to detect the trap passively 
+                    -- Base chance increases as player gets closer to the trap
+                    local distanceFactor = 1.0 - (distance / detectionRange)
+                    local passiveDetectBaseChance = 0.05 + (distanceFactor * 0.1)  -- 5-15% base chance depending on proximity
                     local rogueBonus = 0
+                    
                     if GAME.party then
-                         for _, member in ipairs(GAME.party) do
+                        for _, member in ipairs(GAME.party) do
                             if member.class == "Rogue" then
-                                rogueBonus = 0.1  -- Increased from 0.04 to 0.1 for better passive detection
+                                rogueBonus = 0.15 + (distanceFactor * 0.1)  -- 15-25% bonus for rogues
+                                break
+                            elseif member.class == "Mage" then
+                                rogueBonus = 0.05 + (distanceFactor * 0.05)  -- 5-10% bonus for mages
                                 break
                             end
                         end
                     end
-
+                    
+                    -- Check for passive detection with improved chance
                     if math.random() < (passiveDetectBaseChance + rogueBonus) then
                         self:checkTrapDetection(trap, map, playerX, playerY) -- Pass map and player coords
                     end

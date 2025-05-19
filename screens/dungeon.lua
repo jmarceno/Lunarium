@@ -245,8 +245,14 @@ function dungeon:init()
             -- Draw traps in debug mode
             if GAME.debug and dungeon.map.activeTraps then
                 for _, trap in ipairs(dungeon.map.activeTraps) do
-                    -- Draw all traps on minimap with cyan color
-                    love.graphics.setColor(0, 1, 1) -- Cyan color for traps in debug mode
+                    -- Choose color based on trap status
+                    if trap.isTrapActive then
+                        love.graphics.setColor(0, 1, 1) -- Cyan color for active traps
+                    else
+                        love.graphics.setColor(0.5, 0.5, 0.5) -- Gray color for triggered traps
+                    end
+                    
+                    -- Draw trap on minimap
                     love.graphics.rectangle("fill", 
                         self.x + trap.x * cellSize + cellSize/4, 
                         self.y + trap.y * cellSize + cellSize/4, 
@@ -266,6 +272,24 @@ function dungeon:init()
                             self.x + trap.x * cellSize + cellSize*3/4,
                             self.y + trap.y * cellSize + cellSize/4,
                             self.x + trap.x * cellSize + cellSize/4,
+                            self.y + trap.y * cellSize + cellSize*3/4
+                        )
+                    end
+                    
+                    -- Draw T for triggered traps
+                    if not trap.isTrapActive and not trap.isTrapDisarmed then
+                        love.graphics.setColor(1, 0.6, 0) -- Orange color for T
+                        -- Draw a T shape
+                        love.graphics.line(
+                            self.x + trap.x * cellSize + cellSize/4,
+                            self.y + trap.y * cellSize + cellSize/3,
+                            self.x + trap.x * cellSize + cellSize*3/4,
+                            self.y + trap.y * cellSize + cellSize/3
+                        )
+                        love.graphics.line(
+                            self.x + trap.x * cellSize + cellSize/2,
+                            self.y + trap.y * cellSize + cellSize/3,
+                            self.x + trap.x * cellSize + cellSize/2,
                             self.y + trap.y * cellSize + cellSize*3/4
                         )
                     end
@@ -1082,6 +1106,8 @@ function dungeon:update(dt)
         
         -- Store old position
         local oldX, oldY = self.playerPos.x, self.playerPos.y
+        local oldCellX = math.floor(oldX)
+        local oldCellY = math.floor(oldY)
         
         -- Reset isMoving flag before checking movements
         self.isMoving = false
@@ -1120,6 +1146,59 @@ function dungeon:update(dt)
             raycaster:strafeCamera(moveSpeed, self.map)
             playerMoved = true
             self.isMoving = true
+        end
+        
+        -- Check if player has moved to a new cell (which could trigger traps)
+        if playerMoved and self.isMoving then
+            self.playerPos.x = raycaster.camera.x
+            self.playerPos.y = raycaster.camera.y
+            
+            local newCellX = math.floor(self.playerPos.x)
+            local newCellY = math.floor(self.playerPos.y)
+            
+            -- If we've moved to a new cell, reset trap trigger cooldown
+            if (newCellX ~= oldCellX or newCellY ~= oldCellY) then
+                self.trapTriggerCooldown = nil
+                
+                -- Force an immediate check for traps at this new position
+                if self.map.getTrap then
+                    local trap = self.map:getTrap(newCellX, newCellY)
+                    if trap and trap.isTrapActive and not trap.isTrapDisarmed then
+                        -- Trigger the trap immediately when stepping onto it
+                        local damage = trapSystem:activateTrap(trap, GAME.party[1])
+                        
+                        -- Only show message if damage was dealt
+                        if damage and damage > 0 then
+                            -- Show appropriate message based on whether trap was detected
+                            if trap.isTrapDetected then
+                                uiFunctions.showFloatingText(
+                                    "You triggered a detected trap! -" .. math.floor(damage) .. " damage", 
+                                    GAME.width / 2, 
+                                    GAME.height / 2 - 80, 
+                                    {1, 0.2, 0.2, 1},
+                                    3.0,
+                                    self.floatingTexts
+                                )
+                            else
+                                uiFunctions.showFloatingText(
+                                    "Triggered Trap! -" .. math.floor(damage) .. " damage", 
+                                    GAME.width / 2, 
+                                    GAME.height / 2 - 80, 
+                                    {1, 0.2, 0.2, 1},
+                                    3.0,
+                                    self.floatingTexts
+                                )
+                            end
+                            
+                            -- Set cooldown to prevent multiple triggers when entering the tile
+                            self.trapTriggerCooldown = 1.0
+                            
+                            -- Update trap visual hints
+                            trap.hintFactor = 0.1 -- Reduce the hint factor to show it's triggered
+                        end
+                    end
+                end
+            end
         end
         
         -- Play footstep sound when moving
@@ -2294,7 +2373,7 @@ function dungeon:checkWallInteraction()
     end
 end
 
--- Update trap detection and interaction hints based on player position
+    -- Update trap detection and interaction hints based on player position
 function dungeon:updateTrapsAndInteractables(dt)
     -- Skip if map is not initialized
     if not self.map then return end
@@ -2302,6 +2381,10 @@ function dungeon:updateTrapsAndInteractables(dt)
     -- Update hint factors for secret passages and traps based on player position and party composition
     interactables:updateHintFactors(self.map, self.playerPos.x, self.playerPos.y)
     trapSystem:updateTrapHintFactors(self.map, self.playerPos.x, self.playerPos.y)
+    
+    -- Store the player's current cell position (floored coordinates)
+    self.currentPlayerCellX = math.floor(self.playerPos.x)
+    self.currentPlayerCellY = math.floor(self.playerPos.y)
     
     -- Store previous active trap for distance checking
     local previousActiveTrap = self.activeTrap
@@ -2345,15 +2428,15 @@ function dungeon:updateTrapsAndInteractables(dt)
         end
     end
     
-    -- If no nearby trap was found, check if player is standing on a trap
-    if not self.activeTrap and self.map.getTrap then
-        local trapX = math.floor(self.playerPos.x)
-        local trapY = math.floor(self.playerPos.y)
+    -- Check if player is standing on a trap, regardless of whether we found a nearby trap
+    if self.map.getTrap then
+        local trapX = self.currentPlayerCellX
+        local trapY = self.currentPlayerCellY
         local trap = self.map:getTrap(trapX, trapY)
         
-        -- If there's a trap and it's active
+        -- If there's a trap and it's active and not disarmed
         if trap and trap.isTrapActive and not trap.isTrapDisarmed then
-            -- Check for trap detection
+            -- Check for trap detection if not already detected
             if not trap.isTrapDetected then
                 local detectResult = trapSystem:checkTrapDetection(trap, self.map, self.playerPos.x, self.playerPos.y)
                 
@@ -2371,29 +2454,48 @@ function dungeon:updateTrapsAndInteractables(dt)
                 end
             end
             
-            -- If trap is detected, set it as the active trap
-            if trap.isTrapDetected then
-                self.activeTrap = trap
-            else
-                -- If trap is not detected and not triggered yet, chance to trigger it
-                if not trap.isTrapDetected and math.random() < 0.7 and not self.trapTriggerCooldown then
-                    -- Trigger the trap
-                    trapSystem:activateTrap(trap, GAME.party[1])
-                    
-                    -- Show damage message
-                    uiFunctions.showFloatingText(
-                        "Triggered Trap!", 
-                        GAME.width / 2, 
-                        GAME.height / 2 - 80, 
-                        {1, 0.2, 0.2, 1},
-                        3.0,
-                        self.floatingTexts
-                    )
+            -- Set it as the active trap for disarming purposes
+            self.activeTrap = trap
+            
+            -- Store the trap the player is currently standing on
+            self.standingOnTrap = trap
+            
+            -- Trigger the trap if not on cooldown - regardless of detection state
+            -- Only disarmed traps are safe
+            if not self.trapTriggerCooldown then
+                -- Trigger the trap
+                local damage = trapSystem:activateTrap(trap, GAME.party[1])
+                
+                -- Only show message and set cooldown if damage was dealt
+                if damage and damage > 0 then
+                    -- Show damage message with different text based on detection state
+                    if trap.isTrapDetected then
+                        uiFunctions.showFloatingText(
+                            "You triggered a detected trap! -" .. math.floor(damage) .. " damage", 
+                            GAME.width / 2, 
+                            GAME.height / 2 - 80, 
+                            {1, 0.2, 0.2, 1},
+                            3.0,
+                            self.floatingTexts
+                        )
+                    else
+                        uiFunctions.showFloatingText(
+                            "Triggered Trap! -" .. math.floor(damage) .. " damage", 
+                            GAME.width / 2, 
+                            GAME.height / 2 - 80, 
+                            {1, 0.2, 0.2, 1},
+                            3.0,
+                            self.floatingTexts
+                        )
+                    end
                     
                     -- Set cooldown
                     self.trapTriggerCooldown = 1.0
                 end
             end
+        else
+            -- Clear the standing on trap flag if we're not on a trap
+            self.standingOnTrap = nil
         end
     end
     
