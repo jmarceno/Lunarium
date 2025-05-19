@@ -9,6 +9,152 @@ local partyPanel = require("screens/ui_slices/partyPanel")
 
 local combatSystem = {}  -- Forward declaration
 
+-- Helper functions for UI Refactoring
+local function drawListContainer(listElement, title, borderColor)
+    if not listElement.visible then return end
+
+    -- Draw background
+    love.graphics.setColor(0, 0, 0, 0.8)
+    love.graphics.rectangle("fill", listElement.x, listElement.y, listElement.width, listElement.height)
+
+    -- Draw border
+    love.graphics.setColor(borderColor[1], borderColor[2], borderColor[3])
+    love.graphics.rectangle("line", listElement.x, listElement.y, listElement.width, listElement.height)
+
+    -- Draw title
+    love.graphics.setFont(screenManager.fonts.medium)
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.print(title, listElement.x + 10, listElement.y + 5)
+end
+
+local function isClickInsideList(listElement, x, y)
+    if not listElement.visible then return false end
+    return x >= listElement.x and x <= listElement.x + listElement.width and
+           y >= listElement.y and y <= listElement.y + listElement.height
+end
+
+local function drawTooltipContent(tooltipX, tooltipY, tooltipWidth, tooltipHeight, effectInfo, effect)
+    -- Draw tooltip background
+    love.graphics.setColor(0.1, 0.1, 0.1, 0.9)
+    love.graphics.rectangle("fill", tooltipX, tooltipY, tooltipWidth, tooltipHeight, 5, 5)
+
+    -- Draw tooltip border
+    if effectInfo.statusType == "positive" then
+        love.graphics.setColor(0.2, 0.7, 0.3, 0.7)
+    elseif effectInfo.statusType == "negative" then
+        love.graphics.setColor(0.7, 0.3, 0.2, 0.7)
+    else
+        love.graphics.setColor(0.5, 0.5, 0.7, 0.7)
+    end
+    love.graphics.rectangle("line", tooltipX, tooltipY, tooltipWidth, tooltipHeight, 5, 5)
+
+    -- Draw effect name
+    love.graphics.setFont(screenManager.fonts.medium)
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.print(effectInfo.name, tooltipX + 10, tooltipY + 10)
+
+    -- Draw effect description
+    love.graphics.setFont(screenManager.fonts.small)
+    love.graphics.setColor(0.9, 0.9, 0.9)
+    love.graphics.printf(effectInfo.description, tooltipX + 10, tooltipY + 35, tooltipWidth - 20, "left")
+
+    -- Draw effect duration
+    love.graphics.setColor(0.7, 0.7, 1)
+    love.graphics.print(
+        "Duration: " .. effect.duration .. " turns",
+        tooltipX + 10, tooltipY + tooltipHeight - 20
+    )
+end
+
+local function drawSingleMinionDisplay(minion, slotX, yPos, slotWidth, slotHeight, isCurrentTurnMinion, showCombatStats)
+    -- Draw background based on minion type
+    if minion.type == "undead" then
+        love.graphics.setColor(0.3, 0.1, 0.3, 0.8) -- Dark purple
+    elseif minion.type == "elemental" then
+        if minion.element == "fire" then
+            love.graphics.setColor(0.8, 0.2, 0.1, 0.8) -- Red
+        elseif minion.element == "water" then
+            love.graphics.setColor(0.1, 0.3, 0.8, 0.8) -- Blue
+        elseif minion.element == "earth" then
+            love.graphics.setColor(0.5, 0.3, 0.1, 0.8) -- Brown
+        elseif minion.element == "air" then
+            love.graphics.setColor(0.7, 0.7, 0.9, 0.8) -- Light blue
+        else
+            love.graphics.setColor(0.2, 0.4, 0.8, 0.8) -- Default blue
+        end
+    elseif minion.type == "spirit" then
+        love.graphics.setColor(0.5, 0.8, 0.5, 0.8) -- Green
+    else
+        love.graphics.setColor(0.3, 0.3, 0.3, 0.8) -- Gray default
+    end
+    love.graphics.rectangle("fill", slotX, yPos, slotWidth, slotHeight, 5, 5)
+
+    if isCurrentTurnMinion then
+        love.graphics.setColor(1, 1, 0.5, 0.4)
+        love.graphics.rectangle("fill", slotX - 2, yPos - 2, slotWidth + 4, slotHeight + 4, 5, 5)
+    end
+
+    love.graphics.setColor(0.7, 0.7, 0.7)
+    love.graphics.rectangle("line", slotX, yPos, slotWidth, slotHeight, 5, 5)
+
+    love.graphics.setFont(screenManager.fonts.small)
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.print(minion.name, slotX + 5, yPos + 5)
+
+    local hpBarWidth = slotWidth - 10
+    local hpBarHeight = 8
+    local hpPercent = minion.currentHP / minion.maxHP
+
+    love.graphics.setColor(0.2, 0.2, 0.2)
+    love.graphics.rectangle("fill", slotX + 5, yPos + 22, hpBarWidth, hpBarHeight)
+    love.graphics.setColor(0.2, 0.8, 0.2)
+    love.graphics.rectangle("fill", slotX + 5, yPos + 22, hpBarWidth * hpPercent, hpBarHeight)
+    
+    local textY = yPos + 33 -- Starting Y for text below HP bar
+    love.graphics.setFont(screenManager.fonts.small)
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.print("HP: " .. math.floor(minion.currentHP) .. "/" .. math.floor(minion.maxHP), slotX + 5, textY)
+    textY = textY + 12
+
+    if showCombatStats then
+        if minion.attackPower then
+            love.graphics.print("ATK: " .. math.floor(minion.attackPower), slotX + 5, textY)
+            textY = textY + 12
+        elseif minion.magicPower then
+            love.graphics.print("MAG: " .. math.floor(minion.magicPower), slotX + 5, textY)
+            textY = textY + 12
+        end
+    end
+
+    love.graphics.setColor(1, 1, 1)
+    if minion.takesActions then
+        love.graphics.print("Combat", slotX + 5, textY)
+    else
+        love.graphics.print("Passive", slotX + 5, textY)
+    end
+end
+
+local function updateSkillSelectionAndScroll(skillList, newIndex)
+    -- Deselect all skills
+    for _, s in ipairs(skillList.skills) do
+        s.selected = false
+    end
+
+    -- Select the new skill
+    if skillList.skills[newIndex] then -- Ensure the newIndex is valid
+        skillList.skills[newIndex].selected = true
+        skillList.selectedIndex = newIndex
+
+        -- Adjust scroll if necessary
+        if newIndex <= skillList.scroll then
+            skillList.scroll = math.max(0, newIndex - 1)
+        elseif newIndex > skillList.scroll + skillList.maxSkillsVisible -1 --Ensure -1 is applied
+        then
+            skillList.scroll = math.max(0, newIndex - skillList.maxSkillsVisible)
+        end
+    end
+end
+
 -- Create UI elements
 local function createUI(self)
     -- Calculate button positions relative to the bottom of the screen
@@ -66,18 +212,7 @@ local function createUI(self)
         draw = function(self)
             if not self.visible then return end
             
-            -- Draw background
-            love.graphics.setColor(0, 0, 0, 0.8)
-            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height)
-            
-            -- Draw border
-            love.graphics.setColor(0.5, 0.5, 0.8)
-            love.graphics.rectangle("line", self.x, self.y, self.width, self.height)
-            
-            -- Draw title
-            love.graphics.setFont(screenManager.fonts.medium)
-            love.graphics.setColor(1, 1, 1)
-            love.graphics.print("Skills", self.x + 10, self.y + 5)
+            drawListContainer(self, "Skills", {0.5, 0.5, 0.8})
             
             -- Calculate visible range based on scroll
             local startIdx = self.scroll + 1
@@ -125,8 +260,7 @@ local function createUI(self)
             if not self.visible then return false end
             
             -- Check if click is within bounds
-            if x >= self.x and x <= self.x + self.width and
-               y >= self.y and y <= self.y + self.height then
+            if isClickInsideList(self, x, y) then
                
                 -- Check if click is on the scrollbar
                 if x >= self.x + self.width - 15 and #self.skills > self.maxSkillsVisible then
@@ -208,45 +342,13 @@ local function createUI(self)
                 -- Move selection up
                 local newIndex = self.selectedIndex - 1
                 if newIndex < 1 then newIndex = #self.skills end
-                
-                -- Deselect all skills
-                for _, s in ipairs(self.skills) do
-                    s.selected = false
-                end
-                
-                -- Select the new skill
-                self.skills[newIndex].selected = true
-                self.selectedIndex = newIndex
-                
-                -- Adjust scroll if necessary
-                if newIndex <= self.scroll then
-                    self.scroll = math.max(0, newIndex - 1)
-                elseif newIndex > self.scroll + self.maxSkillsVisible then
-                    self.scroll = newIndex - self.maxSkillsVisible
-                end
-                
+                updateSkillSelectionAndScroll(self, newIndex)
                 return true
             elseif key == "s" or key == "down" then
                 -- Move selection down
                 local newIndex = self.selectedIndex + 1
                 if newIndex > #self.skills then newIndex = 1 end
-                
-                -- Deselect all skills
-                for _, s in ipairs(self.skills) do
-                    s.selected = false
-                end
-                
-                -- Select the new skill
-                self.skills[newIndex].selected = true
-                self.selectedIndex = newIndex
-                
-                -- Adjust scroll if necessary
-                if newIndex <= self.scroll then
-                    self.scroll = math.max(0, newIndex - 1)
-                elseif newIndex > self.scroll + self.maxSkillsVisible then
-                    self.scroll = newIndex - self.maxSkillsVisible
-                end
-                
+                updateSkillSelectionAndScroll(self, newIndex)
                 return true
             end
             
@@ -266,18 +368,7 @@ local function createUI(self)
         draw = function(self)
             if not self.visible then return end
             
-            -- Draw background
-            love.graphics.setColor(0, 0, 0, 0.8)
-            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height)
-            
-            -- Draw border
-            love.graphics.setColor(0.5, 0.8, 0.5)
-            love.graphics.rectangle("line", self.x, self.y, self.width, self.height)
-            
-            -- Draw title
-            love.graphics.setFont(screenManager.fonts.medium)
-            love.graphics.setColor(1, 1, 1)
-            love.graphics.print("Items", self.x + 10, self.y + 5)
+            drawListContainer(self, "Items", {0.5, 0.8, 0.5})
             
             -- Draw item list
             love.graphics.setFont(screenManager.fonts.small)
@@ -305,8 +396,7 @@ local function createUI(self)
             if not self.visible then return false end
             
             -- Check if click is within bounds
-            if x >= self.x and x <= self.x + self.width and
-               y >= self.y and y <= self.y + self.height then
+            if isClickInsideList(self, x, y) then
                
                 -- Check item selection
                 for i, item in ipairs(self.items) do
@@ -344,18 +434,7 @@ local function createUI(self)
         draw = function(self)
             if not self.visible then return end
             
-            -- Draw background
-            love.graphics.setColor(0, 0, 0, 0.8)
-            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height)
-            
-            -- Draw border
-            love.graphics.setColor(0.5, 0.7, 0.8)
-            love.graphics.rectangle("line", self.x, self.y, self.width, self.height)
-            
-            -- Draw title
-            love.graphics.setFont(screenManager.fonts.medium)
-            love.graphics.setColor(1, 1, 1)
-            love.graphics.print("Select Target", self.x + 10, self.y + 5)
+            drawListContainer(self, "Select Target", {0.5, 0.7, 0.8})
             
             -- Draw party member list
             love.graphics.setFont(screenManager.fonts.small)
@@ -389,8 +468,7 @@ local function createUI(self)
             if not self.visible then return false end
             
             -- Check if click is within bounds
-            if x >= self.x and x <= self.x + self.width and
-               y >= self.y and y <= self.y + self.height then
+            if isClickInsideList(self, x, y) then
                
                 -- Use the stored combat reference
                 local party = self.combatRef.party
@@ -923,6 +1001,16 @@ local function drawDefeatUI(self)
         GAME.width / 2 - 200, GAME.height / 2 + 50,
         400, "center"
     )
+
+    -- Ensure continue button is created for defeat state too (if not already)
+    if not self.elements.continueButton then
+        self.elements.continueButton = screenManager.UI.Button(
+            GAME.width / 2 - 60, GAME.height / 2 + 100, 
+            120, 40, "Continue", 
+            function() self:endCombat(false) end -- false for defeat
+        )
+    end
+    self.elements.continueButton.visible = true -- Make sure it's visible
 end
 
 -- Show enemy selection UI for targeting
@@ -941,18 +1029,7 @@ local function showEnemySelectionUI(self, actionType)
             draw = function(self)
                 if not self.visible then return end
                 
-                -- Draw background
-                love.graphics.setColor(0, 0, 0, 0.8)
-                love.graphics.rectangle("fill", self.x, self.y, self.width, self.height)
-                
-                -- Draw border
-                love.graphics.setColor(0.8, 0.5, 0.5)
-                love.graphics.rectangle("line", self.x, self.y, self.width, self.height)
-                
-                -- Draw title
-                love.graphics.setFont(screenManager.fonts.medium)
-                love.graphics.setColor(1, 1, 1)
-                love.graphics.print("Select Target", self.x + 10, self.y + 5)
+                drawListContainer(self, "Select Target", {0.8, 0.5, 0.5})
                 
                 -- Draw enemy list
                 love.graphics.setFont(screenManager.fonts.small)
@@ -986,8 +1063,7 @@ local function showEnemySelectionUI(self, actionType)
                 if not self.visible then return false end
                 
                 -- Check if click is within bounds
-                if x >= self.x and x <= self.x + self.width and
-                   y >= self.y and y <= self.y + self.height then
+                if isClickInsideList(self, x, y) then
                    
                     -- Use the stored combat reference
                     local enemies = self.combatRef.enemies
@@ -1236,83 +1312,12 @@ local function drawMinions(self)
                         minionsDrawn = minionsDrawn + 1
                         local yPos = slotY + ((minionsDrawn - 1) * (slotHeight + slotSpacing))
                         
-                        -- Draw background based on minion type
-                        if minion.type == "undead" then
-                            love.graphics.setColor(0.3, 0.1, 0.3, 0.8) -- Dark purple
-                        elseif minion.type == "elemental" then
-                            if minion.element == "fire" then
-                                love.graphics.setColor(0.8, 0.2, 0.1, 0.8) -- Red
-                            elseif minion.element == "water" then
-                                love.graphics.setColor(0.1, 0.3, 0.8, 0.8) -- Blue
-                            elseif minion.element == "earth" then
-                                love.graphics.setColor(0.5, 0.3, 0.1, 0.8) -- Brown
-                            elseif minion.element == "air" then
-                                love.graphics.setColor(0.7, 0.7, 0.9, 0.8) -- Light blue
-                            else
-                                love.graphics.setColor(0.2, 0.4, 0.8, 0.8) -- Default blue
-                            end
-                        elseif minion.type == "spirit" then
-                            love.graphics.setColor(0.5, 0.8, 0.5, 0.8) -- Green
-                        else
-                            love.graphics.setColor(0.3, 0.3, 0.3, 0.8) -- Gray default
-                        end
+                        local isCurrentTurnMinion = self.state == combatSystem.STATE.MINION_TURN and 
+                                                   self.activeMinion and 
+                                                   self.activeMinion.charIndex == i and 
+                                                   self.activeMinion.minionIndex == j
                         
-                        -- Draw slot background
-                        love.graphics.rectangle("fill", slotX, yPos, slotWidth, slotHeight, 5, 5)
-                        
-                        -- Highlight active minion if it's their turn
-                        if self.state == combatSystem.STATE.MINION_TURN and 
-                           self.activeMinion and 
-                           self.activeMinion.charIndex == i and 
-                           self.activeMinion.minionIndex == j then
-                            love.graphics.setColor(1, 1, 0.5, 0.4)
-                            love.graphics.rectangle("fill", slotX - 2, yPos - 2, slotWidth + 4, slotHeight + 4, 5, 5)
-                        end
-                        
-                        -- Draw border
-                        love.graphics.setColor(0.7, 0.7, 0.7)
-                        love.graphics.rectangle("line", slotX, yPos, slotWidth, slotHeight, 5, 5)
-                        
-                        -- Draw name
-                        love.graphics.setFont(screenManager.fonts.small)
-                        love.graphics.setColor(1, 1, 1)
-                        love.graphics.print(minion.name, slotX + 5, yPos + 5)
-                        
-                        -- Draw HP bar
-                        local hpBarWidth = slotWidth - 10
-                        local hpBarHeight = 8
-                        local hpPercent = minion.currentHP / minion.maxHP
-                        
-                        -- HP bar background
-                        love.graphics.setColor(0.2, 0.2, 0.2)
-                        love.graphics.rectangle("fill", slotX + 5, yPos + 22, hpBarWidth, hpBarHeight)
-                        
-                        -- HP bar fill
-                        love.graphics.setColor(0.2, 0.8, 0.2)
-                        love.graphics.rectangle("fill", slotX + 5, yPos + 22, hpBarWidth * hpPercent, hpBarHeight)
-                        
-                        -- Draw stats - use small font instead of tiny
-                        love.graphics.setFont(screenManager.fonts.small)
-                        love.graphics.setColor(1, 1, 1)
-                        love.graphics.print("HP: " .. math.floor(minion.currentHP) .. "/" .. math.floor(minion.maxHP), 
-                            slotX + 5, yPos + 33)
-                            
-                        -- Draw attack power or other relevant stat
-                        if minion.attackPower then
-                            love.graphics.print("ATK: " .. math.floor(minion.attackPower), 
-                                slotX + 5, yPos + 45)
-                        elseif minion.magicPower then
-                            love.graphics.print("MAG: " .. math.floor(minion.magicPower), 
-                                slotX + 5, yPos + 45)
-                        end
-
-                        -- Draw status (active/inactive/buff)
-                        love.graphics.setColor(1, 1, 1)
-                        if minion.takesActions then
-                            love.graphics.print("Combat", slotX + 5, yPos + 57)
-                        else
-                            love.graphics.print("Passive", slotX + 5, yPos + 57)
-                        end
+                        drawSingleMinionDisplay(minion, slotX, yPos, slotWidth, slotHeight, isCurrentTurnMinion, true)
                     end
                 end
             end
@@ -1327,55 +1332,8 @@ local function drawMinions(self)
                             minionsDrawn = minionsDrawn + 1
                             local yPos = slotY + ((minionsDrawn - 1) * (slotHeight + slotSpacing))
                             
-                            -- Draw background based on minion type
-                            if minion.type == "undead" then
-                                love.graphics.setColor(0.3, 0.1, 0.3, 0.8) -- Dark purple
-                            elseif minion.type == "elemental" then
-                                love.graphics.setColor(0.2, 0.4, 0.8, 0.8) -- Blue
-                            elseif minion.type == "spirit" then
-                                love.graphics.setColor(0.5, 0.8, 0.5, 0.8) -- Green
-                            else
-                                love.graphics.setColor(0.3, 0.3, 0.3, 0.8) -- Gray default
-                            end
-                            
-                            -- Draw slot background
-                            love.graphics.rectangle("fill", slotX, yPos, slotWidth, slotHeight, 5, 5)
-                            
-                            -- Draw border
-                            love.graphics.setColor(0.7, 0.7, 0.7)
-                            love.graphics.rectangle("line", slotX, yPos, slotWidth, slotHeight, 5, 5)
-                            
-                            -- Draw name
-                            love.graphics.setFont(screenManager.fonts.small)
-                            love.graphics.setColor(1, 1, 1)
-                            love.graphics.print(minion.name, slotX + 5, yPos + 5)
-                            
-                            -- Draw HP bar
-                            local hpBarWidth = slotWidth - 10
-                            local hpBarHeight = 8
-                            local hpPercent = minion.currentHP / minion.maxHP
-                            
-                            -- HP bar background
-                            love.graphics.setColor(0.2, 0.2, 0.2)
-                            love.graphics.rectangle("fill", slotX + 5, yPos + 22, hpBarWidth, hpBarHeight)
-                            
-                            -- HP bar fill
-                            love.graphics.setColor(0.2, 0.8, 0.2)
-                            love.graphics.rectangle("fill", slotX + 5, yPos + 22, hpBarWidth * hpPercent, hpBarHeight)
-                            
-                            -- Draw stats - use small font instead of tiny
-                            love.graphics.setFont(screenManager.fonts.small)
-                            love.graphics.setColor(1, 1, 1)
-                            love.graphics.print("HP: " .. math.floor(minion.currentHP) .. "/" .. math.floor(minion.maxHP), 
-                                slotX + 5, yPos + 33)
-                                
-                            -- Draw status (active/inactive/buff)
-                            love.graphics.setColor(1, 1, 1)
-                            if minion.takesActions then
-                                love.graphics.print("Combat", slotX + 5, yPos + 45)
-                            else
-                                love.graphics.print("Passive", slotX + 5, yPos + 45)
-                            end
+                            -- For minions from minionManager, we don't highlight for current turn or show detailed combat stats in this context
+                            drawSingleMinionDisplay(minion, slotX, yPos, slotWidth, slotHeight, false, false)
                         end
                     end
                 end
@@ -1492,36 +1450,7 @@ local function drawStatusEffectTooltips(self)
                                 tooltipY = mouseY + 20
                             end
                             
-                            -- Draw tooltip background
-                            love.graphics.setColor(0.1, 0.1, 0.1, 0.9)
-                            love.graphics.rectangle("fill", tooltipX, tooltipY, tooltipWidth, tooltipHeight, 5, 5)
-                            
-                            -- Draw tooltip border
-                            if effectInfo.statusType == "positive" then
-                                love.graphics.setColor(0.2, 0.7, 0.3, 0.7)
-                            elseif effectInfo.statusType == "negative" then
-                                love.graphics.setColor(0.7, 0.3, 0.2, 0.7)
-                            else
-                                love.graphics.setColor(0.5, 0.5, 0.7, 0.7)
-                            end
-                            love.graphics.rectangle("line", tooltipX, tooltipY, tooltipWidth, tooltipHeight, 5, 5)
-                            
-                            -- Draw effect name
-                            love.graphics.setFont(screenManager.fonts.medium)
-                            love.graphics.setColor(1, 1, 1)
-                            love.graphics.print(effectInfo.name, tooltipX + 10, tooltipY + 10)
-                            
-                            -- Draw effect description
-                            love.graphics.setFont(screenManager.fonts.small)
-                            love.graphics.setColor(0.9, 0.9, 0.9)
-                            love.graphics.printf(effectInfo.description, tooltipX + 10, tooltipY + 35, tooltipWidth - 20, "left")
-                            
-                            -- Draw effect duration
-                            love.graphics.setColor(0.7, 0.7, 1)
-                            love.graphics.print(
-                                "Duration: " .. effect.duration .. " turns", 
-                                tooltipX + 10, tooltipY + tooltipHeight - 20
-                            )
+                            drawTooltipContent(tooltipX, tooltipY, tooltipWidth, tooltipHeight, effectInfo, effect)
                             
                             tooltipShown = true
                             break
@@ -1581,36 +1510,7 @@ local function drawStatusEffectTooltips(self)
                                 tooltipY = mouseY + 20
                             end
                             
-                            -- Draw tooltip background
-                            love.graphics.setColor(0.1, 0.1, 0.1, 0.9)
-                            love.graphics.rectangle("fill", tooltipX, tooltipY, tooltipWidth, tooltipHeight, 5, 5)
-                            
-                            -- Draw tooltip border
-                            if effectInfo.statusType == "positive" then
-                                love.graphics.setColor(0.2, 0.7, 0.3, 0.7)
-                            elseif effectInfo.statusType == "negative" then
-                                love.graphics.setColor(0.7, 0.3, 0.2, 0.7)
-                            else
-                                love.graphics.setColor(0.5, 0.5, 0.7, 0.7)
-                            end
-                            love.graphics.rectangle("line", tooltipX, tooltipY, tooltipWidth, tooltipHeight, 5, 5)
-                            
-                            -- Draw effect name
-                            love.graphics.setFont(screenManager.fonts.medium)
-                            love.graphics.setColor(1, 1, 1)
-                            love.graphics.print(effectInfo.name, tooltipX + 10, tooltipY + 10)
-                            
-                            -- Draw effect description
-                            love.graphics.setFont(screenManager.fonts.small)
-                            love.graphics.setColor(0.9, 0.9, 0.9)
-                            love.graphics.printf(effectInfo.description, tooltipX + 10, tooltipY + 35, tooltipWidth - 20, "left")
-                            
-                            -- Draw effect duration
-                            love.graphics.setColor(0.7, 0.7, 1)
-                            love.graphics.print(
-                                "Duration: " .. effect.duration .. " turns", 
-                                tooltipX + 10, tooltipY + tooltipHeight - 20
-                            )
+                            drawTooltipContent(tooltipX, tooltipY, tooltipWidth, tooltipHeight, effectInfo, effect)
                             
                             break
                         end
