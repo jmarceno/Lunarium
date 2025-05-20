@@ -2129,7 +2129,21 @@ end
 
 -- Helper function to manage combat victory outcomes
 function dungeon:handleCombatVictory()
+    -- Get loot before clearing combat state
     local loot = self.combat:getLoot()
+    
+    -- Update character stats from combat state
+    if self.combat.party then
+        for i, combatChar in ipairs(self.combat.party) do
+            if GAME.party and GAME.party[i] then
+                -- Update health and mana to match combat state
+                GAME.party[i].currentHP = combatChar.currentHP
+                GAME.party[i].currentMP = combatChar.currentMP
+                -- Also update any status effects
+                GAME.party[i].status = combatChar.status
+            end
+        end
+    end
 
     if GAME.inventory and loot then
         for _, itemData in ipairs(loot) do
