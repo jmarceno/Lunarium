@@ -6,6 +6,35 @@ local minionManager = require("gameplay/minionManager")
 
 local trapSystem = {}
 
+-- Constants for trap placement and detection
+trapSystem.ACTIVE_TRAP_DISTANCE = 4.0 -- Maximum distance to show trap prompt
+trapSystem.BASE_DETECTION_RANGE = 4.0  -- Base detection range
+trapSystem.ROGUE_DETECTION_RANGE = 12.0 -- Rogue detection range
+trapSystem.MAGE_DETECTION_RANGE = 8.0  -- Mage detection range
+
+-- Calculate minimum distance between traps based on party composition
+function trapSystem:calculateMinTrapDistance(party)
+    -- Start with base detection range
+    local maxDetectionRange = self.BASE_DETECTION_RANGE
+    
+    -- Check if party has rogues or mages
+    if party then
+        for _, member in ipairs(party) do
+            if member.class == "Rogue" then
+                maxDetectionRange = self.ROGUE_DETECTION_RANGE
+                break
+            elseif member.class == "Mage" and maxDetectionRange < self.MAGE_DETECTION_RANGE then
+                maxDetectionRange = self.MAGE_DETECTION_RANGE
+            end
+        end
+    end
+    
+    -- Calculate minimum distance with 20% buffer
+    local minDistance = 1.2 * (maxDetectionRange + self.ACTIVE_TRAP_DISTANCE)
+    
+    return minDistance
+end
+
 -- Helper function for Line of Sight
 local function hasLineOfSight(map, x1, y1, x2, y2)
     if not map or not map.getCell then return false end -- Safety check
@@ -416,8 +445,35 @@ function trapSystem:checkTrapDetection(trap, map, playerX, playerY)
         return false -- No line of sight, cannot detect
     end
     
-        local detectionChance = 0.15  -- Increased base chance from 10% to 15% (fallback)    local highestPriorityClass = "None"    if GAME.party and #GAME.party > 0 then        local hasRogue, hasMage, hasWarrior = false, false, false        for _, member in ipairs(GAME.party) do            if member.class == "Rogue" then hasRogue = true; break end -- Highest priority            if member.class == "Mage" then hasMage = true end            if member.class == "Warrior" then hasWarrior = true end        end        if hasRogue then            detectionChance = 0.85  -- Increased from 70% to 85% for rogues            highestPriorityClass = "Rogue"        elseif hasMage then            detectionChance = 0.45  -- Increased from 30% to 45% for mages            highestPriorityClass = "Mage"        elseif hasWarrior then            detectionChance = 0.3   -- Increased from 20% to 30% for warriors            highestPriorityClass = "Warrior"        end    end        -- Calculate distance to player as a bonus factor (closer = higher chance)    local distance = math.sqrt((trap.x - playerX)^2 + (trap.y - playerY)^2)    if distance < 3.0 then        -- Add a proximity bonus (up to 15% extra chance when very close)        local proximityBonus = 0.15 * (1.0 - (distance / 3.0))        detectionChance = detectionChance + proximityBonus    end
-        
+    local detectionChance = 0.15  -- Increased base chance from 10% to 15% (fallback)
+    local highestPriorityClass = "None"
+    if GAME.party and #GAME.party > 0 then
+        local hasRogue, hasMage, hasWarrior = false, false, false
+        for _, member in ipairs(GAME.party) do
+            if member.class == "Rogue" then hasRogue = true; break end -- Highest priority
+            if member.class == "Mage" then hasMage = true end
+            if member.class == "Warrior" then hasWarrior = true end
+        end
+        if hasRogue then
+            detectionChance = 0.85  -- Increased from 70% to 85% for rogues
+            highestPriorityClass = "Rogue"
+        elseif hasMage then
+            detectionChance = 0.45  -- Increased from 30% to 45% for mages
+            highestPriorityClass = "Mage"
+        elseif hasWarrior then
+            detectionChance = 0.3   -- Increased from 20% to 30% for warriors
+            highestPriorityClass = "Warrior"
+        end
+    end
+    
+    -- Calculate distance to player as a bonus factor (closer = higher chance)
+    local distance = math.sqrt((trap.x - playerX)^2 + (trap.y - playerY)^2)
+    if distance < 3.0 then
+        -- Add a proximity bonus (up to 15% extra chance when very close)
+        local proximityBonus = 0.15 * (1.0 - (distance / 3.0))
+        detectionChance = detectionChance + proximityBonus
+    end
+    
     -- Check if trap is detected
     if math.random() < detectionChance then
         trap.isTrapDetected = true
@@ -504,7 +560,7 @@ end
 
 -- Update hint factors for traps based on player position and class
 function trapSystem:updateTrapHintFactors(map, playerX, playerY)
-    local detectionRange = 4.0  -- Increased base detection range (from 3.0 to 4.0)
+    local detectionRange = self.BASE_DETECTION_RANGE  -- Use our constant
     local hintMultiplier = 1.2  -- Increased base hint multiplier (from 1.0 to 1.2)
     -- local bestClassType = "Default" -- For logging if needed
 
@@ -516,11 +572,11 @@ function trapSystem:updateTrapHintFactors(map, playerX, playerY)
         end
 
         if hasRogue then
-            detectionRange = 12.0  -- Increased from 10.0 to 12.0 for rogues
+            detectionRange = self.ROGUE_DETECTION_RANGE  -- Use our constant
             hintMultiplier = 2.5   -- Increased from 2.0 to 2.5
             -- bestClassType = "Rogue"
         elseif hasMage then
-            detectionRange = 8.0   -- Increased from 6.0 to 8.0
+            detectionRange = self.MAGE_DETECTION_RANGE  -- Use our constant
             hintMultiplier = 1.8   -- Increased from 1.5 to 1.8
             -- bestClassType = "Mage"
         end

@@ -73,7 +73,7 @@ function dungeon:init()
     
     -- Add active trap tracking for disarming
     self.activeTrap = nil
-    self.activeTrapDistance = 4.0 -- Maximum distance to show trap prompt
+    self.activeTrapDistance = trapSystem.ACTIVE_TRAP_DISTANCE -- Use the constant from trapSystem
     
     -- Add floating text system
     self.floatingTexts = {}
@@ -488,18 +488,33 @@ function dungeon:populateDungeon(difficulty)
 end
 
 -- Helper to find a valid spawn position away from start/end
-function dungeon:findValidSpawnPosition(avoidEnd)
+function dungeon:findValidSpawnPosition(avoidEnd, avoidStartRoom)
     local attempts = 0
     local maxAttempts = 50
+    
+    -- Get starting room if needed
+    local startRoom = nil
+    if avoidStartRoom and self.map.rooms and #self.map.rooms > 0 then
+        startRoom = self.map.rooms[1]
+    end
+    
     while attempts < maxAttempts do
         attempts = attempts + 1
         local x = math.random(1, self.map.width - 2)
         local y = math.random(1, self.map.height - 2)
         local isEndPos = (x == self.map.end_.x and y == self.map.end_.y)
         
+        -- Check if position is in starting room
+        local isInStartRoom = false
+        if startRoom then
+            isInStartRoom = (x >= startRoom.x and x < startRoom.x + startRoom.width and
+                             y >= startRoom.y and y < startRoom.y + startRoom.height)
+        end
+        
         if self.map:getCell(x, y) == 0 and
            (math.abs(x - self.map.start.x) > 2 or math.abs(y - self.map.start.y) > 2) and
-           (not avoidEnd or not isEndPos) then
+           (not avoidEnd or not isEndPos) and
+           (not avoidStartRoom or not isInStartRoom) then
              -- Check proximity to other entities to avoid stacking
             local tooClose = false
             for _, entity in ipairs(self.entities) do
@@ -625,21 +640,60 @@ function dungeon:addTrapsAndSecretPassages(difficulty)
     
     print("Adding " .. numTraps .. " traps and " .. numSecretPassages .. " secret passages")
     
+    -- Calculate minimum distance between traps based on party composition
+    local minTrapDistance = trapSystem:calculateMinTrapDistance(GAME.party)
+    print("Minimum distance between traps: " .. minTrapDistance)
+    
+    -- Get the starting room to avoid placing traps there
+    local startRoom = self.map.rooms[1]
+    print("Starting room: x=" .. startRoom.x .. ", y=" .. startRoom.y .. 
+          ", width=" .. startRoom.width .. ", height=" .. startRoom.height)
+    
     -- Add floor traps
+    local placedTraps = {}
+    
     for i = 1, numTraps do
-        local x, y = self:findValidSpawnPosition(false)
-        if x then
+        local attempts = 0
+        local maxAttempts = 50
+        local validPosition = false
+        local x, y
+        
+        while attempts < maxAttempts and not validPosition do
+            attempts = attempts + 1
+            
+            -- Find a valid spawn position (avoid end and starting room)
+            x, y = self:findValidSpawnPosition(false, true)
+            
+            if x then
+                -- Check distance from all other traps
+                validPosition = true
+                for _, trap in ipairs(placedTraps) do
+                    local distance = math.sqrt((trap.x - x)^2 + (trap.y - y)^2)
+                    if distance < minTrapDistance then
+                        validPosition = false
+                        break
+                    end
+                end
+            end
+        end
+        
+        if validPosition and x then
             -- Select a random trap type
             local trapTypes = {"spike", "gas", "dart"}
             local trapType = trapTypes[math.random(1, #trapTypes)]
             
             -- Add trap to the map
-            trapSystem:addTrap(self.map, x, y, {
+            local newTrap = trapSystem:addTrap(self.map, x, y, {
                 trapType = trapType,
                 hintFactor = 0 -- Initially not visible
             })
             
+            -- Add to our placed traps list for distance checking
+            table.insert(placedTraps, {x = x, y = y})
+            
             print("Added " .. trapType .. " trap at " .. x .. "," .. y)
+        else
+            print("Could not place trap #" .. i .. " after " .. maxAttempts .. " attempts")
         end
     end
     
