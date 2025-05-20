@@ -52,6 +52,9 @@ function combatSystem:createCombat(party, enemy, isAmbush)
         -- Combat UI elements
         elements = {},
         
+        -- Spell queue for casting time system
+        spellQueue = {},
+        
         -- Settings
         settings = {
             autoConfirmSelection = true -- Enable auto-confirm by default
@@ -78,6 +81,15 @@ function combatSystem:createCombat(party, enemy, isAmbush)
     combat.isOver = coreFunctions.isOver
     combat.isVictory = coreFunctions.isVictory
     combat.getLoot = coreFunctions.getLoot
+    
+    -- Add spell queue management functions
+    combat.addToSpellQueue = coreFunctions.addToSpellQueue
+    combat.progressSpellQueue = coreFunctions.progressSpellQueue
+    combat.executeCompletedSpells = coreFunctions.executeCompletedSpells
+    combat.resetSpellQueue = coreFunctions.resetSpellQueue
+    combat.modifySpellCastTime = coreFunctions.modifySpellCastTime
+    combat.cancelSpell = coreFunctions.cancelSpell
+    combat.isEntityCasting = coreFunctions.isEntityCasting
     
     -- Add UI functions
     combat.createUI = uiFunctions.createUI

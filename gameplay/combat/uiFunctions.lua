@@ -533,12 +533,75 @@ local function createUI(self)
         self.elements.itemList.x - 130, -- Position to the left of item list
         self.elements.itemList.y + 50, -- 50px below confirm button
         120, 40, "Back", 
-        function() self:cancelSelection() end
+        function() 
+            -- DIRECT FORCED CLEANUP: Hide all item UI elements directly
+            self.elements.itemList.visible = false
+            self.elements.itemConfirmButton.visible = false
+            self.elements.itemBackButton.visible = false
+            
+            -- Reset selection state
+            self.selectedAction = nil
+            self.selectedItem = nil
+            
+            -- Show action buttons again
+            self:showActionButtons()
+        end
     )
     self.elements.itemBackButton.visible = false
 end
 
 -- Draw combat UI
+-- Draw spell queue progress bars
+local function drawSpellQueue(self)
+    if #self.spellQueue == 0 then return end
+    
+    -- Position in top right corner
+    local queueX = GAME.width - 300
+    local queueY = 20
+    local queueWidth = 280
+    local itemHeight = 40
+    local spacing = 5
+    
+    -- Draw background
+    love.graphics.setColor(0, 0, 0, 0.7)
+    love.graphics.rectangle("fill", queueX, queueY, queueWidth, (itemHeight + spacing) * #self.spellQueue + 10, 5, 5)
+    
+    -- Draw border
+    love.graphics.setColor(0.4, 0.6, 0.8, 0.7)
+    love.graphics.rectangle("line", queueX, queueY, queueWidth, (itemHeight + spacing) * #self.spellQueue + 10, 5, 5)
+    
+    -- Draw title
+    love.graphics.setFont(screenManager.fonts.medium)
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.print("Spell Queue", queueX + 10, queueY + 5)
+    
+    -- Draw each spell in the queue
+    for i, spell in ipairs(self.spellQueue) do
+        local itemY = queueY + 30 + (i-1) * (itemHeight + spacing)
+        
+        -- Draw spell name and caster
+        love.graphics.setFont(screenManager.fonts.small)
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.print(spell.caster.name .. " - " .. spell.skill.name, queueX + 10, itemY)
+        
+        -- Calculate progress percentage
+        local progressPercent = spell.progress / spell.totalCastingTime
+        
+        -- Draw progress bar background
+        love.graphics.setColor(0.3, 0.3, 0.3)
+        love.graphics.rectangle("fill", queueX + 10, itemY + 20, queueWidth - 20, 12)
+        
+        -- Draw progress bar fill
+        love.graphics.setColor(0.2, 0.8, 0.6)
+        love.graphics.rectangle("fill", queueX + 10, itemY + 20, (queueWidth - 20) * progressPercent, 12)
+        
+        -- Draw progress text
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.print(spell.progress .. "/" .. spell.totalCastingTime, 
+                        queueX + queueWidth - 40, itemY + 19)
+    end
+end
+
 local function draw(self)
     -- Draw background
     love.graphics.setColor(0.2, 0.2, 0.3)
@@ -587,6 +650,17 @@ local function draw(self)
         
         -- Draw combat log
         self:drawCombatLog()
+        
+        -- Draw spell queue
+        drawSpellQueue(self)
+        
+        -- Draw floating combat text
+        if self.floatingTexts then
+            for i = #self.floatingTexts, 1, -1 do
+                local floatingText = self.floatingTexts[i]
+                floatingText:draw()
+            end
+        end
     end
     
     -- Draw minions
@@ -1203,6 +1277,13 @@ end
 
 -- Show item list
 local function showItemList(self)
+    -- First hide all selection UIs and buttons to ensure a clean state
+    self:hideSelectionLists()
+    
+    -- Hide standard buttons to avoid conflicts
+    self.elements.confirmButton.visible = false
+    self.elements.backButton.visible = false
+    
     -- Prepare item list
     self.elements.itemList.items = {}
     
@@ -1228,14 +1309,31 @@ local function showItemList(self)
     -- Show item list
     self.elements.itemList.visible = true
     
-    -- Update confirm button callback to standard confirmation
-    self.elements.confirmButton.callback = function()
-        self:confirmAction()
+    -- Show item-specific buttons only
+    if self.elements.itemConfirmButton then
+        self.elements.itemConfirmButton.visible = true
+        self.elements.itemConfirmButton.callback = function()
+            self:confirmAction()
+        end
     end
     
-    -- Make sure buttons are visible
-    self.elements.confirmButton.visible = true
-    self.elements.backButton.visible = true
+    if self.elements.itemBackButton then
+        self.elements.itemBackButton.visible = true
+        self.elements.itemBackButton.callback = function()
+            -- Clear selected items
+            for _, item in ipairs(self.elements.itemList.items) do
+                item.selected = false
+            end
+            
+            -- Hide all item UI
+            self.elements.itemList.visible = false
+            self.elements.itemConfirmButton.visible = false
+            self.elements.itemBackButton.visible = false
+            
+            -- Show action buttons
+            self:showActionButtons()
+        end
+    end
 end
 
 -- Show party selection UI
@@ -1268,6 +1366,23 @@ local function handleUIClick(self, x, y)
     
     if self.elements.itemBackButton and self.elements.itemBackButton.visible then
         if self.elements.itemBackButton:clicked(x, y) then
+            -- DIRECT FIX: Forcibly hide ALL item UI elements when Back is clicked
+            self.elements.itemList.visible = false
+            self.elements.itemConfirmButton.visible = false
+            self.elements.itemBackButton.visible = false
+            
+            -- Clear any selected items
+            for _, item in ipairs(self.elements.itemList.items) do
+                item.selected = false
+            end
+            
+            -- Reset selection state
+            self.selectedAction = nil
+            self.selectedItem = nil
+            
+            -- Ensure action buttons are shown
+            self:showActionButtons()
+            
             return true
         end
     end
@@ -1354,10 +1469,20 @@ local function cancelSelection(self)
     -- Hide all selection UIs
     if self.elements.skillList then
         self.elements.skillList.visible = false
+        
+        -- Deselect all skills
+        for _, skill in ipairs(self.elements.skillList.skills) do
+            skill.selected = false
+        end
     end
     
     if self.elements.itemList then
         self.elements.itemList.visible = false
+        
+        -- Deselect all items
+        for _, item in ipairs(self.elements.itemList.items) do
+            item.selected = false
+        end
     end
     
     if self.elements.partySelectList then
@@ -1366,6 +1491,15 @@ local function cancelSelection(self)
     
     if self.elements.enemySelectList then
         self.elements.enemySelectList.visible = false
+    end
+    
+    -- Hide confirm/back buttons for skills
+    if self.elements.confirmButton then
+        self.elements.confirmButton.visible = false
+    end
+    
+    if self.elements.backButton then
+        self.elements.backButton.visible = false
     end
     
     -- Hide item-specific buttons

@@ -26,6 +26,15 @@ local function executeEnemyTurn(self)
         return
     end
     
+    -- Check if enemy is currently casting a spell
+    local isCasting, castingSpell = self:isEntityCasting(enemy)
+    if isCasting then
+        -- Skip this enemy's turn as they're currently casting
+        self:addLog(enemy.name .. " continues casting " .. castingSpell.skill.name .. "...", {0.5, 0.8, 1})
+        self.activeEnemyIndex = self.activeEnemyIndex + 1
+        return
+    end
+    
     -- Ensure active is a boolean (fix it if nil)
     if enemy.active == nil then
         enemy.active = (enemy.currentHP or 0) > 0

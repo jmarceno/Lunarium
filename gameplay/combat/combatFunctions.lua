@@ -289,6 +289,9 @@ local function victory(self)
     -- Set state to victory
     self.state = combatSystem.STATE.VICTORY
     
+    -- Reset the spell queue
+    self:resetSpellQueue()
+    
     -- Reset the combat flag
     GAME.inCombat = false
     

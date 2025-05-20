@@ -99,49 +99,68 @@ local function executePlayerAction(self)
 end
 
 -- Execute skill use
-local function executeSkill(self)
-    local currentChar = self.party[self.currentCharacter]
-    if not currentChar or not self.selectedSkill then 
+local function executeSkill(self, caster, skill, target, fromQueue)
+    -- Use parameters if provided (for when called from spell queue), otherwise use selected values
+    local currentChar = caster or self.party[self.currentCharacter]
+    local selectedSkill = skill or self.selectedSkill
+    local selectedTarget = target or self.selectedTarget
+    
+    if not currentChar or not selectedSkill then 
         if GAME.debug then
             print("executeSkill failed: ", currentChar and "Character OK" or "No character", 
-                  self.selectedSkill and "Skill OK" or "No skill")
+                  selectedSkill and "Skill OK" or "No skill")
         end
         return 
     end
     
     -- Log skill execution for debugging
     if GAME.debug then
-        print("Executing skill: " .. self.selectedSkill.name)
-        print("  Target type: " .. (self.selectedSkill.target or "unknown"))
-        print("  Selected target: " .. (self.selectedTarget and self.selectedTarget.name or "none/all"))
+        print("Executing skill: " .. selectedSkill.name)
+        print("  Target type: " .. (selectedSkill.target or "unknown"))
+        print("  Selected target: " .. (selectedTarget and selectedTarget.name or "none/all"))
+        print("  From queue: " .. (fromQueue and "true" or "false"))
     end
     
     -- Check target for single-enemy skills
-    if self.selectedSkill.target == "single_enemy" and not self.selectedTarget then
+    if selectedSkill.target == "single_enemy" and not selectedTarget then
         self:addLog("No valid target for skill.", {1, 0.5, 0})
-        if GAME.debug then print("Missing target for skill " .. self.selectedSkill.name) end
+        if GAME.debug then print("Missing target for skill " .. selectedSkill.name) end
         return
     end
     
-    -- Check MP cost
-    if currentChar.currentMP < self.selectedSkill.mpCost then
+    -- If this is not from the queue and the skill has a casting time, add to queue instead of executing now
+    if not fromQueue and selectedSkill.castingTime and selectedSkill.castingTime > 0 then
+        -- Add to spell queue and defer execution
+        self:addToSpellQueue(currentChar, selectedSkill, selectedTarget)
+        
+        -- End turn after a short delay
+        self.turnEndDelay = 0.7
+        return
+    end
+    
+    -- From here on, the skill is actually being executed
+    
+    -- Check MP cost (only when not from queue, since MP was already deducted when added to queue)
+    if not fromQueue and currentChar.currentMP < selectedSkill.mpCost then
         self:addLog("Not enough MP!")
         return
     end
     
-    -- Deduct MP
-    currentChar.currentMP = currentChar.currentMP - self.selectedSkill.mpCost
+    -- Deduct MP (only when not from queue)
+    if not fromQueue then
+        currentChar.currentMP = currentChar.currentMP - selectedSkill.mpCost
+    end
     
     -- Add animation delay
     self.animationDelay = 0.5
     
     -- Handle summon skills specifically
-    if self.selectedSkill.type == "summon" then
+    if selectedSkill.type == "summon" then
         -- Play summon sound
         assetManager:playSound("spell")
         
         -- Process the summon
-        local success = self:processSummonSkill(currentChar, self.selectedSkill)
+        local success = self:processSummonSkill(currentChar, selectedSkill)
         
         if success then
             -- Recalculate turn order to include new minion
@@ -154,40 +173,40 @@ local function executeSkill(self)
     end
     
     -- Special case for Steal skill
-    if self.selectedSkill.name == "Steal" then
+    if selectedSkill.name == "Steal" then
         self:executeStealSkill(currentChar)
         return
     end
     
     -- Handle different skill targets
-    if self.selectedSkill.target == "single_enemy" then
+    if selectedSkill.target == "single_enemy" then
         -- Apply damage to the selected enemy
         local damage, isCritical = 0, false
         
         -- Make sure character has this skill before calculating damage
-        if currentChar.skills and currentChar.skills[self.selectedSkill.name] then
+        if currentChar.skills and currentChar.skills[selectedSkill.name] then
             -- Create a mutable copy of the skill for this calculation
             local skillCopy = {}
-            for k, v in pairs(self.selectedSkill) do
+            for k, v in pairs(selectedSkill) do
                 skillCopy[k] = v
             end
             
             damage, isCritical = skillSystem:calculateDamage(
                 skillCopy,
                 currentChar,
-                self.selectedTarget,
-                currentChar.skills[self.selectedSkill.name].level
+                selectedTarget,
+                currentChar.skills[selectedSkill.name].level
             )
             
             -- Apply damage type modifier if skill has a damage type
             if skillCopy.damageType then
-                local damageMultiplier = damageTypes:calculateModifier(skillCopy.damageType, self.selectedTarget)
+                local damageMultiplier = damageTypes:calculateModifier(skillCopy.damageType, selectedTarget)
                 damage = math.floor(damage * damageMultiplier)
                 
                 -- Log damage type effectiveness
                 local resistText, resistColor = damageTypes:getDisplayText(damageMultiplier)
                 if resistText then
-                    self:addLog(self.selectedTarget.name .. " " .. resistText .. " to " .. skillCopy.damageType .. "!", resistColor)
+                    self:addLog(selectedTarget.name .. " " .. resistText .. " to " .. skillCopy.damageType .. "!", resistColor)
                 end
             end
             
@@ -195,7 +214,7 @@ local function executeSkill(self)
             local damageContext = {
                 eventType = "CALCULATE_OUTGOING_DAMAGE",
                 character = currentChar,
-                target = self.selectedTarget,
+                target = selectedTarget,
                 skill = skillCopy, -- Pass the mutable copy
                 value = damage,
                 is_critical = isCritical,
@@ -209,14 +228,14 @@ local function executeSkill(self)
             -- Fallback if skill level is not found
             -- Create a mutable copy of the skill for this calculation
             local skillCopy = {}
-            for k, v in pairs(self.selectedSkill) do
+            for k, v in pairs(selectedSkill) do
                 skillCopy[k] = v
             end
             
             damage, isCritical = skillSystem:calculateDamage(
                 skillCopy,
                 currentChar,
-                self.selectedTarget,
+                selectedTarget,
                 1
             )
             
@@ -224,7 +243,7 @@ local function executeSkill(self)
             local damageContext = {
                 eventType = "CALCULATE_OUTGOING_DAMAGE",
                 character = currentChar,
-                target = self.selectedTarget,
+                target = selectedTarget,
                 skill = skillCopy, -- Pass the mutable copy
                 value = damage,
                 is_critical = isCritical
@@ -236,18 +255,18 @@ local function executeSkill(self)
         end
         
         -- Apply damage
-        self.selectedTarget.currentHP = math.max(0, self.selectedTarget.currentHP - damage)
+        selectedTarget.currentHP = math.max(0, selectedTarget.currentHP - damage)
         
         -- Play appropriate sound
-        if self.selectedSkill.type == "magical" then
+        if selectedSkill.type == "magical" then
             assetManager:playSound("spell")
         else
             assetManager:playSound("attack")
         end
         
         -- Add to combat log
-        local logText = currentChar.name .. " uses " .. self.selectedSkill.name
-        logText = logText .. " on " .. self.selectedTarget.name
+        local logText = currentChar.name .. " uses " .. selectedSkill.name
+        logText = logText .. " on " .. selectedTarget.name
         logText = logText .. " for " .. damage .. " damage!"
         
         if isCritical then
@@ -257,14 +276,14 @@ local function executeSkill(self)
         self:addLog(logText)
         
         -- Check for enemy defeat
-        if self.selectedTarget.currentHP <= 0 then
-            self:enemyDefeated(self.selectedTarget)
+        if selectedTarget.currentHP <= 0 then
+            self:enemyDefeated(selectedTarget)
         end
         
         -- Apply skill effects using the new unified structure
-        if self.selectedSkill.effects and self.selectedTarget.active then
+        if selectedSkill.effects and selectedTarget.active then
             -- Handle multiple effects
-            for _, effect in ipairs(self.selectedSkill.effects) do
+            for _, effect in ipairs(selectedSkill.effects) do
                 local effectType = effect.type
                 local chance = effect.chance or 1.0
                 local duration = effect.duration or 3
@@ -285,15 +304,15 @@ local function executeSkill(self)
                 local appliesPerHit = effect.perHit or false
                 local hits = 1
                 
-                if self.selectedSkill.hits and appliesPerHit then
-                    hits = self.selectedSkill.hits
+                if selectedSkill.hits and appliesPerHit then
+                    hits = selectedSkill.hits
                 end
                 
                 -- Apply effect for each hit (or just once if not per-hit)
                 for i = 1, hits do
                     local success, message = statusEffects:apply(
                         effectType, 
-                        self.selectedTarget, 
+                        selectedTarget, 
                         duration, 
                         strength, 
                         chance, 
@@ -301,15 +320,15 @@ local function executeSkill(self)
                     )
                     
                     if success and statusEffects.effects[effectType] then
-                        self:addLog(self.selectedTarget.name .. " is afflicted with " .. 
+                        self:addLog(selectedTarget.name .. " is afflicted with " .. 
                                      statusEffects.effects[effectType].name .. "!", 
                                      {0.8, 0.6, 0.8})
                     end
                 end
             end
         -- Backward compatibility for single effect
-        elseif self.selectedSkill.effect and self.selectedTarget.active then
-            local effect = self.selectedSkill.effect
+        elseif selectedSkill.effect and selectedTarget.active then
+            local effect = selectedSkill.effect
             local effectType = effect.type or effect.stat -- Support both formats
             local chance = effect.chance or 1.0
             local duration = effect.duration or 3
@@ -323,7 +342,7 @@ local function executeSkill(self)
             
             local success, message = statusEffects:apply(
                 effectType, 
-                self.selectedTarget, 
+                selectedTarget, 
                 duration, 
                 strength, 
                 chance, 
@@ -331,12 +350,12 @@ local function executeSkill(self)
             )
             
             if success and statusEffects.effects[effectType] then
-                self:addLog(self.selectedTarget.name .. " is afflicted with " .. 
+                self:addLog(selectedTarget.name .. " is afflicted with " .. 
                              statusEffects.effects[effectType].name .. "!", 
                              {0.8, 0.6, 0.8})
             end
         end
-    elseif self.selectedSkill.target == "all_enemies" then
+    elseif selectedSkill.target == "all_enemies" then
         -- Apply to all enemies
         local totalDamage = 0
         local defeatedCount = 0
@@ -347,17 +366,17 @@ local function executeSkill(self)
                 
                 -- Create a mutable copy of the skill for this calculation
                 local skillCopy = {}
-                for k, v in pairs(self.selectedSkill) do
+                for k, v in pairs(selectedSkill) do
                     skillCopy[k] = v
                 end
                 
                 -- Calculate damage for each enemy
-                if currentChar.skills and currentChar.skills[self.selectedSkill.name] then
+                if currentChar.skills and currentChar.skills[selectedSkill.name] then
                     damage, isCritical = skillSystem:calculateDamage(
                         skillCopy,
                         currentChar,
                         enemy,
-                        currentChar.skills[self.selectedSkill.name].level
+                        currentChar.skills[selectedSkill.name].level
                     )
                 else
                     damage, isCritical = skillSystem:calculateDamage(
@@ -389,8 +408,8 @@ local function executeSkill(self)
                 totalDamage = totalDamage + damage
                 
                 -- Apply skill effects
-                if self.selectedSkill.effect then
-                    self:applySkillEffect(self.selectedSkill, currentChar, enemy)
+                if selectedSkill.effect then
+                    self:applySkillEffect(selectedSkill, currentChar, enemy)
                 end
                 
                 -- Check for enemy defeat
@@ -402,14 +421,14 @@ local function executeSkill(self)
         end
         
         -- Play appropriate sound
-        if self.selectedSkill.type == "magical" then
+        if selectedSkill.type == "magical" then
             assetManager:playSound("spell")
         else
             assetManager:playSound("attack")
         end
         
         -- Add to combat log
-        local logText = currentChar.name .. " uses " .. self.selectedSkill.name
+        local logText = currentChar.name .. " uses " .. selectedSkill.name
         logText = logText .. " on all enemies for " .. totalDamage .. " total damage!"
         self:addLog(logText)
         
@@ -420,74 +439,74 @@ local function executeSkill(self)
             -- Check if all enemies are defeated
             self:checkAllEnemiesDefeated()
         end
-    elseif self.selectedSkill.target == "single_ally" or 
-           self.selectedSkill.target == "self" then
+    elseif selectedSkill.target == "single_ally" or 
+           selectedSkill.target == "self" then
         -- Handle healing
-        if self.selectedSkill.formula == "healing" then
+        if selectedSkill.formula == "healing" then
             local healing = 0
             -- Make sure character has this skill
-            if currentChar.skills and currentChar.skills[self.selectedSkill.name] then
+            if currentChar.skills and currentChar.skills[selectedSkill.name] then
                 healing = skillSystem:calculateDamage(
-                    self.selectedSkill,
+                    selectedSkill,
                     currentChar,
-                    self.selectedTarget,
-                    currentChar.skills[self.selectedSkill.name].level
+                    selectedTarget,
+                    currentChar.skills[selectedSkill.name].level
                 )
             else
                 healing = skillSystem:calculateDamage(
-                    self.selectedSkill,
+                    selectedSkill,
                     currentChar,
-                    self.selectedTarget,
+                    selectedTarget,
                     1
                 )
             end
             
-            self.selectedTarget.currentHP = math.min(
-                self.selectedTarget.maxHP,
-                self.selectedTarget.currentHP + healing
+            selectedTarget.currentHP = math.min(
+                selectedTarget.maxHP,
+                selectedTarget.currentHP + healing
             )
             
             -- Play heal sound
             assetManager:playSound("spell")
             
             -- Add to combat log
-            if self.selectedTarget == currentChar then
+            if selectedTarget == currentChar then
                 self:addLog(
-                    currentChar.name .. " uses " .. self.selectedSkill.name .. 
+                    currentChar.name .. " uses " .. selectedSkill.name .. 
                     " and heals self for " .. healing .. " HP!",
                     {0.2, 0.8, 0.2}
                 )
             else
                 self:addLog(
-                    currentChar.name .. " uses " .. self.selectedSkill.name .. 
-                    " and heals " .. self.selectedTarget.name .. " for " .. healing .. " HP!",
+                    currentChar.name .. " uses " .. selectedSkill.name .. 
+                    " and heals " .. selectedTarget.name .. " for " .. healing .. " HP!",
                     {0.2, 0.8, 0.2}
                 )
             end
         end
         
         -- Apply skill effects
-        if self.selectedSkill.effect then
-            self:applySkillEffect(self.selectedSkill, currentChar, self.selectedTarget)
+        if selectedSkill.effect then
+            self:applySkillEffect(selectedSkill, currentChar, selectedTarget)
         end
-    elseif self.selectedSkill.target == "all_allies" then
+    elseif selectedSkill.target == "all_allies" then
         -- Apply to all party members
         for _, ally in ipairs(self.party) do
             if ally.active then
                 -- Handle healing
-                if self.selectedSkill.formula == "healing" then
+                if selectedSkill.formula == "healing" then
                     local healing = 0
                     -- Make sure character has this skill
-                    if currentChar.skills and currentChar.skills[self.selectedSkill.name] then
+                    if currentChar.skills and currentChar.skills[selectedSkill.name] then
                         healing = skillSystem:calculateDamage(
-                            self.selectedSkill,
+                            selectedSkill,
                             currentChar,
                             ally,
-                            currentChar.skills[self.selectedSkill.name].level
+                            currentChar.skills[selectedSkill.name].level
                         )
                     else
                         healing = skillSystem:calculateDamage(
-                            self.selectedSkill,
+                            selectedSkill,
                             currentChar,
                             ally,
                             1
@@ -501,8 +520,8 @@ local function executeSkill(self)
                 end
                 
                 -- Apply skill effects
-                if self.selectedSkill.effect then
-                    self:applySkillEffect(self.selectedSkill, currentChar, ally)
+                if selectedSkill.effect then
+                    self:applySkillEffect(selectedSkill, currentChar, ally)
                 end
             end
         end
@@ -512,18 +531,18 @@ local function executeSkill(self)
         
         -- Add to combat log
         self:addLog(
-            currentChar.name .. " uses " .. self.selectedSkill.name .. 
+            currentChar.name .. " uses " .. selectedSkill.name .. 
             " on the entire party!",
             {0.2, 0.8, 0.2}
         )
-    elseif self.selectedSkill.target == "none" then
+    elseif selectedSkill.target == "none" then
         -- Handle target-less skills (like some summons)
         -- Play appropriate sound
         assetManager:playSound("spell")
         
         -- Add to combat log
         self:addLog(
-            currentChar.name .. " uses " .. self.selectedSkill.name .. "!",
+            currentChar.name .. " uses " .. selectedSkill.name .. "!",
             {0.5, 0.5, 1}
         )
     end
@@ -544,14 +563,14 @@ local function executeStealSkill(self, character)
     local effect = nil
     if character.skills and character.skills.Steal then
         effect = skillSystem:calculateSkillEffect(
-            self.selectedSkill, 
+            selectedSkill, 
             character, 
             self.enemy, 
             character.skills.Steal.level
         )
     else
         effect = skillSystem:calculateSkillEffect(
-            self.selectedSkill, 
+            selectedSkill, 
             character, 
             self.enemy, 
             1
@@ -582,10 +601,17 @@ local function executeStealSkill(self, character)
         itemSystem:addToInventory(stolenItem)
         
         -- Add to combat log
-        self:addLog(
-            character.name .. " successfully steals " .. stolenItem.name .. "!",
-            {0.2, 0.8, 0.8}
-        )
+        if stolenItem and stolenItem.name then
+            self:addLog(
+                character.name .. " successfully steals " .. stolenItem.name .. "!",
+                {0.2, 0.8, 0.8}
+            )
+        else
+            self:addLog(
+                character.name .. " successfully steals an item!",
+                {0.2, 0.8, 0.8}
+            )
+        end
     else
         -- Failed to steal
         self:addLog(
@@ -809,7 +835,19 @@ local function executeItemUse(self)
         return
     end
     
-    -- Use item on target
+    -- Validate the item before using it
+    if not self.selectedItem then
+        self:addLog("Invalid item! Cannot use.", {1, 0, 0})
+        return false
+    end
+    
+    -- Make sure the item is consumable
+    if self.selectedItem.type ~= "consumable" then
+        self:addLog("Only consumable items can be used in combat!", {1, 0.5, 0.5})
+        return false
+    end
+    
+    -- Use the item directly with the itemSystem
     local success = itemSystem:useItem(self.selectedItem, self.selectedTarget)
     
     if success then
@@ -882,40 +920,46 @@ local function confirmAction(self)
         end
         
         if selectedSkill then
-            -- Set selected skill
-            self.selectedSkill = selectedSkill.skill
+            -- Get the skill definition from the UI element
+            local skillToUse = selectedSkill.skill
+            self.selectedSkill = skillToUse
             
             -- Determine target based on skill target type
-            if selectedSkill.skill.target == "single_enemy" then
+            if skillToUse.target == "single_enemy" then
                 if #self.enemies > 1 then
                     -- Show enemy selection UI
                     self:showEnemySelectionUI("skill")
                     return -- Wait for enemy selection
                 else
                     -- If only one enemy, target it directly
-                    self.selectedTarget = self.enemy
+                    selectedTarget = self.enemy
+                    self.selectedTarget = selectedTarget
                     self:executeSkill()
                 end
-            elseif selectedSkill.skill.target == "all_enemies" then
+            elseif skillToUse.target == "all_enemies" then
                 -- Target all enemies (handled in execution)
-                self.selectedTarget = nil -- Special case for all enemies
+                selectedTarget = nil -- Special case for all enemies
+                self.selectedTarget = selectedTarget
                 self:executeSkill()
-            elseif selectedSkill.skill.target == "single_ally" then
+            elseif skillToUse.target == "single_ally" then
                 -- Show party selection UI instead of auto-targeting
                 self:showPartySelectionUI("skill")
                 return -- Wait for party selection
-            elseif selectedSkill.skill.target == "all_allies" then
+            elseif skillToUse.target == "all_allies" then
                 -- Target all allies (handled in execution)
-                self.selectedTarget = self.party
+                selectedTarget = self.party
+                self.selectedTarget = selectedTarget
                 -- Execute skill immediately
                 self:executeSkill()
-            elseif selectedSkill.skill.target == "self" then
-                self.selectedTarget = self.party[self.currentCharacter]
+            elseif skillToUse.target == "self" then
+                selectedTarget = self.party[self.currentCharacter]
+                self.selectedTarget = selectedTarget
                 -- Execute skill immediately
                 self:executeSkill()
             else
                 -- Default case for any other target types
-                self.selectedTarget = self.party[self.currentCharacter]
+                selectedTarget = self.party[self.currentCharacter]
+                self.selectedTarget = selectedTarget
                 self:executeSkill()
             end
         else
@@ -934,19 +978,90 @@ local function confirmAction(self)
         end
         
         if selectedItem then
-            -- Set selected item
-            self.selectedItem = selectedItem.item
+            -- Set selected item - make sure to handle different item structures
+            self.selectedItem = selectedItem.item or selectedItem
+            
+            -- Create a local variable for easier access and add safety checks
+            local itemToUse = self.selectedItem
+            
+            -- Safety check for item target property
+            local itemTarget = "self" -- Default target type if not specified
+            if itemToUse and itemToUse.target then
+                itemTarget = itemToUse.target
+            end
             
             -- Check if item targets a single ally
-            if selectedItem.item.target == "single_ally" then
+            if itemTarget == "single_ally" then
                 -- Show party selection UI
                 self:showPartySelectionUI("item")
                 return -- Wait for party selection
             else
                 -- For other item types, target self for now
-                self.selectedTarget = self.party[self.currentCharacter]
-                -- Execute item use immediately
-                self:executeItemUse()
+                selectedTarget = self.party[self.currentCharacter]
+                self.selectedTarget = selectedTarget
+                
+                -- Make a copy of the selected item before using it (in case it gets cleared during usage)
+                local selectedItemCopy = self.selectedItem
+                
+                -- Reset UI state immediately to avoid UI issues
+                -- Hide all selection UIs and item-specific buttons
+                self:hideSelectionLists()
+                
+                if self.elements.itemConfirmButton then
+                    self.elements.itemConfirmButton.visible = false
+                end
+                
+                if self.elements.itemBackButton then
+                    self.elements.itemBackButton.visible = false
+                end
+                
+                -- Use the item system
+                local success = itemSystem:useItem(selectedItemCopy, self.selectedTarget)
+                
+                if success then
+                    -- Play pickup sound
+                    assetManager:playSound("pickup")
+                    
+                    -- Add to combat log with safety checks for names
+                    local itemName = selectedItemCopy and selectedItemCopy.name or "item"
+                    local targetName = self.selectedTarget and self.selectedTarget.name or "target"
+                    
+                    self:addLog(
+                        "Used " .. itemName .. " on " .. targetName,
+                        {0.2, 0.8, 0.8}
+                    )
+                    
+                    -- Remove item from inventory if it was used successfully
+                    if GAME.inventory and selectedItemCopy then
+                        for i, item in ipairs(GAME.inventory) do
+                            if item.name == selectedItemCopy.name then
+                                if item.count and item.count > 1 then
+                                    item.count = item.count - 1
+                                else
+                                    table.remove(GAME.inventory, i)
+                                end
+                                break
+                            end
+                        end
+                    end
+                    
+                    -- End turn after a short delay - ensure this is properly set
+                    self.turnEndDelay = 0.7
+                    
+                    -- Force end player's turn and proceed to next turn
+                    -- Use timer to delay the turn end to allow animations and reading log messages
+                    self.pendingAction = function()
+                        self:nextTurn()
+                    end
+                else
+                    -- If item use failed, let player select another action
+                    self:addLog("Item use failed!", {1, 0.5, 0.5})
+                    self:showActionButtons()
+                end
+                
+                -- Clear selection state
+                self.selectedAction = nil
+                self.selectedItem = nil
             end
         else
             -- No item selected, do nothing

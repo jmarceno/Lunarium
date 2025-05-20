@@ -183,6 +183,16 @@ local function executeMinionTurn(self)
     
     local minion = self.minions[charIndex][minionIndex]
     
+    -- Check if minion is currently casting a spell
+    local isCasting, castingSpell = self:isEntityCasting(minion)
+    if isCasting then
+        -- Skip this minion's turn as they're currently casting
+        self:addLog(minion.name .. " continues casting " .. castingSpell.skill.name .. "...", {0.5, 0.8, 1})
+        -- Mark turn as taken
+        self.minionsTurnTaken[charIndex][minionIndex] = true
+        return
+    end
+    
     -- Debug minion turn
     if GAME.debug then
         print("Executing turn for minion: " .. minion.name)

@@ -781,6 +781,14 @@ function dungeon:addTrapsAndSecretPassages(difficulty)
 end
 
 function dungeon:update(dt)
+    -- Update combat cooldown if active
+    if self.combatCooldown and self.combatCooldown > 0 then
+        self.combatCooldown = self.combatCooldown - dt
+        if self.combatCooldown <= 0 then
+            self.combatCooldown = nil
+        end
+    end
+    
     -- Update status bar timer
     if self.statusBarVisible and self.statusBarTimer > 0 then
         self.statusBarTimer = self.statusBarTimer - dt
@@ -1062,6 +1070,11 @@ function dungeon:updateLoot(dt)
 end
 
 function dungeon:checkEntityInteraction()
+    -- Skip entity interaction if we're in combat cooldown period
+    if self.combatCooldown and self.combatCooldown > 0 then
+        return
+    end
+    
     -- Check for nearby entities to interact with
     for _, entity in ipairs(self.entities) do
         -- Skip interaction if entity is nil or position is invalid (safety check)
@@ -1080,8 +1093,22 @@ function dungeon:checkEntityInteraction()
                 -- Start combat
                 self.state = STATES.COMBAT
                 
+                -- Store reference to the entity we're removing
+                local entityToRemove = entity
+                
                 -- Flag to track if this is an ambush (for hidden monsters)
                 local isAmbush = entity.hidden
+                
+                -- Remove the entity from the entities array immediately to prevent re-triggering
+                for i = #self.entities, 1, -1 do
+                    if self.entities[i] == entityToRemove then
+                        if GAME.debug then
+                            print("Removed monster entity that triggered combat")
+                        end
+                        table.remove(self.entities, i)
+                        break
+                    end
+                end
                 
                 -- For boss monsters, always use single-enemy combat
                 if entity.isBoss then
@@ -2109,6 +2136,9 @@ function dungeon:handleCombatVictory()
             itemSystem:addToInventory(itemData)
         end
     end
+    
+    -- Add a combat cooldown to prevent immediate re-triggering of combat
+    self.combatCooldown = 1.0 -- 1 second cooldown
 
     -- Remove defeated enemies and update quest progress
     local enemiesDefeatedInCombat = {}

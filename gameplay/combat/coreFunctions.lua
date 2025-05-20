@@ -336,9 +336,167 @@ local function update(self, dt)
 end
 
 -- Move to next character's turn
+-- Add to spell queue
+local function addToSpellQueue(self, caster, skill, target)
+    -- Create a new spell queue entry
+    local entry = {
+        caster = caster,
+        skill = skill,
+        target = target,
+        progress = 0,
+        totalCastingTime = skill.castingTime,
+        castingTimeRemaining = skill.castingTime,
+        isCasting = true  -- Flag to indicate entity is currently casting
+    }
+    
+    -- Add to the queue
+    table.insert(self.spellQueue, entry)
+    
+    -- Mark caster as casting
+    caster.isCasting = true
+    
+    -- Add log entry for spell casting
+    local targetName = (target and target.name) or "area"
+    self:addLog(caster.name .. " begins casting " .. skill.name .. " on " .. targetName .. " (" .. skill.castingTime .. " turns)", {0.5, 0.8, 1})
+    
+    return entry
+end
+
+-- Progress all spells in the queue
+local function progressSpellQueue(self)
+    for i, spell in ipairs(self.spellQueue) do
+        -- Only progress if the caster is still active
+        if spell.caster.active then
+            -- Progress the spell
+            spell.progress = spell.progress + 1
+            spell.castingTimeRemaining = math.max(0, spell.castingTimeRemaining - 1)
+            
+            -- Check if the spell is complete
+            if spell.progress >= spell.totalCastingTime then
+                spell.isComplete = true
+            end
+        else
+            -- Caster is inactive (dead or incapacitated), remove the spell
+            self:cancelSpell(spell.caster, i)
+        end
+    end
+end
+
+-- Execute completed spells
+local function executeCompletedSpells(self)
+    -- Create a copy of the queue to iterate through
+    local queueCopy = {}
+    for i, spell in ipairs(self.spellQueue) do
+        table.insert(queueCopy, {index = i, spell = spell})
+    end
+    
+    -- Process completed spells
+    for i = #queueCopy, 1, -1 do
+        local spellInfo = queueCopy[i]
+        local spell = spellInfo.spell
+        
+        if spell.isComplete then
+            -- Check if target is still valid
+            local isValidTarget = true
+            
+            -- For single target spells, check if target is still active
+            if spell.skill.target == "single_enemy" or spell.skill.target == "single_ally" then
+                if not spell.target or not spell.target.active then
+                    isValidTarget = false
+                    self:addLog(spell.skill.name .. " failed: target is no longer available", {1, 0.5, 0.5})
+                end
+            end
+            
+            -- If target is valid, execute the spell
+            if isValidTarget then
+                -- Add log entry
+                self:addLog(spell.caster.name .. " finishes casting " .. spell.skill.name .. "!", {0.2, 1, 0.2})
+                
+                -- Execute the spell effect
+                self:executeSkill(spell.caster, spell.skill, spell.target, true)
+            end
+            
+            -- Clear casting flag on caster
+            spell.caster.isCasting = false
+            
+            -- Remove the spell from the queue
+            table.remove(self.spellQueue, spellInfo.index)
+        end
+    end
+end
+
+-- Reset spell queue when combat ends
+local function resetSpellQueue(self)
+    -- Clear all casting flags
+    for _, spell in ipairs(self.spellQueue) do
+        if spell.caster and spell.caster.isCasting then
+            spell.caster.isCasting = false
+        end
+    end
+    
+    -- Clear the queue
+    self.spellQueue = {}
+end
+
+-- Modify spell cast time for a specific spell in the queue
+local function modifySpellCastTime(self, caster, skillName, modificationAmount)
+    for i, spell in ipairs(self.spellQueue) do
+        -- Find the matching spell by caster and skill name
+        if spell.caster == caster and spell.skill.name == skillName then
+            -- Apply modification
+            spell.castingTimeRemaining = math.max(1, spell.castingTimeRemaining + modificationAmount)
+            
+            -- Add log entry
+            if modificationAmount < 0 then
+                self:addLog(caster.name .. "'s casting of " .. skillName .. " is accelerated!", {0.2, 1, 0.2})
+            else
+                self:addLog(caster.name .. "'s casting of " .. skillName .. " is slowed!", {1, 0.5, 0.5})
+            end
+            
+            return true
+        end
+    end
+    
+    return false
+end
+
+-- Cancel a spell in the queue
+local function cancelSpell(self, caster, spellIndex)
+    if self.spellQueue[spellIndex] and self.spellQueue[spellIndex].caster == caster then
+        -- Add log entry
+        self:addLog(caster.name .. "'s casting of " .. self.spellQueue[spellIndex].skill.name .. " was interrupted!", {1, 0.5, 0.5})
+        
+        -- Clear casting flag
+        caster.isCasting = false
+        
+        -- Remove from queue
+        table.remove(self.spellQueue, spellIndex)
+        return true
+    end
+    
+    return false
+end
+
+-- Check if an entity is currently casting a spell
+local function isEntityCasting(self, entity)
+    for _, spell in ipairs(self.spellQueue) do
+        if spell.caster == entity and spell.isCasting then
+            return true, spell
+        end
+    end
+    
+    return false, nil
+end
+
 local function nextTurn(self)
     -- Process status effects for the current character/entity at the end of their turn
     local statusEffects = require("gameplay/statusEffects")
+    
+    -- Progress the spell queue at the end of each turn
+    self:progressSpellQueue()
+    
+    -- Execute any completed spells
+    self:executeCompletedSpells()
 
     -- Process status effects for the current player if applicable
     if self.state == combatSystem.STATE.PLAYER_TURN and 
@@ -414,27 +572,38 @@ local function nextTurn(self)
         local foundNextPlayer = false
         for i = 1, #self.party do
             local idx = (self.currentCharacter + i - 1) % #self.party + 1
-            if self.party[idx].active and not self.charactersTurnTaken[idx] then
-                -- Found an active player with an untaken turn
-                self.currentCharacter = idx
-                foundNextPlayer = true
-                
-                -- Stay in player turn state
-                self.state = combatSystem.STATE.PLAYER_TURN
-                
-                -- Update the party panel to highlight the active character
-                partyPanel:setActiveCharacter(self.currentCharacter)
-                
-                -- Reset selection state
-                self:resetSelectionUI()
-                
-                -- Make sure action buttons are visible for the new turn
-                self:showActionButtons()
-                
-                -- Log new character turn
-                self:addLog(self.party[self.currentCharacter].name .. "'s turn begins", {0.5, 0.5, 1})
-                
-                break
+            
+            -- Skip player's turn if they are casting a spell
+            local isCasting, castingSpell = self:isEntityCasting(self.party[idx])
+            if isCasting then
+                self:addLog(self.party[idx].name .. " continues casting " .. castingSpell.skill.name .. "...", {0.5, 0.8, 1})
+                -- Skip this player
+                if GAME.debug then
+                    print("Skipping player turn for " .. self.party[idx].name .. " due to casting")
+                end
+            else
+                if self.party[idx].active and not self.charactersTurnTaken[idx] then
+                    -- Found an active player with an untaken turn
+                    self.currentCharacter = idx
+                    foundNextPlayer = true
+                    
+                    -- Stay in player turn state
+                    self.state = combatSystem.STATE.PLAYER_TURN
+                    
+                    -- Update the party panel to highlight the active character
+                    partyPanel:setActiveCharacter(self.currentCharacter)
+                    
+                    -- Reset selection state
+                    self:resetSelectionUI()
+                    
+                    -- Make sure action buttons are visible for the new turn
+                    self:showActionButtons()
+                    
+                    -- Log new character turn
+                    self:addLog(self.party[self.currentCharacter].name .. "'s turn begins", {0.5, 0.5, 1})
+                    
+                    break
+                end
             end
         end
         
@@ -729,5 +898,14 @@ return {
     getStateProgressionInfo = getStateProgressionInfo,
     isOver = isOver,
     isVictory = isVictory,
-    getLoot = getLoot
+    getLoot = getLoot,
+    
+    -- Spell queue management functions
+    addToSpellQueue = addToSpellQueue,
+    progressSpellQueue = progressSpellQueue,
+    executeCompletedSpells = executeCompletedSpells,
+    resetSpellQueue = resetSpellQueue,
+    modifySpellCastTime = modifySpellCastTime,
+    cancelSpell = cancelSpell,
+    isEntityCasting = isEntityCasting
 }

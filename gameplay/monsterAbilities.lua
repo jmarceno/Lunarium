@@ -9,6 +9,7 @@ monsterAbilities.definitions = {
         basePower = 100,
         target = "single_enemy",
         damageType = "physical",
+        castingTime = 0, -- Instant cast
         description = "A basic physical attack."
     },
     strong_physical_attack = {
@@ -51,6 +52,7 @@ monsterAbilities.definitions = {
         basePower = 80,
         target = "all_enemies",
         damageType = "slashing",
+        castingTime = 1, -- Short casting time for AoE physical attack
         description = "Attacks all enemies with a sweeping motion."
     },
     
@@ -184,6 +186,7 @@ monsterAbilities.definitions = {
         type = "magical",
         basePower = 130,
         target = "single_enemy",
+        castingTime = 2, -- Medium casting time for powerful spell,
         damageType = "fire",
         description = "A ball of fire."
     },
