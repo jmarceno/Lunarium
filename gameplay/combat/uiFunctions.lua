@@ -592,15 +592,55 @@ local function drawSpellQueue(self)
         love.graphics.rectangle("fill", queueX + 10, itemY + 20, queueWidth - 20, 12)
         
         -- Draw progress bar fill
-        love.graphics.setColor(0.2, 0.8, 0.6)
+        if spell.completionStarted then
+            -- Flash between yellow and green when complete
+            if spell.flashState then
+                love.graphics.setColor(1, 1, 0.2, 0.8) -- Yellow
+            else
+                love.graphics.setColor(0.2, 1, 0.2, 0.8) -- Green
+            end
+        else
+            love.graphics.setColor(0.2, 0.8, 0.6) -- Normal teal
+        end
         love.graphics.rectangle("fill", queueX + 10, itemY + 20, (queueWidth - 20) * progressPercent, 12)
         
         -- Draw progress text
         love.graphics.setColor(1, 1, 1)
-        love.graphics.print(spell.progress .. "/" .. spell.totalCastingTime, 
-                        queueX + queueWidth - 40, itemY + 19)
+        if spell.completionStarted then
+            -- Show CASTING... during the visual effect phase
+            love.graphics.print("CASTING...", queueX + 10, itemY + 19)
+        else
+            -- Show progress numbers while casting
+            love.graphics.print(spell.progress .. "/" .. spell.totalCastingTime, 
+                            queueX + queueWidth - 40, itemY + 19)
+        end
     end
 end
+
+-- Draw victory prompt in the center of the screen
+local function drawVictoryPrompt(self)
+    if not self.showVictoryPrompt then return end
+    
+    -- Draw semi-transparent overlay for the prompt
+    love.graphics.setColor(0, 0, 0, 0.6)
+    local promptWidth = 500
+    local promptHeight = 80
+    local promptX = (GAME.width - promptWidth) / 2
+    local promptY = 150 -- Above the character turn display
+    love.graphics.rectangle("fill", promptX, promptY, promptWidth, promptHeight, 10, 10)
+    
+    -- Draw victory message
+    love.graphics.setFont(screenManager.fonts.medium)
+    
+    -- Draw with a glow effect
+    local time = love.timer.getTime()
+    local brightness = 0.7 + 0.3 * math.sin(time * 3) -- Pulsing brightness
+    love.graphics.setColor(1 * brightness, 1 * brightness, 0.2 * brightness)
+    
+    local text = "All enemies defeated! Press any key to continue..."
+    local textWidth = screenManager.fonts.medium:getWidth(text)
+    love.graphics.print(text, promptX + (promptWidth - textWidth) / 2, promptY + 30)
+ end
 
 local function draw(self)
     -- Draw background
@@ -630,6 +670,9 @@ local function draw(self)
         
         -- Draw party
         self:drawParty()
+        
+        -- Draw victory prompt if all enemies defeated
+        self:drawVictoryPrompt()
         
         -- Draw UI based on current turn state
         if self.state == combatSystem.STATE.PLAYER_TURN then
@@ -1050,6 +1093,36 @@ local function drawEnemyTurnUI(self)
     local waitX = GAME.width / 2 - waitWidth / 2
     
     love.graphics.print(waitText, waitX, turnTextY + 25)
+end
+
+-- Draw UI for victory state
+local function drawVictoryUI(self)
+    -- Draw semi-transparent overlay
+    love.graphics.setColor(0, 0, 0, 0.7)
+    love.graphics.rectangle('fill', 0, 0, love.graphics.getWidth(), love.graphics.getHeight())
+    
+    -- Draw victory message
+    love.graphics.setFont(screenManager.fonts.large)
+    love.graphics.setColor(1, 1, 1)
+    local text = "VICTORY!"
+    local textWidth = screenManager.fonts.large:getWidth(text)
+    love.graphics.print(text, (love.graphics.getWidth() - textWidth) / 2, love.graphics.getHeight() / 3)
+    
+    -- Draw rewards summary
+    love.graphics.setFont(screenManager.fonts.medium)
+    love.graphics.setColor(1, 1, 0.5)
+    local rewardsText = "You defeated all enemies!"
+    local rewardsWidth = screenManager.fonts.medium:getWidth(rewardsText)
+    love.graphics.print(rewardsText, (love.graphics.getWidth() - rewardsWidth) / 2, love.graphics.getHeight() / 2)
+    
+    -- Draw continue prompt with blinking effect
+    local time = love.timer.getTime()
+    local alpha = 0.5 + 0.5 * math.sin(time * 3)  -- Blinking effect
+    love.graphics.setFont(screenManager.fonts.medium)
+    love.graphics.setColor(1, 1, 1, alpha)
+    local prompt = "Press SPACE, ENTER, Z, or X to continue..."
+    local promptWidth = screenManager.fonts.medium:getWidth(prompt)
+    love.graphics.print(prompt, (love.graphics.getWidth() - promptWidth) / 2, love.graphics.getHeight() * 2/3)
 end
 
 -- Draw UI for defeat state
@@ -1702,6 +1775,7 @@ return {
     drawEnemyTurnUI = drawEnemyTurnUI,
     drawVictoryUI = drawVictoryUI,
     drawDefeatUI = drawDefeatUI,
+    drawVictoryPrompt = drawVictoryPrompt,
     drawPlayerTurnUI = drawPlayerTurnUI,
     handleUIClick = handleUIClick,
     showSkillList = showSkillList,

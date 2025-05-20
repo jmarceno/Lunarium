@@ -11,6 +11,10 @@ local combatSystem = {}  -- Forward declaration to reference STATE values
 local function setupCombatants(self)
     -- Setup party
     for i, character in ipairs(self.party) do
+        -- Store current HP and MP values to preserve them
+        local currentHP = character.currentHP
+        local currentMP = character.currentMP
+        
         -- Calculate derived stats if they don't exist
         if not character.attackPower then
             local charSystem = require("gameplay/character")
@@ -18,6 +22,15 @@ local function setupCombatants(self)
             character.magicPower = charSystem:calculateMagicPower(character)
             character.defense = charSystem:calculateDefense(character)
             character.magicDefense = charSystem:calculateMagicDefense(character)
+        end
+        
+        -- Make sure HP/MP aren't reset to maximum
+        if currentHP then
+            character.currentHP = currentHP
+        end
+        
+        if currentMP then
+            character.currentMP = currentMP
         end
         
         -- Setup status effects table
@@ -189,10 +202,28 @@ end
 
 -- Update combat state
 local function update(self, dt)
-    -- Skip all updates if in victory or defeat state - only handle drawing
+    -- Handle victory waiting for input
+    if self.victoryDelayed then
+        -- Check for any key press to proceed to victory
+        local keyPressed = love.keyboard.isDown("space") or love.keyboard.isDown("return") or 
+                         love.keyboard.isDown("z") or love.keyboard.isDown("x")
+        
+        if keyPressed then
+            self.victoryDelayed = false
+            self.showVictoryPrompt = false
+            self:victory()
+            return
+        end
+        return
+    end
+    
+    -- Skip other updates if in victory or defeat state - only handle drawing
     if self.state == combatSystem.STATE.VICTORY or self.state == combatSystem.STATE.DEFEAT then
         return
     end
+    
+    -- Always update completed spells (for visual effects)
+    self:executeCompletedSpells(dt)
 
     -- Handle animation delay
     if self.animationDelay and self.animationDelay > 0 then
@@ -362,11 +393,15 @@ local function addToSpellQueue(self, caster, skill, target)
     return entry
 end
 
+-- Track spells that are in the completion animation
+local spellCompletionEffects = {}
+
 -- Progress all spells in the queue
 local function progressSpellQueue(self)
-    for i, spell in ipairs(self.spellQueue) do
-        -- Only progress if the caster is still active
-        if spell.caster.active then
+    for i = #self.spellQueue, 1, -1 do
+        local spell = self.spellQueue[i]
+        -- Only progress if the caster is still active and not already completing
+        if spell.caster.active and not spell.completionStarted then
             -- Progress the spell
             spell.progress = spell.progress + 1
             spell.castingTimeRemaining = math.max(0, spell.castingTimeRemaining - 1)
@@ -374,53 +409,58 @@ local function progressSpellQueue(self)
             -- Check if the spell is complete
             if spell.progress >= spell.totalCastingTime then
                 spell.isComplete = true
+                spell.completionStarted = true
+                spell.completionTimer = 0.5  -- Visual effect duration after cast
+                spell.flashTimer = 0
+                spell.flashState = true
+                
+                -- Check if target is still valid
+                local isValidTarget = true
+                if spell.skill.target == "single_enemy" or spell.skill.target == "single_ally" then
+                    if not spell.target or not spell.target.active then
+                        isValidTarget = false
+                        self:addLog(spell.skill.name .. " failed: target is no longer available", {1, 0.5, 0.5})
+                    end
+                end
+                
+                -- Execute the spell immediately if target is valid
+                if isValidTarget then
+                    self:executeSkill(spell.caster, spell.skill, spell.target, true)
+                    self:addLog(spell.caster.name .. " finishes casting " .. spell.skill.name .. "!", {0.2, 1, 0.2})
+                end
+                
+                -- Clear casting flag on caster
+                spell.caster.isCasting = false
             end
-        else
+        elseif not spell.caster.active then
             -- Caster is inactive (dead or incapacitated), remove the spell
             self:cancelSpell(spell.caster, i)
         end
     end
 end
 
--- Execute completed spells
+-- Handle visual effects for completed spells
 local function executeCompletedSpells(self)
-    -- Create a copy of the queue to iterate through
-    local queueCopy = {}
-    for i, spell in ipairs(self.spellQueue) do
-        table.insert(queueCopy, {index = i, spell = spell})
-    end
-    
-    -- Process completed spells
-    for i = #queueCopy, 1, -1 do
-        local spellInfo = queueCopy[i]
-        local spell = spellInfo.spell
+    -- Update completion effects for visual feedback
+    for i = #self.spellQueue, 1, -1 do
+        local spell = self.spellQueue[i]
         
-        if spell.isComplete then
-            -- Check if target is still valid
-            local isValidTarget = true
-            
-            -- For single target spells, check if target is still active
-            if spell.skill.target == "single_enemy" or spell.skill.target == "single_ally" then
-                if not spell.target or not spell.target.active then
-                    isValidTarget = false
-                    self:addLog(spell.skill.name .. " failed: target is no longer available", {1, 0.5, 0.5})
-                end
+        if spell.completionStarted then
+            -- Update flash timer for visual effect
+            spell.flashTimer = (spell.flashTimer or 0) + 0.1
+            if spell.flashTimer >= 0.1 then
+                spell.flashTimer = 0
+                spell.flashState = not spell.flashState
             end
             
-            -- If target is valid, execute the spell
-            if isValidTarget then
-                -- Add log entry
-                self:addLog(spell.caster.name .. " finishes casting " .. spell.skill.name .. "!", {0.2, 1, 0.2})
-                
-                -- Execute the spell effect
-                self:executeSkill(spell.caster, spell.skill, spell.target, true)
+            -- Decrease the completion timer - use larger decrement to ensure it finishes
+            spell.completionTimer = spell.completionTimer - 0.05  -- Use larger value for faster removal
+            
+            -- Remove spell from queue after visual effect completes
+            if spell.completionTimer <= 0 then
+                -- Ensure we remove it from the queue
+                table.remove(self.spellQueue, i)
             end
-            
-            -- Clear casting flag on caster
-            spell.caster.isCasting = false
-            
-            -- Remove the spell from the queue
-            table.remove(self.spellQueue, spellInfo.index)
         end
     end
 end

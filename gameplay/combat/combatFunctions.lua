@@ -19,20 +19,21 @@ end
 
 -- Check if all enemies are defeated
 local function checkAllEnemiesDefeated(self)
-    local allDefeated = true
-    
-    -- Check all enemies
+    -- Check if there are any active enemies
     for _, enemy in ipairs(self.enemies) do
-        if enemy.active then
-            allDefeated = false
-            break
+        if enemy and enemy.active then
+            return false
         end
     end
     
-    -- If all enemies are defeated, trigger victory
-    if allDefeated then
-        self:victory()
+    -- No active enemies found
+    if not self.victoryDelayed then
+        self.victoryDelayed = true
+        self.showVictoryPrompt = true
+        return false
     end
+    
+    return true
 end
 
 -- Handle player selecting an action

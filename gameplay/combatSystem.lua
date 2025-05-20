@@ -45,6 +45,9 @@ function combatSystem:createCombat(party, enemy, isAmbush)
         effects = {},
         rewardsCalculated = false, -- Flag to track reward calculation
         isAmbush = isAmbush or false, -- Flag to indicate if the player was ambushed
+        victoryDelayed = false, -- Flag to track if victory is delayed for effects
+        victoryDelay = nil, -- Timer for victory delay
+        showVictoryPrompt = false, -- Flag to show the victory prompt in the center
         
         -- Active minions in combat
         minions = {},
@@ -101,8 +104,12 @@ function combatSystem:createCombat(party, enemy, isAmbush)
     combat.drawCombatLog = uiFunctions.drawCombatLog
     combat.drawPlayerTurnUI = uiFunctions.drawPlayerTurnUI
     combat.drawEnemyTurnUI = uiFunctions.drawEnemyTurnUI
+    combat.drawSpeechBubble = uiFunctions.drawSpeechBubble
+    combat.drawActorStatus = uiFunctions.drawActorStatus
     combat.drawDefeatUI = uiFunctions.drawDefeatUI
+    combat.drawVictoryPrompt = uiFunctions.drawVictoryPrompt
     combat.showEnemySelectionUI = uiFunctions.showEnemySelectionUI
+    combat.processClick = uiFunctions.processClick
     combat.confirmEnemySelection = uiFunctions.confirmEnemySelection
     combat.showSkillList = uiFunctions.showSkillList
     combat.showItemList = uiFunctions.showItemList
