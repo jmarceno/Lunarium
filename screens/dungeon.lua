@@ -1403,10 +1403,10 @@ function dungeon:keypressed(key, scancode, isrepeat)
     end
 
     -- Toggle texture rendering for debugging
-    if key == 't' and GAME.debug then
+    if key == 'f6' and GAME.debug then
         self:toggleWallTextures()
         return true
-    elseif key == 'f' and GAME.debug then
+    elseif key == 'f7' and GAME.debug then
         self:toggleFloorTextures()
         return true
     end
