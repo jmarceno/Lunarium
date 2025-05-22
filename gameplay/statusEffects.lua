@@ -23,6 +23,8 @@ statusEffects.effects = {
         icon = "assets/Icons/StatusEffects/burn.png", -- Updated to a proper icon
         iconSize = 24,
         statusType = "negative",
+        canSpread = true,
+        spreadChance = 0.5,
         onTurnStart = function(entity, strength)
             local damage = strength * 4 -- Burn damage is 4 per stack per turn
             return {
@@ -551,6 +553,100 @@ function statusEffects:processTurnEnd(entity)
     end
     
     return expired
+end
+
+-- Process spreading of status effects to allies
+-- @param entities: table - All entities to check for spreadable effects
+-- @param entityType: string - Type of entity ("party", "enemy", "minion")
+-- @param combat: table - The combat instance for logging
+-- @return spreads: table - A list of spread effects with messages
+function statusEffects:processEffectSpreading(entities, entityType, combat)
+    if not entities or #entities == 0 then
+        return {}
+    end
+    
+    local spreads = {}
+    
+    -- For each entity with active status
+    for i, entity in ipairs(entities) do
+        if entity.active and entity.status then
+            -- Check each status effect
+            for effectType, effect in pairs(entity.status) do
+                -- Check if this effect can spread
+                if self.effects[effectType] and self.effects[effectType].canSpread then
+                    local spreadChance = self.effects[effectType].spreadChance or 0
+                    
+                    -- Roll to see if the effect spreads
+                    if math.random() <= spreadChance then
+                        -- Find valid targets (active allies)
+                        local validTargets = {}
+                        for j, target in ipairs(entities) do
+                            if i ~= j and target.active and not self:has(target, effectType) then
+                                table.insert(validTargets, target)
+                            end
+                        end
+                        
+                        -- If there are valid targets, choose one randomly
+                        if #validTargets > 0 then
+                            local targetIndex = math.random(1, #validTargets)
+                            local target = validTargets[targetIndex]
+                            
+                            -- Apply the effect to the target with same duration and strength
+                            local success, message = self:apply(
+                                effectType, 
+                                target, 
+                                effect.duration, 
+                                effect.strength, 
+                                1.0, -- 100% chance since we already rolled
+                                effect.extraParams
+                            )
+                            
+                            if success then
+                                local effectName = self.effects[effectType].name or effectType
+                                local spreadMessage = effectName .. " spreads from " .. entity.name .. " to " .. target.name .. "!"
+                                
+                                -- Add to combat log if combat instance provided
+                                if combat and combat.addLog then
+                                    combat:addLog(spreadMessage, {1, 0.5, 0.2})
+                                end
+                                
+                                -- Add to spreads list
+                                table.insert(spreads, {
+                                    source = entity,
+                                    target = target,
+                                    effectType = effectType,
+                                    message = spreadMessage
+                                })
+                                
+                                -- Show floating text if UI functions are available
+                                local uiFunctions = require("gameplay/combat/uiFunctions")
+                                if uiFunctions and GAME.currentState and GAME.currentState.floatingTexts then
+                                    local x, y
+                                    if target.isPlayer then
+                                        x = 200 + (target.index or 1) * 150
+                                        y = GAME.height - 200
+                                    else
+                                        x = GAME.width / 2
+                                        y = GAME.height / 3
+                                    end
+                                    
+                                    uiFunctions.showFloatingText(
+                                        spreadMessage, 
+                                        x, y, 
+                                        {1, 0.5, 0.2}, 
+                                        2.0, 
+                                        GAME.currentState.floatingTexts
+                                    )
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    return spreads
 end
 
 return statusEffects 

@@ -547,6 +547,19 @@ local function nextTurn(self)
         for _, effect in ipairs(expired) do
             self:addLog(effect.message, effect.color)
         end
+        
+        -- Check for status effect spreading after player turn
+        if character.active and character.status then
+            -- Collect active party members for possible spread
+            local partyMembers = {}
+            for _, member in ipairs(self.party) do
+                if member.active then
+                    table.insert(partyMembers, member)
+                end
+            end
+            
+            statusEffects:processEffectSpreading(partyMembers, "party", self)
+        end
     end
     
     -- Process status effects for the current minion if applicable
@@ -561,16 +574,47 @@ local function nextTurn(self)
         for _, effect in ipairs(expired) do
             self:addLog(effect.message, effect.color)
         end
+        
+        -- Check for status effect spreading after minion turn
+        if minion.active and minion.status then
+            -- Collect active minions for possible spread
+            local activeMinions = {}
+            for _, minionGroup in pairs(self.minions) do
+                for _, m in pairs(minionGroup) do
+                    if m.active then
+                        table.insert(activeMinions, m)
+                    end
+                end
+            end
+            
+            statusEffects:processEffectSpreading(activeMinions, "minion", self)
+        end
     end
 
     -- When transitioning from enemy state to player state, process all enemy status effects
     if self.state == combatSystem.STATE.ENEMY_TURN then
-        for _, enemy in ipairs(self.enemies) do
+        for i, enemy in ipairs(self.enemies) do
             if enemy.active then
                 local expired = statusEffects:processTurnEnd(enemy)
                 -- Display messages about expired effects
                 for _, effect in ipairs(expired) do
                     self:addLog(effect.message, effect.color)
+                end
+                
+                -- Check if this is the active enemy that just took its turn
+                if i == self.activeEnemyIndex then
+                    -- Check for status effect spreading after enemy turn
+                    if enemy.status then
+                        -- Collect active enemies for possible spread
+                        local activeEnemies = {}
+                        for _, e in ipairs(self.enemies) do
+                            if e.active then
+                                table.insert(activeEnemies, e)
+                            end
+                        end
+                        
+                        statusEffects:processEffectSpreading(activeEnemies, "enemy", self)
+                    end
                 end
             end
         end
