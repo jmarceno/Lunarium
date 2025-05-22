@@ -610,6 +610,34 @@ local jobDefinitions = {
         }
     },
 
+    Artificer = {
+        name = "Artificer",
+        description = "A cunning inventor skilled in traps, gadgets, and mechanical minions.",
+        tier = 2,
+        attributeModifiers = {
+            DEX = 3,
+            INT = 2,
+            CON = 1
+        },
+        startingSkills = {
+            "DungeonTrapper:Net",
+            "DungeonTrapper:Poison"
+        },
+        availableSkills = {
+            "DungeonTrapper:Net",
+            "DungeonTrapper:Poison",
+            "DungeonTrapper:Stun"
+        },
+        startingEquipment = {
+            weapon = "Crossbow",
+            offhand = "Toolkit",
+            body = "RangerLeathers"
+        },
+        requirements = {
+            Rogue = 10
+        }
+    },
+
     -- Master jobs (tier 3)
     HolyKnight = {
         name = "Holy Knight",
@@ -830,6 +858,39 @@ local jobDefinitions = {
         requirements = {
             MartialArtist = 15,
             BattlePriest = 10
+        }
+    },
+
+    BallistaMaster = {
+        name = "Ballista Master",
+        description = "A master of battlefield engineering, able to deploy powerful ballistas and advanced contraptions.",
+        tier = 3,
+        attributeModifiers = {
+            DEX = 3,
+            INT = 2,
+            CON = 2
+        },
+        startingSkills = {
+            "SummonBallista",
+            "ReloadBallista"
+        },
+        availableSkills = {
+            "SummonBallista",
+            "ReloadBallista",
+            "BallistaOvercharge",
+            "BallistaRepair",
+            "BallistaElementalMod:Fire",
+            "BallistaElementalMod:Ice",
+            "BallistaPoisonMod",
+            "BallistaNetShot"
+        },
+        startingEquipment = {
+            weapon = "EngineersCrossbow",
+            offhand = "MasterToolkit",
+            body = "EngineerGarb"
+        },
+        requirements = {
+            Artificer = 15
         }
     }
 }

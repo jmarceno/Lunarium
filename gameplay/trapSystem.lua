@@ -12,6 +12,58 @@ trapSystem.BASE_DETECTION_RANGE = 4.0  -- Base detection range
 trapSystem.ROGUE_DETECTION_RANGE = 12.0 -- Rogue detection range
 trapSystem.MAGE_DETECTION_RANGE = 8.0  -- Mage detection range
 
+-- Artificer thrown trap types (new)
+trapSystem.THROWN_TRAP_TYPES = {
+    NET = {
+        name = "Net Trap",
+        skill_effect_id = "DUNGEON_NET_TRAP_EFFECT", -- Links to skill_definitions.lua
+        successChanceFormula = function(artificerLevel, enemyLevel) -- Example, can be more complex
+            local baseChance = 0.7
+            local levelDiff = artificerLevel - enemyLevel
+            local modifier = levelDiff * 0.05
+            return math.max(0.1, math.min(0.9, baseChance + modifier))
+        end,
+        texture = "net_trap_projectile" -- Texture for the thrown projectile
+    },
+    POISON = {
+        name = "Poison Trap",
+        skill_effect_id = "DUNGEON_POISON_TRAP_EFFECT",
+        successChanceFormula = function(artificerLevel, enemyLevel)
+            local baseChance = 0.6
+            local levelDiff = artificerLevel - enemyLevel
+            local modifier = levelDiff * 0.05
+            return math.max(0.1, math.min(0.9, baseChance + modifier))
+        end,
+        texture = "poison_trap_projectile"
+    },
+    STUN = {
+        name = "Stun Trap",
+        skill_effect_id = "DUNGEON_STUN_TRAP_EFFECT",
+        successChanceFormula = function(artificerLevel, enemyLevel)
+            local baseChance = 0.5
+            local levelDiff = artificerLevel - enemyLevel
+            local modifier = levelDiff * 0.05
+            return math.max(0.1, math.min(0.9, baseChance + modifier))
+        end,
+        texture = "stun_trap_projectile"
+    }
+}
+
+-- Function to check if a thrown trap succeeds
+function trapSystem:checkThrownTrapSuccess(trapIdentifier, artificerLevel, enemyLevel)
+    local trapProps = self.THROWN_TRAP_TYPES[trapIdentifier]
+    if not trapProps or not trapProps.successChanceFormula then return false end
+    
+    local successChance = trapProps.successChanceFormula(artificerLevel, enemyLevel)
+    return math.random() < successChance
+end
+
+-- Function to get trap effect details (referenced by combatSystem)
+function trapSystem:getThrownTrapEffectID(trapIdentifier)
+    local trapProps = self.THROWN_TRAP_TYPES[trapIdentifier]
+    return trapProps and trapProps.skill_effect_id
+end
+
 -- Calculate minimum distance between traps based on party composition
 function trapSystem:calculateMinTrapDistance(party)
     -- Start with base detection range

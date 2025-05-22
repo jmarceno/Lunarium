@@ -418,6 +418,146 @@ function screenManager:initUI()
         
         return slider
     end
+    
+    -- Selector UI element (dropdown/list selector)
+    self.UI.Selector = function(x, y, width, height, options, callback)
+        local selector = {
+            x = x,
+            y = y,
+            width = width,
+            height = height,
+            options = options or {},
+            callback = callback,
+            selectedIndex = nil,
+            visible = true,
+            expanded = false,
+            
+            update = function(self, dt)
+                -- Update logic if needed
+            end,
+            
+            draw = function(self)
+                if not self.visible then return end
+                
+                -- Draw selector background
+                love.graphics.setColor(0.2, 0.2, 0.3, 1.0)
+                love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 5, 5)
+                
+                -- Draw selector border
+                love.graphics.setColor(0.4, 0.4, 0.6, 1.0)
+                love.graphics.rectangle("line", self.x, self.y, self.width, self.height, 5, 5)
+                
+                -- Draw selected option or prompt
+                love.graphics.setFont(screenManager.fonts.small)
+                love.graphics.setColor(1, 1, 1, 1)
+                
+                local displayText = "Select an option"
+                if self.selectedIndex and self.options[self.selectedIndex] then
+                    displayText = self.options[self.selectedIndex]
+                end
+                
+                love.graphics.printf(displayText, self.x + 10, self.y + 10, self.width - 20, "left")
+                
+                -- Draw dropdown arrow
+                love.graphics.setColor(0.8, 0.8, 0.8, 1.0)
+                local arrowX = self.x + self.width - 20
+                local arrowY = self.y + self.height / 2
+                love.graphics.polygon("fill", 
+                    arrowX, arrowY - 5,
+                    arrowX + 10, arrowY - 5,
+                    arrowX + 5, arrowY + 5
+                )
+                
+                -- Draw expanded options list if expanded
+                if self.expanded then
+                    local listHeight = #self.options * 30 -- 30 pixels per option
+                    
+                    -- Draw list background
+                    love.graphics.setColor(0.25, 0.25, 0.35, 1.0)
+                    love.graphics.rectangle("fill", self.x, self.y + self.height, self.width, listHeight, 5, 5)
+                    
+                    -- Draw list border
+                    love.graphics.setColor(0.4, 0.4, 0.6, 1.0)
+                    love.graphics.rectangle("line", self.x, self.y + self.height, self.width, listHeight, 5, 5)
+                    
+                    -- Draw options
+                    for i, option in ipairs(self.options) do
+                        local optionY = self.y + self.height + (i - 1) * 30
+                        
+                        -- Highlight on hover
+                        local mx, my = love.mouse.getPosition()
+                        if mx >= self.x and mx <= self.x + self.width and
+                           my >= optionY and my <= optionY + 30 then
+                            love.graphics.setColor(0.4, 0.4, 0.6, 1.0)
+                            love.graphics.rectangle("fill", self.x, optionY, self.width, 30)
+                        end
+                        
+                        -- Draw option text
+                        love.graphics.setColor(1, 1, 1, 1)
+                        love.graphics.printf(option, self.x + 10, optionY + 5, self.width - 20, "left")
+                    end
+                end
+            end,
+            
+            clicked = function(self, x, y, button)
+                if not self.visible or button ~= 1 then return false end
+                
+                -- Check if the main selector area was clicked
+                if x >= self.x and x <= self.x + self.width and
+                   y >= self.y and y <= self.y + self.height then
+                    self.expanded = not self.expanded
+                    return true
+                end
+                
+                -- Check if an option was clicked when expanded
+                if self.expanded and x >= self.x and x <= self.x + self.width then
+                    for i, option in ipairs(self.options) do
+                        local optionY = self.y + self.height + (i - 1) * 30
+                        if y >= optionY and y <= optionY + 30 then
+                            self.selectedIndex = i
+                            self.expanded = false
+                            
+                            if self.callback then
+                                self.callback(option)
+                            end
+                            
+                            return true
+                        end
+                    end
+                end
+                
+                -- Close dropdown if clicked elsewhere
+                if self.expanded then
+                    self.expanded = false
+                end
+                
+                return false
+            end,
+            
+            setOptions = function(self, newOptions)
+                self.options = newOptions or {}
+                self.selectedIndex = nil
+            end,
+            
+            getSelectedOption = function(self)
+                if self.selectedIndex and self.options[self.selectedIndex] then
+                    return self.options[self.selectedIndex], self.selectedIndex
+                end
+                return nil, nil
+            end,
+            
+            selectOption = function(self, index)
+                if index and self.options[index] then
+                    self.selectedIndex = index
+                    if self.callback then
+                        self.callback(self.options[index])
+                    end
+                end
+            end
+        }
+        
+        return selector
+    end
 end
 
 -- Draw panel with title

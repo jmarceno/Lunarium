@@ -7,7 +7,8 @@ local minion = {}
 minion.TYPES = {
     UNDEAD = "undead",       -- Persist across battles until duration expires or player exits dungeon
     ELEMENTAL = "elemental", -- Last until end of current battle
-    SPIRIT = "spirit"        -- Provide passive buffs without taking combat actions
+    SPIRIT = "spirit",       -- Provide passive buffs without taking combat actions
+    BALLISTA = "ballista"    -- Special contraption minion for Ballista Master job
 }
 
 -- Base minion structure
@@ -61,6 +62,13 @@ function minion:createMinion(name, type, level, stats, duration, owner)
                 -- Note: This will be handled by the combat system during battle 
             end
         end
+    elseif type == minion.TYPES.BALLISTA then
+        -- Ballista-specific properties
+        newMinion.takesActions = true
+        newMinion.persistAcrossBattles = true -- Persists until destroyed
+        newMinion.ammo = 3 -- Start with 3 shots
+        newMinion.maxAmmo = 3
+        newMinion.needsReload = false
     else
         -- Default combat minion
         newMinion.takesActions = true

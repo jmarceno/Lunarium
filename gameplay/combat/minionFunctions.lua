@@ -193,6 +193,15 @@ local function executeMinionTurn(self)
         return
     end
     
+    -- Check if ballista needs reload
+    if minion.type == "ballista" and (minion.ammo <= 0 or minion.needsReload) then
+        self:addLog(minion.name .. " needs to be reloaded!", {0.7, 0.7, 0.7})
+        
+        -- Skip turn
+        self.minionsTurnTaken[charIndex][minionIndex] = true
+        return
+    end
+    
     -- Debug minion turn
     if GAME.debug then
         print("Executing turn for minion: " .. minion.name)
@@ -269,6 +278,14 @@ local function executeMinionTurn(self)
             -- Add log entries to combat log
             for _, entry in ipairs(logEntries) do
                 self:addLog(entry.message, entry.color or {1, 0.7, 0.7})
+            end
+            
+            -- If ballista, use ammo
+            if minion.type == "ballista" and minion.ammo > 0 then
+                minion.ammo = minion.ammo - 1
+                if minion.ammo <= 0 then
+                    minion.needsReload = true
+                end
             end
             
             -- Play attack sound

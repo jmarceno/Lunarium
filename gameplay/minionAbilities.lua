@@ -172,6 +172,80 @@ minionAbilities.definitions = {
         target = "single_enemy",
         damageType = "necrotic",
         description = "A bolt of shadow energy."
+    },
+    
+    -- Ballista abilities
+    ballista_normal_shot = {
+        name = "Ballista Shot",
+        type = "physical",
+        basePower = 150,
+        target = "single_enemy",
+        damageType = "piercing",
+        description = "A powerful ballista shot that deals piercing damage."
+    },
+    ballista_fire_shot = {
+        name = "Fire Shot",
+        type = "physical",
+        basePower = 140,
+        target = "single_enemy",
+        damageType = "fire",
+        effect = {
+            type = "burn",
+            chance = 0.7,
+            duration = 3,
+            strength = 2
+        },
+        description = "A ballista shot with a flaming projectile."
+    },
+    ballista_ice_shot = {
+        name = "Ice Shot",
+        type = "physical",
+        basePower = 140,
+        target = "single_enemy",
+        damageType = "ice",
+        effect = {
+            type = "slow",
+            chance = 0.7,
+            duration = 2,
+            strength = 2
+        },
+        description = "A ballista shot with a freezing projectile."
+    },
+    ballista_poison_shot = {
+        name = "Poison Shot",
+        type = "physical",
+        basePower = 130,
+        target = "single_enemy",
+        damageType = "piercing",
+        effect = {
+            type = "poison",
+            chance = 0.8,
+            duration = 3,
+            strength = 3
+        },
+        description = "A ballista shot with a poison-tipped projectile."
+    },
+    ballista_net_shot = {
+        name = "Net Shot",
+        type = "physical",
+        basePower = 120,
+        target = "single_enemy",
+        damageType = "bludgeoning",
+        effect = {
+            type = "immobilize",
+            chance = 0.8,
+            duration = 2,
+            strength = 1
+        },
+        description = "A ballista shot that fires a weighted net at the target."
+    },
+    ballista_overcharge_shot = {
+        name = "Overcharge Shot",
+        type = "physical",
+        basePower = 200,
+        target = "single_enemy",
+        damageType = "piercing",
+        description = "An overcharged ballista shot that deals massive damage."
     }
 }
 

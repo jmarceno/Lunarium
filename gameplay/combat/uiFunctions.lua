@@ -719,7 +719,7 @@ local function drawEnemy(self)
         self:drawMultipleEnemies()
     else
         -- Original single enemy display
-        self:drawSingleEnemy(self.enemy, GAME.width / 2 - 100, 50)
+        self:drawSingleEnemy(self.enemies[1], GAME.width / 2 - 100, 50)
     end
 end
 
@@ -808,6 +808,8 @@ local function drawSingleEnemy(self, enemy, x, y)
     -- Draw HP text - moved 20px to the right
     love.graphics.setFont(screenManager.fonts.small)
     love.graphics.setColor(1, 1, 1)
+    
+    -- Display HP values directly - should never be nil
     love.graphics.print(
         enemy.currentHP .. " / " .. enemy.maxHP,
         x + 90, y + 42 -- Moved from x + 70 to x + 90
@@ -855,13 +857,13 @@ local function drawSingleEnemy(self, enemy, x, y)
     end
     
     -- Draw status effects using the helper function
-    if enemy.status and next(enemy.status) then
+    if enemy and enemy.status and next(enemy.status) then
         local uiHelpers = require("gameplay/combat/uiHelpers")
         uiHelpers.drawStatusEffects(enemy, x, y + 195, 28, 5)
     end
     
     -- Draw resistances/vulnerabilities if this is the selected target
-    if self.selectedTarget == enemy and enemy.resistances then
+    if enemy and self.selectedTarget == enemy and enemy.resistances then
         love.graphics.setFont(screenManager.fonts.small)
         love.graphics.setColor(1, 1, 1, 0.8)
         

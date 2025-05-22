@@ -146,6 +146,16 @@ function dungeon:init()
      -- Initialize the minion manager
     minionManager:init()
     
+    -- Add trap throwing system for Artificer
+    self.trapThrowing = {
+        active = false,
+        selectedTrap = nil,
+        targetedEnemy = nil
+    }
+    
+    -- Initialize trap throwing UI
+    self:initTrapThrowingUI()
+    
     return self
 end
 
@@ -1018,6 +1028,11 @@ function dungeon:update(dt)
             -- The actual quest completion rewards are handled by questSystem/overworld
         end
     end
+    
+    -- Update trap throwing targeting
+    if self.trapThrowing and self.trapThrowing.active then
+        self:updateTrapTargeting()
+    end
 end
 
 function dungeon:updateExploring(dt)
@@ -1396,6 +1411,23 @@ function dungeon:draw()
         self.elements.confirmDialog:draw()
     end
     
+    -- Draw trap throwing UI if active
+    if self.trapThrowing and self.trapThrowing.active then
+        -- Draw trap selector
+        if self.elements.trapSelector and self.elements.trapSelector.visible then
+            self.elements.trapSelector:draw()
+        end
+        
+        -- Draw targeting reticle on enemy if one is targeted
+        if self.trapThrowing.targetedEnemy then
+            -- This is a simplified indicator. You might want to implement a proper 3D overlay
+            love.graphics.setColor(1, 0.3, 0.3, 0.8)
+            love.graphics.circle("line", GAME.width/2, GAME.height/2, 30)
+            love.graphics.setColor(1, 0.3, 0.3, 0.4)
+            love.graphics.circle("fill", GAME.width/2, GAME.height/2, 30)
+            love.graphics.setColor(1, 1, 1, 1)
+        end
+    end
 end
 
 -- Draw floating texts
@@ -2248,6 +2280,253 @@ function dungeon:updateLootDisplay(dt)
         -- Reset timer for next item
         self.lootDisplayTimer = self.lootDisplayInterval
     end
+end
+
+-- Check if party has Artificer
+function dungeon:partyHasArtificer()
+    if GAME.party then
+        for _, member in ipairs(GAME.party) do
+            if member.job == "Artificer" or member.job == "Ballista Master" then
+                return true, member
+            end
+        end
+    end
+    return false
+end
+
+-- Initialize trap throwing UI
+function dungeon:initTrapThrowingUI()
+    -- Create UI elements for trap selection
+    self.elements.trapSelector = screenManager.UI.Selector(
+        20, GAME.height - 120, 150, 100, 
+        {}, -- Trap options will be populated dynamically
+        function(selected) self:selectTrap(selected) end
+    )
+    self.elements.trapSelector.visible = false
+end
+
+-- Toggle trap throwing mode
+function dungeon:toggleTrapThrowing()
+    local hasArtificer, artificerMember = self:partyHasArtificer()
+    if not hasArtificer then 
+        uiFunctions.showFloatingText("No Artificer in party to throw traps!", GAME.width/2, GAME.height/2, {1,0.5,0.5}, 2.0, self.floatingTexts)
+        return 
+    end
+    
+    self.trapThrowing.active = not self.trapThrowing.active
+    
+    if self.trapThrowing.active then
+        -- Populate trap selector based on Artificer's known traps
+        local availableTraps = self:getArtificerAvailableTraps(artificerMember)
+        if #availableTraps == 0 then
+            uiFunctions.showFloatingText("Artificer knows no traps yet!", GAME.width/2, GAME.height/2, {1,0.5,0.5}, 2.0, self.floatingTexts)
+            self.trapThrowing.active = false
+            return
+        end
+        self.elements.trapSelector:setOptions(availableTraps)
+        self.elements.trapSelector.visible = true
+        uiFunctions.showFloatingText("Trap throwing: Select a trap and click an enemy.", GAME.width/2, GAME.height/2, {0.5,1,0.5}, 2.0, self.floatingTexts)
+    else
+        -- Exit trap throwing mode
+        self.elements.trapSelector.visible = false
+        self.trapThrowing.selectedTrap = nil
+        self.trapThrowing.targetedEnemy = nil
+    end
+end
+
+-- Get available traps for the Artificer
+function dungeon:getArtificerAvailableTraps(artificerMember)
+    local knownTrapNames = {}
+    
+    -- Check if artificerMember exists
+    if not artificerMember then return knownTrapNames end
+    
+    -- Check if job field exists
+    if not artificerMember.job then return knownTrapNames end
+    
+    local jobData = JOBS[artificerMember.job]
+    if jobData and jobData.availableSkills then
+        local currentLevel = 0
+        -- Ensure jobLevels exists before accessing it
+        if artificerMember.jobLevels then
+            currentLevel = artificerMember.jobLevels[artificerMember.job] or 0
+        end
+        
+        for _, skillName in ipairs(jobData.availableSkills) do
+            -- Check if skill is a dungeon trap skill
+            if skillName:find("DungeonTrapper:") then
+                local trapType = skillName:match("DungeonTrapper:(.+)")
+                if trapType then
+                    table.insert(knownTrapNames, trapType:upper()) -- Convert "Net" to "NET" to match trapSystem.THROWN_TRAP_TYPES keys
+                end
+            end
+        end
+    end
+    
+    -- Convert keys to display names for the selector
+    local displayNames = {}
+    for _, trapKey in ipairs(knownTrapNames) do
+        if trapSystem and trapSystem.THROWN_TRAP_TYPES and trapSystem.THROWN_TRAP_TYPES[trapKey] then
+            table.insert(displayNames, trapSystem.THROWN_TRAP_TYPES[trapKey].name) -- e.g., "Net Trap"
+        end
+    end
+    return displayNames
+end
+
+-- Select trap type
+function dungeon:selectTrap(trapName)
+    local trapIdentifier = nil
+    
+    -- Check if trapSystem is initialized
+    if not trapSystem or not trapSystem.THROWN_TRAP_TYPES then
+        return
+    end
+    
+    -- Find the key (e.g., "NET") from the display name
+    for key, trapDetails in pairs(trapSystem.THROWN_TRAP_TYPES) do
+        if trapDetails and trapDetails.name == trapName then
+            trapIdentifier = key
+            break
+        end
+    end
+    
+    if trapIdentifier then
+        self.trapThrowing.selectedTrap = trapIdentifier -- Store "NET", "POISON", etc.
+        uiFunctions.showFloatingText("Selected " .. trapName .. ". Click on an enemy.", GAME.width/2, GAME.height/2, {0.5,1,0.5}, 2.0, self.floatingTexts)
+    else
+        self.trapThrowing.selectedTrap = nil -- Clear if not found
+    end
+end
+
+-- Update function to handle enemy targeting
+function dungeon:updateTrapTargeting()
+    if not self.trapThrowing.active or not self.trapThrowing.selectedTrap then return end
+    
+    -- Get mouse position
+    local mx, my = love.mouse.getPosition()
+    
+    -- Use raycaster to find entity under cursor
+    local entity = self:getEntityUnderCursor(mx, my)
+    
+    if entity and entity.type == "monster" then
+        -- Highlight targeted enemy
+        self.trapThrowing.targetedEnemy = entity
+        -- Visual feedback handled in draw function
+    else
+        self.trapThrowing.targetedEnemy = nil
+    end
+end
+
+-- Helper function to get entity under cursor (custom implementation since we don't expose raycaster's version)
+function dungeon:getEntityUnderCursor(mouseX, mouseY)
+    -- Convert mouse position to normalized camera space
+    local normalizedX = mouseX / GAME.width
+    
+    -- Use normalizedX to determine which screen column was clicked
+    local screenColumn = math.floor(normalizedX * GAME.width)
+    
+    -- Get ray direction from camera angle and normalized position
+    local cameraX = 2 * normalizedX - 1
+    local rayDirX = math.cos(self.playerPos.angle) + math.sin(self.playerPos.angle) * cameraX * 0.66
+    local rayDirY = math.sin(self.playerPos.angle) - math.cos(self.playerPos.angle) * cameraX * 0.66
+    
+    -- Loop through entities to find one that's close to the ray
+    local closestEntity = nil
+    local closestEntityDist = math.huge
+    
+    for _, entity in ipairs(self.entities) do
+        if entity.type == "monster" then
+            -- Calculate entity position relative to camera
+            local spriteX = entity.x - self.playerPos.x
+            local spriteY = entity.y - self.playerPos.y
+            
+            -- Calculate angle between player and entity
+            local entityAngle = math.atan2(spriteY, spriteX)
+            
+            -- Normalize angles to same range
+            local playerAngle = self.playerPos.angle
+            while playerAngle > math.pi do playerAngle = playerAngle - 2 * math.pi end
+            while playerAngle < -math.pi do playerAngle = playerAngle + 2 * math.pi end
+            while entityAngle > math.pi do entityAngle = entityAngle - 2 * math.pi end
+            while entityAngle < -math.pi do entityAngle = entityAngle + 2 * math.pi end
+            
+            -- Calculate angle difference (in range [-pi, pi])
+            local angleDiff = entityAngle - playerAngle
+            if angleDiff > math.pi then angleDiff = angleDiff - 2 * math.pi end
+            if angleDiff < -math.pi then angleDiff = angleDiff + 2 * math.pi end
+            
+            -- Check if entity is in view
+            if math.abs(angleDiff) < 0.4 then -- A reasonable field of view cone
+                -- Calculate distance
+                local dist = math.sqrt(spriteX * spriteX + spriteY * spriteY)
+                
+                -- Check if this is the closest entity so far
+                if dist < closestEntityDist and dist < 10 then -- Only consider entities within reasonable distance
+                    closestEntity = entity
+                    closestEntityDist = dist
+                end
+            end
+        end
+    end
+    
+    return closestEntity
+end
+
+-- Throw trap at targeted enemy
+function dungeon:throwTrap()
+    if not self.trapThrowing.active or not self.trapThrowing.selectedTrap or not self.trapThrowing.targetedEnemy then
+        return false
+    end
+    
+    local hasArtificer, artificerMember = self:partyHasArtificer()
+    if not hasArtificer or not artificerMember then return false end
+    
+    local targetEnemy = self.trapThrowing.targetedEnemy
+    if not targetEnemy then return false end
+    
+    local trapTypeKey = self.trapThrowing.selectedTrap -- This is now "NET", "POISON", etc.
+    
+    -- Calculate success based on Artificer level and enemy level
+    local artificerLevel = 1
+    if artificerMember and artificerMember.jobLevels and artificerMember.job then
+        artificerLevel = artificerMember.jobLevels[artificerMember.job] or 1
+    end
+    
+    local enemyLevel = 1
+    if targetEnemy and targetEnemy.monster_level then
+        -- Use monster_level instead of level (which appears to be undefined)
+        enemyLevel = targetEnemy.monster_level or 1
+    end
+    
+    local success = trapSystem:checkThrownTrapSuccess(trapTypeKey, artificerLevel, enemyLevel)
+    
+    if success then
+        -- Mark enemy as trapped
+        if targetEnemy then
+            targetEnemy.trapped_by_artificer = true
+            targetEnemy.artificer_trap_type = trapTypeKey -- Store "NET", "POISON", etc.
+            targetEnemy.artificer_trap_effect_id = trapSystem:getThrownTrapEffectID(trapTypeKey) -- Store the skill_effect_id
+        end
+
+        local trapDisplayName = trapSystem.THROWN_TRAP_TYPES[trapTypeKey].name
+        uiFunctions.showFloatingText(trapDisplayName .. " hit! Effect in combat.", GAME.width/2, GAME.height/2, {0.2,1,0.2}, 2.0, self.floatingTexts)
+        
+        -- Play success sound
+        assetManager:playSound("trap_set")
+    else
+        -- Show failure message
+        local trapDisplayName = trapSystem.THROWN_TRAP_TYPES[trapTypeKey].name
+        uiFunctions.showFloatingText(trapDisplayName .. " missed!", GAME.width/2, GAME.height/2, {1,0.5,0.5}, 2.0, self.floatingTexts)
+        
+        -- Play failure sound
+        assetManager:playSound("trap_miss")
+    end
+    
+    -- Exit trap throwing mode
+    self.trapThrowing.active = false
+    self.elements.trapSelector.visible = false
+    
+    return true
 end
 
 return dungeon

@@ -4,115 +4,113 @@ local minionManager = require("gameplay/minionManager")
 local itemSystem = require("gameplay/item")
 local screenManager = require("screens/screenManager")
 local partyPanel = require("screens/ui_slices/partyPanel")
+local statusEffects = require("gameplay/statusEffects")
+local trapSystem = require("gameplay/trapSystem")
+local assetManager = require("assets/assetManager")
+local characterSystem = require("gameplay/character")
 
 local combatSystem = {}  -- Forward declaration to reference STATE values
 
 -- Setup combatants with combat stats
 local function setupCombatants(self)
-    -- Setup party
+    -- Ensure party is setup
+    if not self.party then
+        error("No party defined for combat")
+        return false
+    end
+    
+    -- Ensure enemies are setup
+    if not self.enemies or #self.enemies == 0 then
+        error("No enemies defined for combat")
+        return false
+    end
+    
+    -- Initialize HP and active status for all enemies
+    for _, enemyInstance in ipairs(self.enemies) do
+        if enemyInstance then
+            if enemyInstance.maxHP == nil then
+                -- Fallback if maxHP is somehow not defined (should come from monster data)
+                enemyInstance.maxHP = 100 -- Default or log error
+                if GAME.debug then
+                    print("Warning: Enemy " .. (enemyInstance.name or "Unknown") .. " missing maxHP, defaulted to 100.")
+                end
+            end
+            enemyInstance.currentHP = enemyInstance.maxHP
+            enemyInstance.active = true -- Ensure enemy is active at the start
+            
+            -- Initialize status effects table if it doesn't exist
+            if not enemyInstance.status then
+                enemyInstance.status = {}
+            end
+        else
+            if GAME.debug then
+                print("Warning: Found a nil entry in self.enemies during setupCombatants.")
+            end
+        end
+    end
+    
+    -- Initialize minions
+    self.minions = {}
+    self.minionsTurnTaken = {}
+    
+    -- Import any existing minions
+    self:importExistingMinions()
+    
+    -- Initialize turn tracking
     for i, character in ipairs(self.party) do
-        -- Store current HP and MP values to preserve them
-        local currentHP = character.currentHP
-        local currentMP = character.currentMP
+        -- Set all characters as active initially
+        character.active = true
         
-        -- Calculate derived stats if they don't exist
-        if not character.attackPower then
-            local charSystem = require("gameplay/character")
-            character.attackPower = charSystem:calculateAttackPower(character)
-            character.magicPower = charSystem:calculateMagicPower(character)
-            character.defense = charSystem:calculateDefense(character)
-            character.magicDefense = charSystem:calculateMagicDefense(character)
-        end
-        
-        -- Make sure HP/MP aren't reset to maximum
-        if currentHP then
-            character.currentHP = currentHP
-        end
-        
-        if currentMP then
-            character.currentMP = currentMP
-        end
-        
-        -- Setup status effects table
-        character.status = character.status or {}
-        
-        -- Initialize resistances table if none exists
-        character.resistances = character.resistances or {}
-        
-        -- Initialize immunities table if none exists
-        character.immunities = character.immunities or {}
-        
-        -- Add resistances from equipped items
-        if character.equipment then
-            for slot, item in pairs(character.equipment) do
-                if item and item.resistances then
-                    for damageType, value in pairs(item.resistances) do
-                        character.resistances[damageType] = (character.resistances[damageType] or 0) + value
+        -- Initialize spellQueue for party members
+        character.spellQueue = {}
+    end
+    
+    -- Check for and apply trap effects from Artificer
+    for _, enemy in ipairs(self.enemies) do
+        if enemy.trapped_by_artificer and enemy.artificer_trap_effect_id then
+            local effectId = enemy.artificer_trap_effect_id
+            local trapEffectDef = SKILL_DEFINITIONS[effectId]
+            
+            if trapEffectDef then
+                self:addLog(enemy.name .. " is affected by a pre-combat " .. trapSystem.THROWN_TRAP_TYPES[enemy.artificer_trap_type].name .. "!", {0.8, 0.8, 0.2})
+                -- Apply effects defined in skill_definitions.lua
+                if trapEffectDef.effects then
+                    for _, effectData in ipairs(trapEffectDef.effects) do
+                        if effectData.type == "APPLY_STATUS" then
+                            -- Assuming statusEffects:applyEffect can take a definition object or separate params
+                            statusEffects:applyEffect(enemy, effectData.status_effect, effectData.duration, {base_damage = effectData.base_damage, chance = effectData.chance})
+                            self:addLog("... " .. enemy.name .. " gets " .. effectData.status_effect .. "!", {0.8,0.8,0.2})
+
+                            -- Special handling for STUN (e.g., make enemy lose first turn)
+                            if effectData.status_effect == "STUN" and not self.isAmbush then
+                                enemy.turnTaken = true -- Or a more direct way to skip first turn
+                                self:addLog("... " .. enemy.name .. " will miss its first action!", {1,1,0.5})
+                            end
+                        end
+                        -- Extend for other effect types if PRE_COMBAT_TRAP can do more
                     end
                 end
             end
+            
+            -- Clear trap info after applying
+            enemy.trapped_by_artificer = false
+            enemy.artificer_trap_type = nil
+            enemy.artificer_trap_effect_id = nil
         end
-        
-        -- Set active flag
-        character.active = character.currentHP > 0
     end
     
-    -- Setup all enemies
-    for i, enemy in ipairs(self.enemies) do
-        if not enemy.name then
-            enemy.name = "Monster #" .. enemy.id
-        end
-        
-        if not enemy.maxHP then
-            enemy.maxHP = enemy.stats.hp
-            enemy.currentHP = enemy.maxHP
-        end
-        
-        if not enemy.attackPower then
-            enemy.attackPower = enemy.stats.attack
-            enemy.defense = enemy.stats.defense
-        end
-        
-        -- Add magic attack power if defined
-        if enemy.stats.magicAttack then
-            enemy.magicAttackPower = enemy.stats.magicAttack
-        end
-        
-        -- Setup enemy status effects
-        enemy.status = enemy.status or {}
-        
-        -- Ensure resistances exist
-        enemy.resistances = enemy.resistances or {}
-        
-        -- Ensure immunities exist
-        enemy.immunities = enemy.immunities or {}
-        
-        -- Set enemy as active
-        enemy.active = true
+    -- Determine initial turn order
+    self:determineTurnOrder()
+    
+    -- Add initial combat log entry
+    if self.isAmbush then
+        self:addLog("You've been ambushed! Enemies get the first turn!", {1, 0.5, 0.5})
+    else
+        local enemiesText = #self.enemies > 1 and "enemies" or "enemy"
+        self:addLog("Combat begins against " .. #self.enemies .. " " .. enemiesText .. "!", {1, 1, 0.7})
     end
     
-    -- Setup all minions
-    for charIndex, charMinions in pairs(self.minions) do
-        for minionIndex, minion in pairs(charMinions) do
-            -- Set up base stats if not already present
-            if not minion.maxHP then
-                minion.maxHP = minion.hp
-                minion.currentHP = minion.maxHP
-            end
-            
-            -- Setup minion status effects
-            minion.status = minion.status or {}
-            
-            -- Initialize resistances
-            minion.resistances = minion.resistances or {}
-            
-            -- Initialize immunities
-            minion.immunities = minion.immunities or {}
-            
-            -- Set minion as active
-            minion.active = minion.currentHP > 0
-        end
-    end
+    return true
 end
 
 -- Determine turn order

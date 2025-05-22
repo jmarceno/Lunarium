@@ -1595,7 +1595,301 @@ local skillDefinitions = {
         levelModifier = function(level)
             return { value = 5 + level, duration = 3 + level }
         end
-    }
+    },
+
+    -- Artificer trap effects (these are not active combat skills, but define effects for thrown traps)
+    DUNGEON_NET_TRAP_EFFECT = {
+        name = "Net Trap Effect",
+        description = "Effect of a thrown net trap",
+        type = "PRE_COMBAT_TRAP",
+        target = "single_enemy",
+        effects = {
+            {
+                type = "APPLY_STATUS",
+                status_effect = "SLOW",
+                duration = 2,
+                chance = 0.9
+            }
+        }
+    },
+    
+    DUNGEON_POISON_TRAP_EFFECT = {
+        name = "Poison Trap Effect",
+        description = "Effect of a thrown poison trap",
+        type = "PRE_COMBAT_TRAP",
+        target = "single_enemy",
+        effects = {
+            {
+                type = "APPLY_STATUS",
+                status_effect = "POISON",
+                duration = 3,
+                base_damage = 5,
+                chance = 0.9
+            }
+        }
+    },
+    
+    DUNGEON_STUN_TRAP_EFFECT = {
+        name = "Stun Trap Effect",
+        description = "Effect of a thrown stun trap",
+        type = "PRE_COMBAT_TRAP",
+        target = "single_enemy",
+        effects = {
+            {
+                type = "APPLY_STATUS",
+                status_effect = "STUN",
+                duration = 1,
+                chance = 0.9
+            }
+        }
+    },
+    
+    -- Ballista Master skills
+    SummonBallista = {
+        name = "Summon Ballista",
+        description = "Summon a ballista contraption that attacks enemies independently.",
+        type = "summon",
+        target = "self",
+        mpCost = 25,
+        basePower = 0,
+        castingTime = 3, -- Longer casting time
+        maxLevel = 5,
+        summonType = "ballista",
+        summonStats = {
+            name = "Ballista",
+            maxHP = 80,
+            attackPower = 15,
+            defense = 10,
+            magicDefense = 5,
+            speed = 5,
+            abilities = {"ballista_normal_shot"},
+            sprite = "ballista",
+            color = {0.8, 0.7, 0.5}
+        },
+        levelModifier = function(level)
+            return {
+                statModifier = 1 + (level * 0.15),
+                duration = 0 -- Permanent until destroyed
+            }
+        end
+    },
+    
+    ReloadBallista = {
+        name = "Reload Ballista",
+        description = "Reload a ballista, restoring its ammo to maximum.",
+        type = "utility",
+        target = "minion",
+        targetFilter = "ballista", -- Only target ballista minions
+        mpCost = 10,
+        basePower = 0,
+        castingTime = 1,
+        maxLevel = 3,
+        effect = function(caster, target, combatSystem)
+            if target and target.type == "ballista" then
+                -- Use the minionManager to reload the ballista
+                if combatSystem.minionManager:reloadBallista(target) then
+                    return {
+                        {message = caster.name .. " reloads " .. target.name .. "!", color = {0.7, 0.8, 0.9}}
+                    }
+                end
+            end
+            return {
+                {message = "Failed to reload. Not a valid ballista target!", color = {1, 0.5, 0.5}}
+            }
+        end,
+        levelModifier = function(level)
+            return 1 -- No level scaling necessary
+        end
+    },
+    
+    BallistaRepair = {
+        name = "Ballista Repair",
+        description = "Repair a damaged ballista, restoring its HP.",
+        type = "heal",
+        target = "minion",
+        targetFilter = "ballista",
+        mpCost = 15,
+        basePower = 40,
+        castingTime = 2,
+        maxLevel = 5,
+        effect = function(caster, target, combatSystem)
+            if target and target.type == "ballista" then
+                local healAmount = 40 * (1 + caster.skillLevels.BallistaRepair * 0.2)
+                target.currentHP = math.min(target.maxHP, target.currentHP + healAmount)
+                return {
+                    {message = caster.name .. " repairs " .. target.name .. " for " .. math.floor(healAmount) .. " HP!", color = {0.5, 0.8, 0.5}}
+                }
+            end
+            return {
+                {message = "Failed to repair. Not a valid ballista target!", color = {1, 0.5, 0.5}}
+            }
+        end,
+        levelModifier = function(level)
+            return 1 + (level * 0.2) -- 20% more healing per level
+        end
+    },
+    
+    BallistaOvercharge = {
+        name = "Ballista Overcharge",
+        description = "Overcharge a ballista for its next shot, significantly increasing damage.",
+        type = "buff",
+        target = "minion",
+        targetFilter = "ballista",
+        mpCost = 20,
+        basePower = 0,
+        castingTime = 2,
+        maxLevel = 3,
+        effect = function(caster, target, combatSystem)
+            if target and target.type == "ballista" then
+                -- Replace current ability with overcharge ability
+                target.originalAbilities = target.abilities
+                target.abilities = {"ballista_overcharge_shot"}
+                target.overchargeCount = 1 -- Only lasts for one shot
+                
+                return {
+                    {message = caster.name .. " overcharges " .. target.name .. "!", color = {1, 0.7, 0.2}}
+                }
+            end
+            return {
+                {message = "Failed to overcharge. Not a valid ballista target!", color = {1, 0.5, 0.5}}
+            }
+        end,
+        levelModifier = function(level)
+            return 1 + (level * 0.3) -- 30% more damage per level
+        end
+    },
+    
+    ["BallistaElementalMod:Fire"] = {
+        name = "Ballista Fire Mod",
+        description = "Modify a ballista to shoot flaming projectiles for 2 turns.",
+        type = "buff",
+        target = "minion",
+        targetFilter = "ballista",
+        mpCost = 15,
+        basePower = 0,
+        castingTime = 1,
+        maxLevel = 3,
+        effect = function(caster, target, combatSystem)
+            if target and target.type == "ballista" then
+                -- Save original abilities
+                target.originalAbilities = target.abilities
+                target.abilities = {"ballista_fire_shot"}
+                target.elementalModDuration = 2
+                
+                -- Use minionManager to modify ballista
+                combatSystem.minionManager:modifyBallistaAttack(target, "fire", 2)
+                
+                return {
+                    {message = caster.name .. " modifies " .. target.name .. " with fire ammunition!", color = {1, 0.5, 0.2}}
+                }
+            end
+            return {
+                {message = "Failed to modify. Not a valid ballista target!", color = {1, 0.5, 0.5}}
+            }
+        end,
+        levelModifier = function(level)
+            return 1 + (level * 0.1) -- 10% more effectiveness per level
+        end
+    },
+    
+    ["BallistaElementalMod:Ice"] = {
+        name = "Ballista Ice Mod",
+        description = "Modify a ballista to shoot freezing projectiles for 2 turns.",
+        type = "buff",
+        target = "minion",
+        targetFilter = "ballista",
+        mpCost = 15,
+        basePower = 0,
+        castingTime = 1,
+        maxLevel = 3,
+        effect = function(caster, target, combatSystem)
+            if target and target.type == "ballista" then
+                -- Save original abilities
+                target.originalAbilities = target.abilities
+                target.abilities = {"ballista_ice_shot"}
+                target.elementalModDuration = 2
+                
+                -- Use minionManager to modify ballista
+                combatSystem.minionManager:modifyBallistaAttack(target, "ice", 2)
+                
+                return {
+                    {message = caster.name .. " modifies " .. target.name .. " with ice ammunition!", color = {0.5, 0.7, 1}}
+                }
+            end
+            return {
+                {message = "Failed to modify. Not a valid ballista target!", color = {1, 0.5, 0.5}}
+            }
+        end,
+        levelModifier = function(level)
+            return 1 + (level * 0.1) -- 10% more effectiveness per level
+        end
+    },
+    
+    BallistaPoisonMod = {
+        name = "Ballista Poison Mod",
+        description = "Modify a ballista to shoot poison-tipped projectiles for 2 turns.",
+        type = "buff",
+        target = "minion",
+        targetFilter = "ballista",
+        mpCost = 15,
+        basePower = 0,
+        castingTime = 1,
+        maxLevel = 3,
+        effect = function(caster, target, combatSystem)
+            if target and target.type == "ballista" then
+                -- Save original abilities
+                target.originalAbilities = target.abilities
+                target.abilities = {"ballista_poison_shot"}
+                target.elementalModDuration = 2
+                
+                -- Use minionManager to modify ballista
+                combatSystem.minionManager:modifyBallistaAttack(target, "poison", 2)
+                
+                return {
+                    {message = caster.name .. " modifies " .. target.name .. " with poison ammunition!", color = {0.5, 0.9, 0.5}}
+                }
+            end
+            return {
+                {message = "Failed to modify. Not a valid ballista target!", color = {1, 0.5, 0.5}}
+            }
+        end,
+        levelModifier = function(level)
+            return 1 + (level * 0.1) -- 10% more effectiveness per level
+        end
+    },
+    
+    BallistaNetShot = {
+        name = "Ballista Net Shot",
+        description = "Modify a ballista to shoot a net that can immobilize enemies.",
+        type = "buff",
+        target = "minion",
+        targetFilter = "ballista",
+        mpCost = 15,
+        basePower = 0,
+        castingTime = 1,
+        maxLevel = 3,
+        effect = function(caster, target, combatSystem)
+            if target and target.type == "ballista" then
+                -- Save original abilities
+                target.originalAbilities = target.abilities
+                target.abilities = {"ballista_net_shot"}
+                target.elementalModDuration = 2
+                
+                -- Use minionManager to modify ballista
+                combatSystem.minionManager:modifyBallistaAttack(target, "net", 2)
+                
+                return {
+                    {message = caster.name .. " modifies " .. target.name .. " with net ammunition!", color = {0.7, 0.7, 0.7}}
+                }
+            end
+            return {
+                {message = "Failed to modify. Not a valid ballista target!", color = {1, 0.5, 0.5}}
+            }
+        end,
+        levelModifier = function(level)
+            return 1 + (level * 0.1) -- 10% more effectiveness per level
+        end
+    },
 }
 
 return skillDefinitions 

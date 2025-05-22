@@ -152,6 +152,24 @@ function minionManager:onDungeonExit()
     end
 end
 
+-- Reload a ballista
+function minionManager:reloadBallista(ballista)
+    if ballista.type ~= minion.TYPES.BALLISTA then return false end
+    
+    ballista.ammo = ballista.maxAmmo
+    ballista.needsReload = false
+    return true
+end
+
+-- Modify ballista attack type
+function minionManager:modifyBallistaAttack(ballista, attackType, duration)
+    if ballista.type ~= minion.TYPES.BALLISTA then return false end
+    
+    ballista.attackType = attackType
+    ballista.attackTypeDuration = duration
+    return true
+end
+
 -- Save minion data to game save
 function minionManager:save()
     if not GAME or not GAME.savefile then return end

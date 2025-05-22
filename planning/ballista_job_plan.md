@@ -30,7 +30,7 @@ What weapons will this class be able to equip? Will it have any other damaging s
 - **Tier 2:** Artificer (new job)
   - Requirements: Rogue Lv. 10 (and/or Fighter Lv. 5)
   - Description: "A cunning inventor skilled in traps, gadgets, and mechanical minions."
-  - **NEW:** Artificer is now focused on a unique dungeon interaction: throwing traps at visible enemies while exploring the dungeon (not in combat). Artificer has no direct combat skills, but can use 3+ different trap types in the dungeon.
+  - **NEW:** Artificer is now focused on a unique dungeon interaction: throwing traps at visible enemies while exploring the dungeon (not in combat). Artificer has no direct combat skills, but can use 3+ different trap types in the dungeon. These "skills" are dungeon actions, their effects are defined for pre-combat scenarios.
 - **Tier 3:** Ballista Master
   - Requirements: Artificer Lv. 15
   - Description: "A master of battlefield engineering, able to deploy powerful ballistas and advanced contraptions."
@@ -50,7 +50,7 @@ What weapons will this class be able to equip? Will it have any other damaging s
   - When a trap is thrown at an enemy, there is a chance (based on Artificer and enemy level) that the trap will hinder the enemy:
     - Enemy may lose its first turn in combat
     - Enemy may start combat with a status effect (e.g., stunned, slowed, poisoned, etc.)
-  - Artificer has no other skills by itself (no combat skills), but can use at least 3 different trap types (e.g., net trap, poison trap, stun trap) while in the dungeon.
+  - Artificer has no other direct combat skills. Its abilities revolve around preparing and throwing these dungeon traps.
   - Trap types can be expanded in the future.
   - This mechanic is unique to the Artificer and does not overlap with existing combat or minion mechanics.
 
@@ -73,12 +73,12 @@ What weapons will this class be able to equip? Will it have any other damaging s
 
 ### 1.6. Example Skill List (Updated)
 - **Artificer (Tier 2):**
-  - **Dungeon Trap Throw (x3+ types):**
+  - **Dungeon Trap Throw (x3+ types):** (These are dungeon actions, not combat skills. Their definitions in `skill_definitions.lua` will specify pre-combat effects. `job_definitions.lua` will list them for player information.)
     - Net Trap: Chance to immobilize or slow enemy at start of combat
     - Poison Trap: Chance to apply poison DoT at start of combat
     - Stun Trap: Chance to make enemy lose first turn
     - (More trap types can be added)
-  - **No direct combat skills**
+  - **No direct combat skills for Artificer.**
 - **Ballista Master (Tier 3):**
   - Summon Ballista (minion, 3 attacks before reload)
   - Reload Ballista (restore all ammo to a Ballista)
@@ -97,8 +97,19 @@ What weapons will this class be able to equip? Will it have any other damaging s
 - **Can have its attack type/status changed by Artificer/Ballista Master skills**
 
 ### 1.8. Progression and Unlocks
-- **Tier 2 (Artificer):** Focus on traps, gadgets, and basic minion support
-- **Tier 3 (Ballista Master):** Unlocks Ballista, advanced minion support, and battlefield control
+- **Tier 2 (Artificer):** Focus on dungeon trap-throwing, gadgets, and basic minion support awareness (no direct minion command skills).
+- **Tier 3 (Ballista Master):** Unlocks Ballista, advanced minion support, and battlefield control.
+
+### 1.9. Ballista Reload Mechanism (Game Design)
+- **Skill Name:** "Reload Ballista" (usable by Ballista Master).
+- **Action Type:** Standard combat action, consumes the character's turn.
+- **Effect:** Targets a single friendly Ballista minion that has `needsReload = true` or ammo < maxAmmo. Restores the target Ballista's ammo to its `maxAmmo` value.
+- **Resource Cost:** Initially, no special resource cost beyond the action point/turn. Can be revisited for balance (e.g., requiring "Scrap Parts" consumable).
+- **Cooldown:** Initially, no cooldown. Can be revisited for balance.
+- **Player Feedback:**
+    - Clear UI indication on the Ballista minion when it requires reloading (e.g., "Needs Reload" status, ammo displayed as 0/X).
+    - Visual/audio feedback when the Reload Ballista skill is successfully used.
+    - The Ballista should be able to act normally on its next turn after being reloaded.
 
 ---
 
@@ -166,8 +177,8 @@ What weapons will this class be able to equip? Will it have any other damaging s
   - Remove/expire these effects after the first turn/round as needed.
 
 ### 2.3. Job Progression Logic
-- **Update job progression logic to allow Rogue → Artificer (dungeon trap specialist) → Ballista Master**
-- **Ensure job selection UI and level up screens support new jobs and requirements**
+- **Update job progression logic to allow Rogue → Artificer (dungeon trap specialist with no direct combat skills) → Ballista Master (combat engineer with Ballista minions).**
+- **Ensure job selection UI and level up screens support new jobs and requirements, correctly displaying Artificer's non-combat trap abilities and Ballista Master's combat skills.**
 
 ### 2.4. Testing and Balancing
 - **Test Ballista minion logic (summon, attack, ammo, reload, repair, destruction)**
@@ -177,6 +188,25 @@ What weapons will this class be able to equip? Will it have any other damaging s
 - **Test trap-throwing in dungeon (targeting, hit chance, effect application)**
 - **Test combat start with pre-applied status effects/turn loss**
 - **Balance trap effects, hit chances, and Artificer progression**
+- **Test Ballista reload skill functionality and its impact on combat flow**
+
+### 2.5. Documentation
+- **File Creation:** Create `docs/artificer_ballista_mechanics.md`.
+- **Content - Artificer (Dungeon Trap-Throwing):**
+    - Detailed explanation of how players activate trap-throwing mode (e.g., hotkey 'T').
+    - Description of the UI: trap selector population (based on learned Artificer skills/trap types), enemy targeting via mouse click in 3D view.
+    - Breakdown of trap success calculation (`trapSystem:checkThrownTrapSuccess`), mentioning dependency on Artificer level vs. enemy level.
+    - List of initial trap types (Net, Poison, Stun) and their effects (linking to `skill_effect_id` in `skill_definitions.lua`). Emphasis on these being pre-combat effects.
+    - Mention key files: `dungeon.lua` (core logic, UI), `raycaster.lua` (targeting), `trapSystem.lua` (trap data, success check), `job_definitions.lua` (Artificer skill list), `skill_definitions.lua` (trap effect definitions), `combatSystem.lua` (applying effects).
+- **Content - Ballista Master (Ballista Minion):**
+    - How to summon a Ballista (via "Summon Ballista" skill).
+    - Ballista stats, its persistence, and how it acts on its own turn.
+    - Ammo System: `ammo`, `maxAmmo`, `needsReload` properties in `minion.lua`. How `minionFunctions.lua` checks ammo before acting and sets `needsReload`.
+    - "Reload Ballista" skill: How it's used by the Ballista Master, its AP cost, targeting a Ballista, and calling `minionManager:reloadBallista`.
+    - `minionManager:reloadBallista` function details: resetting ammo and `needsReload` flag.
+    - Other skills: Brief mention of repair, buff/debuff skills and how they might interact with Ballista properties.
+    - Mention key files: `minion.lua` (Ballista type, properties), `minionManager.lua` (reload function), `minionFunctions.lua` (turn logic, ammo consumption), `skill_definitions.lua` (Ballista Master skills), `job_definitions.lua` (Ballista Master skill list).
+- **UI Changes:** Briefly describe new UI elements (trap selector, Ballista ammo display).
 
 ---
 
@@ -195,14 +225,23 @@ What weapons will this class be able to equip? Will it have any other damaging s
 ---
 
 ## 4. Actionable Steps for LLM (Updated)
-1. Update Artificer job in `job_definitions.lua` to focus on dungeon trap-throwing (remove combat skills).
-2. Implement dungeon trap-throwing system in `dungeon.lua` (UI, targeting, trap logic, effect storage).
-3. Update `raycaster.lua` to support targeting visible enemies and visual feedback for trap throws.
-4. Update `combatSystem.lua` to apply pre-combat trap effects/statuses at combat start.
-5. Add new trap types and logic to `trapSystem.lua` for thrown traps.
-6. Update UI for trap selection, targeting, and feedback.
-7. Playtest and balance the new Artificer mechanics and progression.
-8. Update job progression logic and UI for new jobs.
+1. Update `job_definitions.lua`:
+    - For Artificer: Define job, focus on dungeon trap-throwing (no combat skills), add descriptive entries for trap abilities.
+    - For Ballista Master: Define job and add all its combat skills.
+2. Update `skill_definitions.lua`:
+    - For Artificer: Add definitions for the *effects* of dungeon traps (these are not active combat skills).
+    - For Ballista Master: Add definitions for all combat skills (including Summon Ballista, Reload Ballista, buffs, etc.).
+3. Implement dungeon trap-throwing system in `dungeon.lua` (UI, targeting, trap logic using `trapSystem.lua`, effect storage for `combatSystem.lua`).
+4. Update `raycaster.lua` to support targeting visible enemies for trap throws and provide visual feedback.
+5. Update `combatSystem.lua` to apply pre-combat trap effects/statuses at combat start, based on effects defined in `skill_definitions.lua`.
+6. Add new trap types and associated logic to `trapSystem.lua` for thrown traps, ensuring clarity that these are for Artificer's dungeon use.
+7. Implement Ballista minion type (in `minion.lua`), ammo system, reload mechanism (in `minionManager.lua` for the function, `skill_definitions.lua` for the skill), and modification logic in relevant minion files (`minionFunctions.lua` for turn behavior).
+8. Update UI elements for:
+    - Artificer: Dungeon trap selection, targeting, and feedback.
+    - Ballista: Display of ammo, "Needs Reload" status, and other statuses/buffs.
+9. Playtest and balance the new Artificer (dungeon trap effectiveness, progression) and Ballista Master (Ballista stats, skill costs, reload impact, overall combat balance) mechanics.
+10. Update job progression logic in the game and corresponding UI elements to reflect the new jobs and their unique skill acquisition.
+11. Create a new documentation file `docs/artificer_ballista_mechanics.md` detailing the new functionalities as specified in section 2.5.
 
 ---
 
@@ -244,10 +283,10 @@ After examining the existing systems, here's an analysis of the technical viabil
 
 #### For Artificer (Dungeon Trap-Throwing)
 1. **dungeon.lua**:
-   - Add trap selection UI/controls during exploration (similar to existing item/skill UI)
-   - Implement trap throwing mechanics (using raycaster for targeting)
-   - Store pre-combat effects for enemies hit by traps
-   - Add check for Artificer presence in party
+   - Add trap selection UI/controls during exploration (similar to existing item/skill UI) specifically for Artificer.
+   - Implement trap throwing mechanics (using raycaster for targeting, `trapSystem.lua` for success/effect definition).
+   - Store pre-combat effects for enemies hit by traps.
+   - Add check for Artificer presence in party to enable this functionality.
 
 2. **raycaster.lua**:
    - Extend entity targeting to support aiming at enemies
@@ -255,14 +294,15 @@ After examining the existing systems, here's an analysis of the technical viabil
    - Add animation for thrown traps
 
 3. **combatSystem.lua**:
-   - Extend combat initialization to check for pre-applied trap effects
-   - Implement pre-combat status application (can reuse existing status system)
+   - Extend combat initialization to check for pre-applied trap effects using data stored by `dungeon.lua`.
+   - Implement pre-combat status application (can reuse existing status system, applying effects as defined in `skill_definitions.lua` for the specific trap).
 
 #### For Ballista Master
 1. **minionManager.lua/minion.lua**:
-   - Add a new "BALLISTA" minion type (or extend existing types)
-   - Add ammo/charge tracking
-   - Add functions for reloading and modifying ballista properties
+   - Add a new "BALLISTA" minion type.
+   - Add `ammo`, `maxAmmo`, and `needsReload` properties to minion structure (specifically for Ballista, or generalized if other minions might use ammo).
+   - Add `reloadBallista(ballista)` function to `minionManager.lua` to reset ammo and `needsReload` status.
+   - Add functions for modifying ballista properties (attack type, etc.).
 
 2. **minionFunctions.lua**:
    - Extend minion turn execution to handle ammo checks
@@ -280,41 +320,52 @@ After examining the existing systems, here's an analysis of the technical viabil
 trapSystem.THROWN_TRAP_TYPES = {
     NET = {
         name = "Net Trap",
-        effect = "immobilize",
-        duration = 1, -- turns
-        successChance = 0.7, -- base chance, modified by level difference
-        texture = "net_trap"
+        skill_effect_id = "DUNGEON_NET_TRAP_EFFECT", -- Links to skill_definitions.lua
+        successChanceFormula = function(artificerLevel, enemyLevel) -- Example, can be more complex
+            local baseChance = 0.7
+            local levelDiff = artificerLevel - enemyLevel
+            local modifier = levelDiff * 0.05
+            return math.max(0.1, math.min(0.9, baseChance + modifier))
+        end,
+        texture = "net_trap_projectile" -- Texture for the thrown projectile
     },
     POISON = {
         name = "Poison Trap",
-        effect = "poison",
-        damage = 5, -- base damage
-        duration = 2, -- turns
-        successChance = 0.6,
-        texture = "poison_trap"
+        skill_effect_id = "DUNGEON_POISON_TRAP_EFFECT",
+        successChanceFormula = function(artificerLevel, enemyLevel)
+            local baseChance = 0.6
+            local levelDiff = artificerLevel - enemyLevel
+            local modifier = levelDiff * 0.05
+            return math.max(0.1, math.min(0.9, baseChance + modifier))
+        end,
+        texture = "poison_trap_projectile"
     },
     STUN = {
         name = "Stun Trap",
-        effect = "stun",
-        duration = 1, -- turns
-        successChance = 0.5,
-        texture = "stun_trap"
+        skill_effect_id = "DUNGEON_STUN_TRAP_EFFECT",
+        successChanceFormula = function(artificerLevel, enemyLevel)
+            local baseChance = 0.5
+            local levelDiff = artificerLevel - enemyLevel
+            local modifier = levelDiff * 0.05
+            return math.max(0.1, math.min(0.9, baseChance + modifier))
+        end,
+        texture = "stun_trap_projectile"
     }
 }
 
--- Add function to check trap success
-function trapSystem:checkThrownTrapSuccess(trapType, artificerLevel, enemyLevel)
-    local trap = self.THROWN_TRAP_TYPES[trapType]
-    if not trap then return false end
+-- Updated function to check trap success
+function trapSystem:checkThrownTrapSuccess(trapIdentifier, artificerLevel, enemyLevel)
+    local trapProps = self.THROWN_TRAP_TYPES[trapIdentifier]
+    if not trapProps or not trapProps.successChanceFormula then return false end
     
-    local baseChance = trap.successChance
-    local levelDiff = artificerLevel - enemyLevel
-    local modifier = levelDiff * 0.05 -- 5% per level difference
-    
-    local successChance = baseChance + modifier
-    successChance = math.max(0.1, math.min(0.9, successChance)) -- Clamp between 10% and 90%
-    
+    local successChance = trapProps.successChanceFormula(artificerLevel, enemyLevel)
     return math.random() < successChance
+end
+
+-- Function to get trap effect details (referenced by combatSystem)
+function trapSystem:getThrownTrapEffectID(trapIdentifier)
+    local trapProps = self.THROWN_TRAP_TYPES[trapIdentifier]
+    return trapProps and trapProps.skill_effect_id
 end
 ```
 
@@ -339,7 +390,7 @@ function dungeon:initTrapThrowingUI()
     -- Create UI elements for trap selection
     self.elements.trapSelector = screenManager.UI.Selector(
         20, GAME.height - 120, 150, 100, 
-        {"Net Trap", "Poison Trap", "Stun Trap"},
+        {}, -- Trap options will be populated dynamically
         function(selected) self:selectTrap(selected) end
     )
     self.elements.trapSelector.visible = false
@@ -356,16 +407,23 @@ end
 function dungeon:toggleTrapThrowing()
     local hasArtificer, artificerMember = self:partyHasArtificer()
     if not hasArtificer then 
-        uiFunctions.showFloatingText("No Artificer in party!", GAME.width/2, GAME.height/2, {1,0.5,0.5}, 2.0, self.floatingTexts)
+        uiFunctions.showFloatingText("No Artificer in party to throw traps!", GAME.width/2, GAME.height/2, {1,0.5,0.5}, 2.0, self.floatingTexts)
         return 
     end
     
     self.trapThrowing.active = not self.trapThrowing.active
     
     if self.trapThrowing.active then
-        -- Enter trap throwing mode
+        -- Populate trap selector based on Artificer's known traps
+        local availableTraps = self:getArtificerAvailableTraps(artificerMember)
+        if #availableTraps == 0 then
+            uiFunctions.showFloatingText("Artificer knows no traps yet!", GAME.width/2, GAME.height/2, {1,0.5,0.5}, 2.0, self.floatingTexts)
+            self.trapThrowing.active = false
+            return
+        end
+        self.elements.trapSelector:setOptions(availableTraps)
         self.elements.trapSelector.visible = true
-        uiFunctions.showFloatingText("Trap throwing mode active. Select a trap.", GAME.width/2, GAME.height/2, {0.5,1,0.5}, 2.0, self.floatingTexts)
+        uiFunctions.showFloatingText("Trap throwing: Select a trap and click an enemy.", GAME.width/2, GAME.height/2, {0.5,1,0.5}, 2.0, self.floatingTexts)
     else
         -- Exit trap throwing mode
         self.elements.trapSelector.visible = false
@@ -374,16 +432,51 @@ function dungeon:toggleTrapThrowing()
     end
 end
 
--- Select trap type
+-- Get available traps for the Artificer (based on job_definitions.lua)
+function dungeon:getArtificerAvailableTraps(artificerMember)
+    local knownTrapNames = {}
+    local jobData = JOBS[artificerMember.job]
+    if jobData and jobData.skills_by_level then
+        local currentLevel = artificerMember.jobLevels[artificerMember.job] or 0
+        for level, skills in pairs(jobData.skills_by_level) do
+            if currentLevel >= level then
+                for _, skillInfo in ipairs(skills) do
+                    -- Assuming display_name matches keys in trapSystem.THROWN_TRAP_TYPES or a mapping exists
+                    if skillInfo.display_name == "Dungeon Trapper: Net" then table.insert(knownTrapNames, "NET") end
+                    if skillInfo.display_name == "Dungeon Trapper: Poison" then table.insert(knownTrapNames, "POISON") end
+                    if skillInfo.display_name == "Dungeon Trapper: Stun" then table.insert(knownTrapNames, "STUN") end
+                    -- This needs robust mapping if names differ significantly
+                end
+            end
+        end
+    end
+    -- Convert keys to display names for the selector
+    local displayNames = {}
+    for _, trapKey in ipairs(knownTrapNames) do
+        if trapSystem.THROWN_TRAP_TYPES[trapKey] then
+            table.insert(displayNames, trapSystem.THROWN_TRAP_TYPES[trapKey].name) -- e.g., "Net Trap"
+        end
+    end
+    return displayNames
+end
+
+-- Select trap type (trapName is the display name like "Net Trap")
 function dungeon:selectTrap(trapName)
-    local trapType = nil
-    if trapName == "Net Trap" then trapType = "NET"
-    elseif trapName == "Poison Trap" then trapType = "POISON"
-    elseif trapName == "Stun Trap" then trapType = "STUN"
+    local trapIdentifier = nil
+    -- Find the key (e.g., "NET") from the display name
+    for key, trapDetails in pairs(trapSystem.THROWN_TRAP_TYPES) do
+        if trapDetails.name == trapName then
+            trapIdentifier = key
+            break
+        end
     end
     
-    self.trapThrowing.selectedTrap = trapType
-    uiFunctions.showFloatingText("Selected " .. trapName .. ". Click on an enemy to throw.", GAME.width/2, GAME.height/2, {0.5,1,0.5}, 2.0, self.floatingTexts)
+    if trapIdentifier then
+        self.trapThrowing.selectedTrap = trapIdentifier -- Store "NET", "POISON", etc.
+        uiFunctions.showFloatingText("Selected " .. trapName .. ". Click on an enemy.", GAME.width/2, GAME.height/2, {0.5,1,0.5}, 2.0, self.floatingTexts)
+    else
+        self.trapThrowing.selectedTrap = nil -- Clear if not found
+    end
 end
 
 -- Update function to handle enemy targeting
@@ -415,27 +508,29 @@ function dungeon:throwTrap()
     if not hasArtificer then return false end
     
     local targetEnemy = self.trapThrowing.targetedEnemy
-    local trapType = self.trapThrowing.selectedTrap
+    local trapTypeKey = self.trapThrowing.selectedTrap -- This is now "NET", "POISON", etc.
     
     -- Calculate success based on Artificer level and enemy level
     local artificerLevel = artificerMember.jobLevels[artificerMember.job] or 1
     local enemyLevel = targetEnemy.level or 1
     
-    local success = trapSystem:checkThrownTrapSuccess(trapType, artificerLevel, enemyLevel)
+    local success = trapSystem:checkThrownTrapSuccess(trapTypeKey, artificerLevel, enemyLevel)
     
     if success then
         -- Mark enemy as trapped
-        targetEnemy.trapped = true
-        targetEnemy.trapType = trapType
-        
-        -- Show success message
-        uiFunctions.showFloatingText("Trap hit! Effect will apply in combat.", GAME.width/2, GAME.height/2, {0.2,1,0.2}, 2.0, self.floatingTexts)
+        targetEnemy.trapped_by_artificer = true -- More specific flag
+        targetEnemy.artificer_trap_type = trapTypeKey -- Store "NET", "POISON", etc.
+        targetEnemy.artificer_trap_effect_id = trapSystem:getThrownTrapEffectID(trapTypeKey) -- Store the skill_effect_id
+
+        local trapDisplayName = trapSystem.THROWN_TRAP_TYPES[trapTypeKey].name
+        uiFunctions.showFloatingText(trapDisplayName .. " hit! Effect in combat.", GAME.width/2, GAME.height/2, {0.2,1,0.2}, 2.0, self.floatingTexts)
         
         -- Play success sound
         assetManager:playSound("trap_set")
     else
         -- Show failure message
-        uiFunctions.showFloatingText("Trap missed!", GAME.width/2, GAME.height/2, {1,0.5,0.5}, 2.0, self.floatingTexts)
+        local trapDisplayName = trapSystem.THROWN_TRAP_TYPES[trapTypeKey].name
+        uiFunctions.showFloatingText(trapDisplayName .. " missed!", GAME.width/2, GAME.height/2, {1,0.5,0.5}, 2.0, self.floatingTexts)
         
         -- Play failure sound
         assetManager:playSound("trap_miss")
@@ -541,31 +636,35 @@ function coreFunctions.setupCombatants(self)
     
     -- Check for and apply trap effects from Artificer
     for _, enemy in ipairs(self.enemies) do
-        if enemy.trapped and enemy.trapType then
-            local trapType = enemy.trapType
-            local trapEffect = trapSystem.THROWN_TRAP_TYPES[trapType].effect
-            local trapDuration = trapSystem.THROWN_TRAP_TYPES[trapType].duration
+        if enemy.trapped_by_artificer and enemy.artificer_trap_effect_id then
+            local effectId = enemy.artificer_trap_effect_id
+            local trapEffectDef = SKILL_DEFINITIONS[effectId]
             
-            -- Apply appropriate effect
-            if trapEffect == "immobilize" then
-                statusEffects:applyEffect(enemy, "immobilize", trapDuration)
-                self:addLog(enemy.name .. " is caught in a net trap!", {0.5, 0.7, 1})
-            elseif trapEffect == "poison" then
-                statusEffects:applyEffect(enemy, "poison", trapDuration)
-                local poisonDamage = trapSystem.THROWN_TRAP_TYPES[trapType].damage
-                self:addLog(enemy.name .. " is poisoned by a trap!", {0.5, 1, 0.5})
-            elseif trapEffect == "stun" then
-                statusEffects:applyEffect(enemy, "stun", trapDuration)
-                self:addLog(enemy.name .. " is stunned by a trap!", {1, 1, 0.5})
-                -- For stun traps, also mark first turn as taken
-                if not self.isAmbush then -- Only if not already ambushed
-                    enemy.turnTaken = true
+            if trapEffectDef then
+                self:addLog(enemy.name .. " is affected by a pre-combat " .. trapSystem.THROWN_TRAP_TYPES[enemy.artificer_trap_type].name .. "!", {0.8, 0.8, 0.2})
+                -- Apply effects defined in skill_definitions.lua
+                if trapEffectDef.effects then
+                    for _, effectData in ipairs(trapEffectDef.effects) do
+                        if effectData.type == "APPLY_STATUS" then
+                            -- Assuming statusEffects:applyEffect can take a definition object or separate params
+                            statusEffects:applyEffect(enemy, effectData.status_effect, effectData.duration, {base_damage = effectData.base_damage, chance = effectData.chance})
+                            self:addLog("... " .. enemy.name .. " gets " .. effectData.status_effect .. "!", {0.8,0.8,0.2})
+
+                            -- Special handling for STUN (e.g., make enemy lose first turn)
+                            if effectData.status_effect == "STUN" and not self.isAmbush then
+                                enemy.turnTaken = true -- Or a more direct way to skip first turn
+                                self:addLog("... " .. enemy.name .. " will miss its first action!", {1,1,0.5})
+                            end
+                        end
+                        -- Extend for other effect types if PRE_COMBAT_TRAP can do more
+                    end
                 end
             end
             
-            -- Clear trap info
-            enemy.trapped = false
-            enemy.trapType = nil
+            -- Clear trap info after applying
+            enemy.trapped_by_artificer = false
+            enemy.artificer_trap_type = nil
+            enemy.artificer_trap_effect_id = nil
         end
     end
     

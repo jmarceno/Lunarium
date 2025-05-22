@@ -245,6 +245,40 @@ local itemDefinitions = {
         jobs = {"Ranger"}
     },
     
+    Crossbow = {
+        name = "Crossbow",
+        description = "A precise mechanical ranged weapon that's easier to aim than a bow.",
+        type = "weapon",
+        subType = "crossbow",
+        slot = "weapon",
+        attack = 14,
+        magicAttack = 0,
+        accuracy = 5,
+        value = 240,
+        requirements = {
+            DEX = 8
+        },
+        jobs = {"Ranger", "Artificer"}
+    },
+    
+    EngineersCrossbow = {
+        name = "Engineer's Crossbow",
+        description = "An advanced crossbow with mechanical improvements for increased power and accuracy.",
+        type = "weapon",
+        subType = "crossbow",
+        slot = "weapon",
+        attack = 22,
+        magicAttack = 0,
+        accuracy = 10,
+        critRate = 5,
+        value = 480,
+        requirements = {
+            DEX = 14,
+            INT = 10
+        },
+        jobs = {"BallistaMaster"}
+    },
+    
     -- Advanced armors
     ChainMail = {
         name = "Chain Mail",
@@ -329,6 +363,21 @@ local itemDefinitions = {
         jobs = {"Ranger"}
     },
     
+    EngineerGarb = {
+        name = "Engineer Garb",
+        description = "Specialized outfit with numerous pockets and protective padding for handling mechanical contraptions.",
+        type = "armor",
+        slot = "body",
+        defense = 14,
+        magicDefense = 8,
+        value = 460,
+        requirements = {
+            DEX = 12,
+            INT = 14
+        },
+        jobs = {"BallistaMaster"}
+    },
+    
     -- Advanced shields and offhand items
     KiteShield = {
         name = "Kite Shield",
@@ -369,6 +418,43 @@ local itemDefinitions = {
             DEX = 10
         },
         jobs = {"Ranger"}
+    },
+    
+    Toolkit = {
+        name = "Toolkit",
+        description = "A collection of tools for creating and maintaining mechanical devices.",
+        type = "accessory",
+        slot = "offhand",
+        attack = 0,
+        defense = 2,
+        value = 180,
+        attributes = {
+            INT = 1,
+            DEX = 1
+        },
+        requirements = {
+            INT = 8
+        },
+        jobs = {"Artificer"}
+    },
+    
+    MasterToolkit = {
+        name = "Master Toolkit",
+        description = "An extensive collection of precision tools for engineering complex mechanical contraptions.",
+        type = "accessory",
+        slot = "offhand",
+        attack = 2,
+        defense = 4,
+        value = 350,
+        attributes = {
+            INT = 3,
+            DEX = 2
+        },
+        requirements = {
+            INT = 14,
+            DEX = 10
+        },
+        jobs = {"BallistaMaster"}
     },
     
     -- Basic amulets and rings
