@@ -134,6 +134,10 @@ Now, review these instructions and create an implementation plan, so we can try 
     *   *Current interpretation*: Action meters pause.
 8. **Ambush:** If the player is ambushed, the `actionMeter` of party members and minions start at 0, enemies will have the normal Initial values calculated as in 7
 
+### Documentation (Post-Implementation)
+* Create documentation on how the system has been implemented and how it works.
+* Documentation should be created at `docs` folder in `active_turn_system.md`, this should be created if it does not exist
+
 ### Changelog:
 
 *   2025-05-29: Initial plan creation.
