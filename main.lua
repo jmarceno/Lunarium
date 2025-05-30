@@ -4,6 +4,7 @@ local screens = require("screens/screenManager")
 local assets = require("assets/assetManager")
 local saveLoad = require("utils/saveLoad")
 local debugConsole = require("utils/debugConsole")
+local scaling = require("utils/scaling")
 
 -- Global game configuration
 GAME = {
@@ -70,6 +71,9 @@ local minLoadingTime = 1.5 -- Minimum time to show loading screen in seconds
 function love.load()
     math.randomseed(os.time())
     love.graphics.setDefaultFilter('nearest', 'nearest')
+    
+    -- Initialize scaling system
+    scaling:init()
     
     -- Setup loading font before any other initialization
     loadingFont = love.graphics.newFont(24)
@@ -144,13 +148,19 @@ function love.update(dt)
 end
 
 function love.draw()
+    -- Draw letterbox/pillarbox bars first
+    scaling:drawBars()
+    
+    -- Apply scaling transformation
+    scaling:push()
+    
     -- Draw loading screen
     if isLoading then
         love.graphics.clear(0.1, 0.1, 0.1)
         love.graphics.setFont(loadingFont)
         
-        -- Get window dimensions directly from LÖVE
-        local windowWidth, windowHeight = love.graphics.getDimensions()
+        -- Use target resolution for text positioning
+        local targetWidth, targetHeight = scaling:getTargetResolution()
         local textWidth = loadingFont:getWidth(loadingMessage)
         local textHeight = loadingFont:getHeight()
         
@@ -158,9 +168,11 @@ function love.draw()
         love.graphics.setColor(1, 1, 1)
         love.graphics.print(
             loadingMessage,
-            (windowWidth - textWidth) / 2,
-            (windowHeight - textHeight) / 2
+            (targetWidth - textWidth) / 2,
+            (targetHeight - textHeight) / 2
         )
+        
+        scaling:pop()
         return
     end
     
@@ -174,6 +186,12 @@ function love.draw()
         love.graphics.setColor(1, 1, 0)
         love.graphics.print("FPS: " .. love.timer.getFPS(), 10, 10)
         love.graphics.print("State: " .. gameState:getCurrentStateName(), 10, 30)
+        
+        -- Show scaling info
+        local scaleX, scaleY = scaling:getScale()
+        local offsetX, offsetY = scaling:getOffset()
+        love.graphics.print("Scale: " .. string.format("%.2f", scaleX), 10, 50)
+        love.graphics.print("Offset: " .. string.format("%.0f,%.0f", offsetX, offsetY), 10, 70)
     elseif GAME.showFPS then
         -- Just show FPS if showFPS is enabled without full debug mode
         love.graphics.setColor(1, 1, 0)
@@ -182,6 +200,9 @@ function love.draw()
     
     -- Draw debug console on top of everything else
     debugConsole:draw()
+    
+    -- Remove scaling transformation
+    scaling:pop()
 end
 
 function love.keypressed(key, scancode, isrepeat)
@@ -231,26 +252,38 @@ function love.textinput(text)
 end
 
 function love.mousepressed(x, y, button, istouch, presses)
-    -- Pass mouse press to current state
-    if GAME.currentState and GAME.currentState.mousepressed then
-        local handled = GAME.currentState:mousepressed(x, y, button, istouch, presses)
-        if GAME.debug then
-            if handled then
-                print("Click handled by: " .. gameState:getCurrentStateName() .. " at " .. x .. "," .. y)
-            else
-                print("Click not handled at " .. x .. "," .. y)
+    -- Convert screen coordinates to game coordinates
+    local gameX, gameY = scaling:toGameCoords(x, y)
+    
+    -- Only process if click is within game area
+    if scaling:isInGameArea(x, y) then
+        -- Pass mouse press to current state with converted coordinates
+        if GAME.currentState and GAME.currentState.mousepressed then
+            local handled = GAME.currentState:mousepressed(gameX, gameY, button, istouch, presses)
+            if GAME.debug then
+                if handled then
+                    print("Click handled by: " .. gameState:getCurrentStateName() .. " at " .. gameX .. "," .. gameY)
+                else
+                    print("Click not handled at " .. gameX .. "," .. gameY)
+                end
             end
         end
     end
 end
 
 function love.mousereleased(x, y, button, istouch, presses)
-    -- Pass mouse release to current state
-    if GAME.currentState and GAME.currentState.mousereleased then
-        GAME.currentState:mousereleased(x, y, button, istouch, presses)
-        
-        if GAME.debug then
-            print("Mouse released at " .. x .. "," .. y)
+    -- Convert screen coordinates to game coordinates
+    local gameX, gameY = scaling:toGameCoords(x, y)
+    
+    -- Only process if release is within game area
+    if scaling:isInGameArea(x, y) then
+        -- Pass mouse release to current state with converted coordinates
+        if GAME.currentState and GAME.currentState.mousereleased then
+            GAME.currentState:mousereleased(gameX, gameY, button, istouch, presses)
+            
+            if GAME.debug then
+                print("Mouse released at " .. gameX .. "," .. gameY)
+            end
         end
     end
 end
@@ -292,6 +325,9 @@ function love.quit()
 end
 
 function love.resize(width, height)
+    -- Update scaling system
+    scaling:onResize(width, height)
+    
     -- Update game settings for resolution
     GAME.settings.graphics.resolution = width .. "x" .. height
     

@@ -39,13 +39,6 @@ function screenManager:init()
     
     -- Initialize UI elements
     self:initUI()
-    
-    -- Set up window resize handler
-    love.window.setMode(GAME.width, GAME.height, {
-        resizable = true,
-        minwidth = 1280,
-        minheight = 720
-    })
 end
 
 function screenManager:initUI()
@@ -70,9 +63,14 @@ function screenManager:initUI()
             
             update = function(self, dt)
                 local mx, my = love.mouse.getPosition()
+                
+                -- Convert screen coordinates to game coordinates for hover detection
+                local scaling = require("utils/scaling")
+                local gameMx, gameMy = scaling:toGameCoords(mx, my)
+                
                 local wasHovering = self.hover
-                self.hover = mx >= self.x and mx <= self.x + self.width and
-                              my >= self.y and my <= self.y + self.height
+                self.hover = gameMx >= self.x and gameMx <= self.x + self.width and
+                              gameMy >= self.y and gameMy <= self.y + self.height
                               
                 -- Play hover sound only when first hovering
                 if not wasHovering and self.hover and self.soundsEnabled and self.visible then

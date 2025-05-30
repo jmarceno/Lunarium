@@ -9,9 +9,9 @@ function love.conf(t)
     t.window.width = 1280                    -- The window width
     t.window.height = 720                    -- The window height
     t.window.borderless = false              -- Remove all border visuals from the window
-    t.window.resizable = false                -- Let the window be user-resizable
-    t.window.minwidth = 1280                 -- Minimum window width if the window is resizable
-    t.window.minheight = 720                 -- Minimum window height if the window is resizable
+    t.window.resizable = true                -- Let the window be user-resizable
+    t.window.minwidth = 640                  -- Minimum window width if the window is resizable
+    t.window.minheight = 360                 -- Minimum window height if the window is resizable
     t.window.fullscreen = false              -- Enable fullscreen
     t.window.fullscreentype = "desktop"      -- Standard fullscreen or desktop fullscreen mode
     t.window.vsync = 1                       -- Vertical sync mode (0 = off, 1 = on, 2 = adaptive)
