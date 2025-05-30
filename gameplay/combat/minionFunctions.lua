@@ -140,6 +140,20 @@ local function processSummonSkill(self, character, skillData)
     table.insert(self.minions[self.currentCharacter], minion)
     local newMinionIndex = #self.minions[self.currentCharacter]
     
+    -- Initialize actionMeter for the new minion (required for turn system)
+    if minion.takesActions then
+        minion.actionMeter = minion.actionMeter or 0
+        minion.speed = minion.speed or 8
+        
+        -- Start with a partial action meter to give them a chance to act soon
+        local randomStart = math.random(1, 5)
+        minion.actionMeter = (minion.speed + randomStart) * 0.5 -- Half second intervals
+        
+        if GAME.debug then
+            print("Initialized actionMeter for summoned minion " .. minion.name .. ": " .. minion.actionMeter)
+        end
+    end
+    
     -- Initialize turn tracking for this minion
     if not self.minionsTurnTaken then
         self.minionsTurnTaken = {}

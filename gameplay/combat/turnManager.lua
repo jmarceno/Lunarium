@@ -5,8 +5,8 @@ local statusEffects = require("gameplay/statusEffects")
 local turnManager = {}
 
 -- Constants for the action meter system
-turnManager.MAX_ACTION_METER_TICKS = 20
-turnManager.TICK_INTERVAL = 0.5 -- 500ms
+turnManager.MAX_ACTION_METER_TICKS = 20 -- Used for calculation, but meters now progress smoothly
+turnManager.TICK_INTERVAL = 0.5 -- 500ms - used for target time calculation
 turnManager.INITIAL_RANDOM_RANGE = {1, 5} -- Random ticks to add at start
 
 -- Combat state constants (to avoid circular dependency)
@@ -22,7 +22,6 @@ local COMBAT_STATE = {
 -- Initialize the turn manager for a combat
 function turnManager:init(combat)
     self.combat = combat
-    self.tickTimer = 0
     self.turnQueue = {}
     self.isPlayerTurnActive = false
     self.recentlyActedEntities = {} -- Track entities that recently acted to prevent consecutive turns
@@ -31,9 +30,6 @@ function turnManager:init(combat)
     
     -- Initialize action meters for all entities
     self:initializeActionMeters()
-    
-    -- Start the ticking system
-    self.tickTimer = 0
 end
 
 -- Generate unique ID for an entity to track them
@@ -90,12 +86,14 @@ function turnManager:initializeActionMeters()
             character.speed = character.speed or character.attributes.DEX or 10
             
             -- Set initial action meter value based on ambush status
+            -- Convert from old tick-based system to time-based system
             if self.combat.isAmbush then
                 character.actionMeter = 0 -- Start at 0 if ambushed
             else
                 -- Normal start with random initial value
                 local randomTicks = math.random(self.INITIAL_RANDOM_RANGE[1], self.INITIAL_RANDOM_RANGE[2])
-                character.actionMeter = character.speed + randomTicks
+                -- Convert ticks to time: (speed + randomTicks) * TICK_INTERVAL
+                character.actionMeter = (character.speed + randomTicks) * self.TICK_INTERVAL
             end
         end
     end
@@ -108,7 +106,8 @@ function turnManager:initializeActionMeters()
             
             -- Enemies always get normal random start (even in ambush they get first turn)
             local randomTicks = math.random(self.INITIAL_RANDOM_RANGE[1], self.INITIAL_RANDOM_RANGE[2])
-            enemy.actionMeter = enemy.speed + randomTicks
+            -- Convert ticks to time: (speed + randomTicks) * TICK_INTERVAL
+            enemy.actionMeter = (enemy.speed + randomTicks) * self.TICK_INTERVAL
         end
     end
     
@@ -125,7 +124,8 @@ function turnManager:initializeActionMeters()
                         minion.actionMeter = 0
                     else
                         local randomTicks = math.random(self.INITIAL_RANDOM_RANGE[1], self.INITIAL_RANDOM_RANGE[2])
-                        minion.actionMeter = minion.speed + randomTicks
+                        -- Convert ticks to time: (speed + randomTicks) * TICK_INTERVAL
+                        minion.actionMeter = (minion.speed + randomTicks) * self.TICK_INTERVAL
                     end
                 end
             end
@@ -146,14 +146,8 @@ function turnManager:update(dt)
         self.pendingLastActorClear = false
     end
     
-    -- Update tick timer
-    self.tickTimer = self.tickTimer + dt
-    
-    -- Process action meter ticks
-    if self.tickTimer >= self.TICK_INTERVAL then
-        self:processActionMeterTick()
-        self.tickTimer = self.tickTimer - self.TICK_INTERVAL
-    end
+    -- Process action meter updates (now smooth using delta time)
+    self:processActionMeterUpdate(dt)
     
     -- Process the turn queue if player turn is not active
     if not self.isPlayerTurnActive then
@@ -161,59 +155,80 @@ function turnManager:update(dt)
     end
 end
 
--- Process a single action meter tick
-function turnManager:processActionMeterTick()
-    -- Don't tick if player turn is active (all meters pause)
+-- Process smooth action meter updates using delta time
+function turnManager:processActionMeterUpdate(dt)
+    -- Don't update if player turn is active (all meters pause)
     if self.isPlayerTurnActive then
         return
     end
     
-    -- Tick all entities' action meters
-    self:tickEntityMeters(self.combat.party, "player")
-    self:tickEntityMeters(self.combat.enemies, "enemy")
+    -- Update all entities' action meters smoothly
+    self:updateEntityMeters(self.combat.party, "player", dt)
+    self:updateEntityMeters(self.combat.enemies, "enemy", dt)
     
-    -- Tick minion meters
+    -- Update minion meters
     if self.combat.minions then
         for ownerIndex, minionList in pairs(self.combat.minions) do
             for minionIndex, minion in pairs(minionList) do
                 if minion.active and minion.takesActions then
-                    self:tickSingleEntityMeter(minion, "minion", ownerIndex, minionIndex)
+                    self:updateSingleEntityMeter(minion, "minion", ownerIndex, minionIndex, dt)
                 end
             end
         end
     end
 end
 
--- Tick action meters for a list of entities
-function turnManager:tickEntityMeters(entityList, entityType)
+-- Update action meters for a list of entities
+function turnManager:updateEntityMeters(entityList, entityType, dt)
     for i, entity in ipairs(entityList) do
         if entity.active then
-            self:tickSingleEntityMeter(entity, entityType, i)
+            self:updateSingleEntityMeter(entity, entityType, i, nil, dt)
         end
     end
 end
 
--- Tick a single entity's action meter
-function turnManager:tickSingleEntityMeter(entity, entityType, index, minionIndex)
+-- Update a single entity's action meter smoothly
+function turnManager:updateSingleEntityMeter(entity, entityType, index, minionIndex, dt)
+    -- Initialize actionMeter if it doesn't exist (for newly summoned minions)
+    if not entity.actionMeter then
+        -- Initialize based on speed for balanced start
+        local speed = entity.speed or 10
+        entity.actionMeter = math.random(1, 5) + speed
+        entity.actionMeter = entity.actionMeter * self.TICK_INTERVAL -- Convert to time units
+        
+        if GAME and GAME.debug then
+            print("Initialized actionMeter for " .. (entity.name or "entity") .. ": " .. entity.actionMeter)
+        end
+    end
+    
     -- Skip if entity is casting an ability with castingTime > 1
     if self:isEntityCasting(entity) then
         return
     end
     
     -- Check for status effects that modify action meter
-    local canTick = self:canEntityActionMeterTick(entity)
-    if not canTick then
+    local canUpdate = self:canEntityActionMeterTick(entity)
+    if not canUpdate then
         return
     end
     
-    -- Increment action meter
-    entity.actionMeter = entity.actionMeter + 1
+    -- Calculate the update rate based on speed
+    local speedMultiplier = statusEffects:getMultiplier(entity, "speed_multiplier")
+    local effectiveSpeed = (entity.speed or 10) * speedMultiplier
     
-    -- Calculate target ticks needed
-    local targetTicks = self:getTargetTicksForEntity(entity)
+    -- Calculate update rate: faster entities update their meters faster
+    -- Base rate: 1 time unit per second, modified by effective speed
+    local updateRate = 1.0 + (effectiveSpeed - 10) * 0.1 -- Every 10 speed adds 0.1 to the rate
+    updateRate = math.max(0.1, updateRate) -- Ensure minimum progress rate
+    
+    -- Update action meter smoothly
+    entity.actionMeter = entity.actionMeter + (updateRate * dt)
+    
+    -- Calculate target time needed
+    local targetTime = self:getTargetTimeForEntity(entity)
     
     -- Check if entity is ready for a turn
-    if entity.actionMeter >= targetTicks then
+    if entity.actionMeter >= targetTime then
         self:addToTurnQueue(entity, entityType, index, minionIndex)
     end
 end
@@ -231,19 +246,27 @@ function turnManager:canEntityActionMeterTick(entity)
     return true
 end
 
--- Calculate target ticks needed for an entity
-function turnManager:getTargetTicksForEntity(entity)
+-- Calculate target time needed for an entity (converted from old tick system)
+function turnManager:getTargetTimeForEntity(entity)
     local baseSpeed = entity.speed or 10
     
     -- Apply speed modifiers from status effects
     local speedMultiplier = statusEffects:getMultiplier(entity, "speed_multiplier")
     local effectiveSpeed = baseSpeed * speedMultiplier
     
-    -- Calculate target ticks (can be negative for very slow entities)
-    local targetTicks = self.MAX_ACTION_METER_TICKS - effectiveSpeed
+    -- Calculate target time based on old tick system
+    -- Old: targetTicks = MAX_ACTION_METER_TICKS - effectiveSpeed, minimum 1 tick
+    -- New: targetTime = targetTicks * TICK_INTERVAL
+    local targetTicks = math.max(1, self.MAX_ACTION_METER_TICKS - effectiveSpeed)
+    local targetTime = targetTicks * self.TICK_INTERVAL
     
-    -- Ensure minimum of 1 tick is always required
-    return math.max(1, targetTicks)
+    return targetTime
+end
+
+-- Calculate target ticks needed for an entity (for backwards compatibility)
+function turnManager:getTargetTicksForEntity(entity)
+    local targetTime = self:getTargetTimeForEntity(entity)
+    return targetTime / self.TICK_INTERVAL
 end
 
 -- Check if an entity is casting (for abilities with castingTime > 1)
@@ -377,6 +400,9 @@ function turnManager:executePlayerTurn(entry)
     self.combat.selectedSkill = nil
     self.combat.selectedItem = nil
     
+    -- Reset action in progress flag to prevent exploitation
+    self.combat.actionInProgress = false
+    
     -- Hide any selection lists that might be visible
     self.combat:hideSelectionLists()
     
@@ -418,8 +444,11 @@ function turnManager:executeMinionTurn(entry)
     -- Reset action meter after turn
     entry.entity.actionMeter = 0
     
-    -- Set up minion turn context
-    self.combat.activeMinion = entry.entity
+    -- Set up minion turn context with proper structure
+    self.combat.activeMinion = {
+        charIndex = entry.index,
+        minionIndex = entry.minionIndex
+    }
     self.combat:executeMinionTurn()
     
     -- Add animation delay to let the action complete before next turn
@@ -462,8 +491,8 @@ function turnManager:getActionMeterProgress(entity)
         return 0
     end
     
-    local targetTicks = self:getTargetTicksForEntity(entity)
-    return math.min(entity.actionMeter / targetTicks, 1.0)
+    local targetTime = self:getTargetTimeForEntity(entity)
+    return math.min(entity.actionMeter / targetTime, 1.0)
 end
 
 -- Check if an entity is ready to act (in turn queue)

@@ -165,6 +165,11 @@ local function update(self, dt)
                 return
             end
             
+            -- Reset action in progress flag for player turns
+            if self.state == combatSystem.STATE.PLAYER_TURN then
+                self.actionInProgress = false
+            end
+            
             -- If this was a player turn that just ended, notify the turn manager
             if self.state == combatSystem.STATE.PLAYER_TURN and self.turnManager then
                 self.turnManager:playerTurnCompleted()

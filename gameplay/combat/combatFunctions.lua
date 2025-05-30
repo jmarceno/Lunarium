@@ -38,6 +38,10 @@ end
 
 -- Handle player selecting an action
 local function selectAction(self, action)
+    -- Prevent multiple actions by immediately hiding buttons
+    self:hideActionButtons()
+    
+    -- Set selected action
     self.selectedAction = action
     
     -- Hide all lists

@@ -603,7 +603,7 @@ local function drawActionMeterBars(self)
     love.graphics.setColor(1, 1, 1)
     local titleText = "Action Meters"
     if anyPaused then
-        titleText = "Action Meters (PAUSED)"
+        titleText = "Action Meters"
     end
     love.graphics.print(titleText, queueX + 10, queueY + 5)
     
@@ -652,7 +652,7 @@ local function drawActionMeterBars(self)
         else
             statusText = string.format("%.1f%%", status.progress * 100)
         end
-        love.graphics.print(statusText, queueX + queueWidth - 50, itemY + 16)
+        love.graphics.print(statusText, queueX + queueWidth - 50, itemY)
     end
 end
 

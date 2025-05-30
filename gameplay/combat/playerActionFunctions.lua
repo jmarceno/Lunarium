@@ -11,6 +11,21 @@ local function executePlayerAction(self)
     local currentChar = self.party[self.currentCharacter]
     if not currentChar then return end
     
+    -- Prevent duplicate execution
+    if self.actionInProgress then
+        if GAME.debug then
+            print("Action already in progress, ignoring duplicate execution")
+        end
+        return
+    end
+    
+    -- Mark action as in progress
+    self.actionInProgress = true
+    
+    -- Immediately hide all action buttons to prevent exploitation
+    self:hideActionButtons()
+    self:hideSelectionLists()
+    
     -- Execute attack
     if self.selectedAction == "attack" then
         -- Ensure character has attack power
@@ -95,7 +110,7 @@ local function executePlayerAction(self)
     self.selectedAction = nil
     self.selectedTarget = nil
     
-    -- Hide all UI elements
+    -- Hide all UI elements (redundant but safe)
     self:hideActionButtons()
     self:hideSelectionLists()
     if self.elements.confirmButton then self.elements.confirmButton.visible = false end
@@ -120,6 +135,22 @@ local function executeSkill(self, caster, skill, target, fromQueue)
                   selectedSkill and "Skill OK" or "No skill")
         end
         return 
+    end
+    
+    -- Prevent duplicate execution (but only for player-initiated skills, not queue executions)
+    if not fromQueue and self.actionInProgress then
+        if GAME.debug then
+            print("Skill action already in progress, ignoring duplicate execution")
+        end
+        return
+    end
+    
+    -- Mark action as in progress (but only for player-initiated skills)
+    if not fromQueue then
+        self.actionInProgress = true
+        -- Immediately hide all action buttons to prevent exploitation
+        self:hideActionButtons()
+        self:hideSelectionLists()
     end
     
     -- Log skill execution for debugging
@@ -578,18 +609,21 @@ local function executeStealSkill(self, character)
     -- Play effect sound
     assetManager:playSound("spell")
     
+    -- Get the Steal skill definition from the skill system
+    local stealSkill = skillSystem:getSkill("Steal")
+    
     -- Calculate steal chance based on character level and enemy level
     local effect = nil
     if character.skills and character.skills.Steal then
         effect = skillSystem:calculateSkillEffect(
-            selectedSkill, 
+            stealSkill, 
             character, 
             self.enemy, 
             character.skills.Steal.level
         )
     else
         effect = skillSystem:calculateSkillEffect(
-            selectedSkill, 
+            stealSkill, 
             character, 
             self.enemy, 
             1
@@ -857,6 +891,21 @@ local function executeItemUse(self)
     local currentChar = self.party[self.currentCharacter]
     if not currentChar or not self.selectedItem then return end
     
+    -- Prevent duplicate execution
+    if self.actionInProgress then
+        if GAME.debug then
+            print("Item action already in progress, ignoring duplicate execution")
+        end
+        return
+    end
+    
+    -- Mark action as in progress
+    self.actionInProgress = true
+    
+    -- Immediately hide all action buttons to prevent exploitation
+    self:hideActionButtons()
+    self:hideSelectionLists()
+    
     -- Make sure we have a valid target
     if not self.selectedTarget then
         self:addLog("No target selected for item use.", {1, 0.5, 0})
@@ -922,6 +971,21 @@ local function executeDefend(self)
     local currentChar = self.party[self.currentCharacter]
     if not currentChar then return end
     
+    -- Prevent duplicate execution
+    if self.actionInProgress then
+        if GAME.debug then
+            print("Defend action already in progress, ignoring duplicate execution")
+        end
+        return
+    end
+    
+    -- Mark action as in progress
+    self.actionInProgress = true
+    
+    -- Immediately hide all action buttons to prevent exploitation
+    self:hideActionButtons()
+    self:hideSelectionLists()
+    
     -- Apply defense buff
     currentChar.status.defending = {
         value = 2.0,  -- Double defense
@@ -935,7 +999,7 @@ local function executeDefend(self)
     self.selectedAction = nil
     self.selectedTarget = nil
     
-    -- Hide all UI elements
+    -- Hide all UI elements (redundant but safe)
     self:hideActionButtons()
     self:hideSelectionLists()
     
