@@ -23,6 +23,31 @@
 
 The migration will be performed incrementally, focusing on one screen or system at a time to minimize disruption and allow for easier testing and debugging. We will start by integrating LUIS core functionalities, then migrate shared UI components, followed by individual screens, and finally tackle the complex combat UI. Event handling will be transitioned from `main.lua` to LUIS's system as part of each screen's migration. Unused code will be removed at each step. Comprehensive documentation will be created in `docs/ui_system_documentation.md`.
 
+### IMPORTANT TECHICAL NOTES - This notes have priority over any other instruction you receive
+- **Adding Widgets** - Every widget needs to have col and row information. No matter what other docs say, you should always have it. ALL widgets, if they are create in a different statement from the one that add them, should be added with `insertElement` and not with `createElement`, `createElement` is only used if the creation is in the same statement. See code below:
+  
+   ```lua
+   -- You can create and add a new Widget to a Layer
+   luis.createElement("main", "CustomButtonWidget", 100, 200, 100, 50, "Click me 1!", function() print("Button clicked!") end)
+
+   -- Or you can first create the widget (not usable or visible)
+   local button_widget = luis.newCustomButtonWidget(200, 200, 100, 50, "Click me 2!", function() print("Button clicked!") end)
+   
+   -- And then add it to a layer to make it work
+   luis.insertElement("main", button_widget)
+   
+   -- When using flexContainer you need to use addChild:
+   -- Create a FlexContainer
+   local container = luis.newFlexContainer(21, 11, 37, 38)
+   local button_widget = luis.newButton(200, 200, 100, 50, "Click me 2!", function() print("Button clicked!") end)
+   container:addChild(button_widget)
+   ```
+ 
+- **How to use the code** - Always check the samples at `luis_samples\samples` for how to use the code, never infer anything.
+- **Layout** - Always use a flexbox and grid layout, we need this to be resolution indenpendent so user can freely resize the window
+- **Legacy code** - Any old code path responsible for UI should be eliminated when we add the new LUIS based one and we should have no fallback code.
+- **Visibility Handling** - Visibility Handling is critical, for layers, so take care to always hide layers when they get out of context and show when they enter in context.
+
 ## Phase 1: Core LUIS Integration and Setup
 
 ### Step 1.1: Initialize LUIS in `main.lua`
