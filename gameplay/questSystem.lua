@@ -644,6 +644,72 @@ function questSystem:failQuest(questId)
     return failedQuest
 end
 
+-- Abandon a quest
+function questSystem:abandonQuest(questId)
+    -- Find quest
+    local abandonedQuest = nil
+    
+    if GAME.activeQuests then
+        for i, quest in ipairs(GAME.activeQuests) do
+            if quest.id == questId and quest.status == self.STATUS.ACTIVE then
+                -- Reset quest to original state
+                quest.status = self.STATUS.AVAILABLE
+                abandonedQuest = quest
+                
+                -- Reset quest progress
+                if quest.objective then
+                    if quest.objective.current then
+                        quest.objective.current = 0
+                    end
+                    if quest.objective.completed then
+                        quest.objective.completed = false
+                    end
+                    if quest.objective.failed then
+                        quest.objective.failed = false
+                    end
+                end
+                
+                -- Remove from active quests
+                table.remove(GAME.activeQuests, i)
+                
+                break
+            end
+        end
+    end
+    
+    -- Check main quest list and reset to available
+    for _, quest in ipairs(self.quests) do
+        if quest.id == questId then
+            quest.status = self.STATUS.AVAILABLE
+            
+            -- Reset quest progress in main list too
+            if quest.objective then
+                if quest.objective.current then
+                    quest.objective.current = 0
+                end
+                if quest.objective.completed then
+                    quest.objective.completed = false
+                end
+                if quest.objective.failed then
+                    quest.objective.failed = false
+                end
+            end
+            break
+        end
+    end
+    
+    -- Apply reputation penalty (5 reputation loss regardless of quest giver)
+    if abandonedQuest then
+        -- Initialize reputation system
+        reputationSystem:init()
+        
+        -- Apply -5 reputation penalty to the quest giver faction
+        reputationSystem:changeReputation(abandonedQuest.giver, -5)
+    end
+    
+    return abandonedQuest
+end
+
 -- Update quest progress
 function questSystem:updateProgress(event, data)
     if not GAME.activeQuests then return {} end

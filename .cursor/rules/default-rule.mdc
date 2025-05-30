@@ -9,5 +9,6 @@ When adding new UI elements that need callbacks, do not forget to check if the m
 Remember that if you are using a function/value from another file/module, you need to import it using thre require statement
 Remember that you are using Lua, a language that do not have types and can have nil values, if you are not sure a value has been initialized, check for nil before using it in any operation
 Do not try to run any script/program inside the project if you were not explicitly asked to
+You should always try your best to support Mouse and Keyboard on any feature you implement
 
 Do not commit code unless you were specifically asked to

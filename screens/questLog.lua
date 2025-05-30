@@ -15,6 +15,7 @@ function questLog:init()
     self.maxQuestScroll = 0
     self.selectedQuestIndex = 1
     self.questsPerView = 8
+    self.showConfirmDialog = false -- Add confirmation dialog state
     
     -- Create UI elements
     self:createUI()
@@ -397,6 +398,80 @@ function questLog:createUI()
     )
     self.elements.backToGameButton.visible = true
     
+    -- Create abandon quest button (positioned below quest details panel)
+    self.elements.abandonQuestButton = screenManager.UI.Button(
+        590 + 560/2 - 75, 540, -- Center horizontally below quest details panel
+        150, 40, "Abandon Quest", 
+        function() self:showAbandonConfirmation() end
+    )
+    self.elements.abandonQuestButton.visible = false -- Only visible for active quests
+    self.elements.abandonQuestButton.colors = {
+        normal = {0.8, 0.3, 0.3},
+        hover = {0.9, 0.4, 0.4},
+        press = {0.7, 0.2, 0.2}
+    }
+    
+    -- Create confirmation dialog elements
+    self.elements.confirmDialog = {
+        x = GAME.width/2 - 250,
+        y = GAME.height/2 - 100,
+        width = 500,
+        height = 200,
+        visible = false,
+        
+        draw = function(self)
+            if not self.visible then return end
+            
+            -- Draw dialog background
+            love.graphics.setColor(0.1, 0.1, 0.1, 0.8)
+            love.graphics.rectangle("fill", 0, 0, GAME.width, GAME.height) -- Overlay
+            
+            love.graphics.setColor(0.2, 0.2, 0.3)
+            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 10, 10)
+            
+            love.graphics.setColor(0.8, 0.8, 1)
+            love.graphics.rectangle("line", self.x, self.y, self.width, self.height, 10, 10)
+            
+            -- Draw dialog title
+            love.graphics.setFont(screenManager.fonts.large)
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.printf("Abandon Quest?", self.x + 20, self.y + 20, self.width - 40, "center")
+            
+            -- Draw dialog text
+            love.graphics.setFont(screenManager.fonts.medium)
+            love.graphics.setColor(0.9, 0.9, 0.9)
+            love.graphics.printf(
+                "Are you sure you want to abandon this quest?\n\nYou will lose 5 reputation with the quest giver,\nbut the quest will be available to take again.",
+                self.x + 30, self.y + 60, self.width - 60, "center"
+            )
+        end
+    }
+    
+    -- Create confirmation dialog buttons
+    self.elements.confirmYesButton = screenManager.UI.Button(
+        GAME.width/2 - 120, GAME.height/2 + 50,
+        100, 35, "Yes", 
+        function() self:confirmAbandon() end
+    )
+    self.elements.confirmYesButton.visible = false
+    self.elements.confirmYesButton.colors = {
+        normal = {0.8, 0.3, 0.3},
+        hover = {0.9, 0.4, 0.4},
+        press = {0.7, 0.2, 0.2}
+    }
+    
+    self.elements.confirmNoButton = screenManager.UI.Button(
+        GAME.width/2 + 20, GAME.height/2 + 50,
+        100, 35, "No", 
+        function() self:cancelAbandon() end
+    )
+    self.elements.confirmNoButton.visible = false
+    self.elements.confirmNoButton.colors = {
+        normal = {0.3, 0.6, 0.3},
+        hover = {0.4, 0.7, 0.4},
+        press = {0.2, 0.5, 0.2}
+    }
+    
     -- Set initial visibility state
     self:updateElementVisibility()
 end
@@ -448,6 +523,9 @@ function questLog:updateElementVisibility()
             press = {0.1, 0.1, 0.2}
         }
         self.elements.completedButton.drawCustom = nil
+        
+        -- Show abandon quest button only if a quest is selected
+        self.elements.abandonQuestButton.visible = (self.selectedQuest ~= nil)
     else
         -- Update completed button appearance with stronger visual cue
         self.elements.completedButton.colors = {
@@ -493,6 +571,9 @@ function questLog:updateElementVisibility()
             press = {0.1, 0.1, 0.2}
         }
         self.elements.activeButton.drawCustom = nil
+        
+        -- Hide abandon quest button when viewing completed quests
+        self.elements.abandonQuestButton.visible = false
     end
     
     if GAME.debug then
@@ -506,6 +587,14 @@ function questLog:enter()
     self.selectedQuest = nil
     self.questScroll = 0
     self.selectedQuestIndex = 1
+    self.showConfirmDialog = false
+    
+    -- Hide confirmation dialog elements
+    if self.elements.confirmDialog then
+        self.elements.confirmDialog.visible = false
+        self.elements.confirmYesButton.visible = false
+        self.elements.confirmNoButton.visible = false
+    end
     
     -- Update element visibility
     self:updateElementVisibility()
@@ -535,7 +624,11 @@ function questLog:draw()
         "questDetailsPanel",
         "activeButton",        -- Draw buttons on top of panels
         "completedButton",
-        "backToGameButton"
+        "abandonQuestButton",  -- Add abandon quest button
+        "backToGameButton",
+        "confirmDialog",       -- Draw confirmation dialog on top
+        "confirmYesButton",
+        "confirmNoButton"
     }
     
     -- Draw UI elements in specific order
@@ -566,8 +659,19 @@ function questLog:draw()
     -- Draw navigation help text
     love.graphics.setFont(screenManager.fonts.small)
     love.graphics.setColor(0.7, 0.7, 0.7)
-    love.graphics.print("Use W/S or arrow keys to navigate quests", 50, GAME.height - 60)
-    love.graphics.print("Use A/D to switch categories", 50, GAME.height - 40)
+    
+    if self.showConfirmDialog then
+        -- Show dialog-specific controls
+        love.graphics.print("Press Y to confirm abandon or N/ESC to cancel", 50, GAME.height - 60)
+    else
+        -- Show normal navigation controls
+        love.graphics.print("Use W/S or arrow keys to navigate quests", 50, GAME.height - 60)
+        love.graphics.print("Use A/D to switch categories", 50, GAME.height - 40)
+        
+        if self.category == "active" and self.selectedQuest then
+            love.graphics.print("Press X to abandon selected quest", 50, GAME.height - 20)
+        end
+    end
 end
 
 -- Helper function to check if a table contains a value
@@ -627,6 +731,21 @@ function questLog:wheelmoved(x, y)
 end
 
 function questLog:keypressed(key, scancode, isrepeat)
+    -- Handle confirmation dialog first
+    if self.showConfirmDialog then
+        if key == "y" or key == "return" then
+            -- Confirm abandon
+            self:confirmAbandon()
+            return true
+        elseif key == "n" or key == "escape" then
+            -- Cancel abandon
+            self:cancelAbandon()
+            return true
+        end
+        -- Block other inputs while dialog is open
+        return true
+    end
+    
     -- Get quests for current category
     local quests = {}
     if self.category == "active" then
@@ -703,6 +822,13 @@ function questLog:keypressed(key, scancode, isrepeat)
         end
         return true
         
+    elseif key == "x" then
+        -- Quick abandon quest shortcut (only for active quests with selection)
+        if self.category == "active" and self.selectedQuest then
+            self:showAbandonConfirmation()
+        end
+        return true
+        
     elseif key == "escape" then
         -- Return to game
         self:returnToGame()
@@ -753,9 +879,68 @@ function questLog:selectQuest(quest)
     -- Select quest
     self.selectedQuest = quest
     
+    -- Update element visibility when quest selection changes
+    self:updateElementVisibility()
+    
     if GAME.debug then
         print("Selected quest: " .. quest.name)
     end
+end
+
+function questLog:showAbandonConfirmation()
+    if not self.selectedQuest then
+        return
+    end
+    
+    -- Show confirmation dialog
+    self.showConfirmDialog = true
+    self.elements.confirmDialog.visible = true
+    self.elements.confirmYesButton.visible = true
+    self.elements.confirmNoButton.visible = true
+    
+    -- Play sound
+    assetManager:playSound("click")
+end
+
+function questLog:confirmAbandon()
+    if not self.selectedQuest then
+        return
+    end
+    
+    -- Abandon the quest
+    local abandonedQuest = questSystem:abandonQuest(self.selectedQuest.id)
+    
+    if abandonedQuest then
+        -- Play success sound
+        assetManager:playSound("pickup")
+        
+        -- Clear selection
+        self.selectedQuest = nil
+        
+        -- Hide confirmation dialog
+        self:cancelAbandon()
+        
+        -- Update element visibility
+        self:updateElementVisibility()
+        
+        if GAME.debug then
+            print("Quest abandoned: " .. abandonedQuest.name)
+        end
+    else
+        -- Play error sound
+        assetManager:playSound("hit")
+    end
+end
+
+function questLog:cancelAbandon()
+    -- Hide confirmation dialog
+    self.showConfirmDialog = false
+    self.elements.confirmDialog.visible = false
+    self.elements.confirmYesButton.visible = false
+    self.elements.confirmNoButton.visible = false
+    
+    -- Play sound
+    assetManager:playSound("click")
 end
 
 function questLog:returnToGame()
