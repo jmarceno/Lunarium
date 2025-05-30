@@ -1,10 +1,14 @@
--- Tavern Screen
--- Where players can accept quests and haggle for better rewards
+-- Tavern Screen (LUIS)
+-- Where players can chat, gather information, and buy drinks
 local screenManager = require("screens/screenManager")
 local assetManager = require("assets/assetManager")
 local questSystem = require("gameplay/questSystem")
 local reputationSystem = require("gameplay/reputationSystem")
-local partyPanel = require("screens/ui_slices/partyPanel")
+local partyPanelLuis = require("ui_elements/partyPanelLuis")
+
+-- Get LUIS instance
+local initLuis = require("luis.init")
+local luis = initLuis("luis/widgets")
 
 local tavern = screenManager:createScreen("Tavern")
 
@@ -23,8 +27,16 @@ function tavern:init()
     -- Load background image directly using love.graphics
     self.backgroundImage = love.graphics.newImage("assets/TavernScreen.png")
     
+    -- Create LUIS layers
+    luis.newLayer("tavernLayer")
+    luis.newLayer("confirmationLayer")
+    
     -- Create UI elements
     self:createUI()
+    
+    -- Setup party panel
+    self.partyPanel = partyPanelLuis:create()
+    luis.insertElement("tavernLayer", self.partyPanel.container)
 end
 
 function tavern:createUI()
@@ -566,7 +578,7 @@ function tavern:createUI()
     self:updateElementVisibility()
     
     -- Initialize party panel
-    self.elements.partyPanel = partyPanel
+    self.elements.partyPanel = partyPanelLuis
     self.elements.partyPanel.visible = true
 end
 
@@ -615,6 +627,9 @@ function tavern:updateElementVisibility()
 end
 
 function tavern:enter()
+    -- Enable tavern layer
+    luis.enableLayer("tavernLayer")
+    
     -- Start playing tavern music
     -- assetManager:playMusic("town") -- Use town music for now
     
@@ -634,11 +649,27 @@ function tavern:enter()
     self.haggleAttempts = 0
     self.haggleSuccess = false
     
+    -- Update party panel with current party data
+    if GAME and GAME.party then
+        self.partyPanel:update(GAME.party, false) -- false = not in combat
+    end
+    
     -- Update element visibility
     self:updateElementVisibility()
 end
 
+function tavern:exit()
+    -- Disable tavern layer
+    luis.disableLayer("tavernLayer")
+    luis.disableLayer("confirmationLayer")
+end
+
 function tavern:update(dt)
+    -- Update party panel
+    if self.partyPanel and GAME and GAME.party then
+        self.partyPanel:update(GAME.party, false)
+    end
+    
     -- Update refresh timer
     self.refreshTimer = self.refreshTimer + dt
     

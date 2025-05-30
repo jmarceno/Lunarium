@@ -1,9 +1,13 @@
--- Shop Screen
--- Where players can buy items and equipment
+-- Shop Screen (LUIS)
+-- Where players can buy items from merchants
 local screenManager = require("screens/screenManager")
 local assetManager = require("assets/assetManager")
 local itemSystem = require("gameplay/item")
-local partyPanel = require("screens/ui_slices/partyPanel")
+local partyPanelLuis = require("ui_elements/partyPanelLuis")
+
+-- Get LUIS instance
+local initLuis = require("luis.init")
+local luis = initLuis("luis/widgets")
 
 local shop = screenManager:createScreen("Shop")
 
@@ -28,8 +32,16 @@ function shop:init()
         "Consumables"
     }
     
+    -- Create LUIS layers
+    luis.newLayer("shopLayer")
+    luis.newLayer("confirmationLayer")
+    
     -- Create UI elements
     self:createUI()
+    
+    -- Setup party panel
+    self.partyPanel = partyPanelLuis:create()
+    luis.insertElement("shopLayer", self.partyPanel.container)
 end
 
 function shop:createUI()
@@ -509,7 +521,7 @@ function shop:createUI()
     self:updateElementVisibility()
     
     -- Initialize party panel
-    self.elements.partyPanel = partyPanel
+    self.elements.partyPanel = partyPanelLuis
     self.elements.partyPanel.visible = true
 end
 
@@ -541,6 +553,9 @@ function shop:updateElementVisibility()
 end
 
 function shop:enter()
+    -- Enable shop layer
+    luis.enableLayer("shopLayer")
+    
     -- Start playing shop music
     -- assetManager:playMusic("town") -- Use town music for now
     
@@ -559,8 +574,26 @@ function shop:enter()
     self.selectedCategory = "All"
     self.pageOffset = 0
     
+    -- Update party panel with current party data
+    if GAME and GAME.party then
+        self.partyPanel:update(GAME.party, false) -- false = not in combat
+    end
+    
     -- Update element visibility
     self:updateElementVisibility()
+end
+
+function shop:exit()
+    -- Disable shop layer
+    luis.disableLayer("shopLayer")
+    luis.disableLayer("confirmationLayer")
+end
+
+function shop:update(dt)
+    -- Update party panel
+    if self.partyPanel and GAME and GAME.party then
+        self.partyPanel:update(GAME.party, false)
+    end
 end
 
 function shop:draw()

@@ -1,10 +1,14 @@
--- Inn Screen
+-- Inn Screen (LUIS)
 -- Handles UI for inn mechanics including rest, food, and drinks
 local screenManager = require("screens/screenManager")
 local assetManager = require("assets/assetManager")
 local innSystem = require("gameplay/innSystem")
 local reputationSystem = require("gameplay/reputationSystem")
-local partyPanel = require("screens/ui_slices/partyPanel")
+local partyPanelLuis = require("ui_elements/partyPanelLuis")
+
+-- Get LUIS instance
+local initLuis = require("luis.init")
+local luis = initLuis("luis/widgets")
 
 local inn = screenManager:createScreen("Inn")
 
@@ -24,629 +28,165 @@ function inn:init()
     -- Load background image directly using love.graphics
     self.backgroundImage = love.graphics.newImage("assets/InnScreen.png")
     
+    -- Create LUIS layers
+    luis.newLayer("innLayer")
+    luis.newLayer("confirmationLayer")
+    
     -- Create UI elements
     self:createUI()
+    
+    -- Setup party panel
+    self.partyPanel = partyPanelLuis:create()
+    luis.insertElement("innLayer", self.partyPanel.container)
 end
 
 function inn:createUI()
-    -- Main section elements
-    self.elements.mainPanel = {
-        visible = true,
-        draw = function()
-            -- Draw background
-            love.graphics.setColor(0.1, 0.1, 0.15, 0.7)
-            love.graphics.rectangle("fill", 100, 50, GAME.width - 200, GAME.height - 200, 10, 10)
-            
-            -- Draw inn title
-            love.graphics.setFont(screenManager.fonts.large)
-            love.graphics.setColor(1, 0.9, 0.7)
-            love.graphics.printf("The Adventurer's Inn", 100, 70, GAME.width - 200, "center")
-            
-            -- Draw innkeeper message
-            love.graphics.setFont(screenManager.fonts.medium)
-            love.graphics.setColor(0.9, 0.9, 1)
-            love.graphics.printf("Welcome to our humble establishment. How may I serve you today?", 150, 130, GAME.width - 300, "center")
-            
-            -- Draw character status
-            if GAME.party and GAME.party[1] then
-                local character = GAME.party[1]
-                love.graphics.setFont(screenManager.fonts.small)
-                love.graphics.setColor(0.8, 0.8, 0.8)
-                love.graphics.print("Name: " .. character.name, 150, 200)
-                love.graphics.print("Level: " .. (character.jobLevels[character.job] or 1), 150, 225)
-                love.graphics.print("Job: " .. character.job, 150, 250)
-                
-                -- Draw HP/MP
-                love.graphics.print("HP: " .. character.currentHP .. "/" .. character.maxHP, 150, 275)
-                love.graphics.print("MP: " .. character.currentMP .. "/" .. character.maxMP, 150, 300)
-                
-                -- Draw gold
-                love.graphics.setColor(1, 0.8, 0.2)
-                love.graphics.print("Gold: " .. (GAME.gold or 0), 150, 335)
-                
-                -- Draw tavern reputation
-                local tavernRepLevel = reputationSystem:getReputationLevel(reputationSystem.factions.TAVERN)
-                local repName = reputationSystem:getReputationLevelName(tavernRepLevel)
-                love.graphics.setColor(0.8, 0.9, 1)
-                love.graphics.print("Tavern Reputation: " .. repName, 150, 360)
-            end
-        end
+    -- Main container (covers most of the screen)
+    local mainContainer = luis.createElement("innLayer", "FlexContainer", 32, 16, 4, 2, nil, "InnMain")
+    
+    -- Navigation buttons (top section)
+    local navContainer = luis.newFlexContainer(32, 3, 1, 1, nil, "Navigation")
+    
+    local mainButton = luis.newButton("Welcome", 6, 2, function() self:showSection("main") end, nil, 1, 1)
+    local roomsButton = luis.newButton("Rooms", 6, 2, function() self:showSection("rooms") end, nil, 1, 1)
+    local foodButton = luis.newButton("Food", 6, 2, function() self:showSection("food") end, nil, 1, 1)
+    local drinksButton = luis.newButton("Drinks", 6, 2, function() self:showSection("drinks") end, nil, 1, 1)
+    local backButton = luis.newButton("Leave Inn", 8, 2, function() self:leaveInn() end, nil, 1, 1)
+    
+    navContainer:addChild(mainButton)
+    navContainer:addChild(roomsButton)
+    navContainer:addChild(foodButton)
+    navContainer:addChild(drinksButton)
+    navContainer:addChild(backButton)
+    
+    mainContainer:addChild(navContainer)
+    
+    -- Content area container
+    self.contentContainer = luis.newFlexContainer(32, 12, 1, 1, nil, "Content")
+    mainContainer:addChild(self.contentContainer)
+    
+    -- Store navigation buttons for highlighting
+    self.navigationButtons = {
+        main = mainButton,
+        rooms = roomsButton,
+        food = foodButton,
+        drinks = drinksButton,
+        back = backButton
     }
     
-    -- Create room section panel
-    self.elements.roomsPanel = {
-        visible = false,
-        draw = function()
-            -- Draw background
-            love.graphics.setColor(0.1, 0.1, 0.15, 0.7)
-            love.graphics.rectangle("fill", 100, 50, GAME.width - 200, GAME.height - 200, 10, 10)
-            
-            -- Draw title
-            love.graphics.setFont(screenManager.fonts.large)
-            love.graphics.setColor(1, 0.9, 0.7)
-            love.graphics.printf("Inn Rooms", 100, 70, GAME.width - 200, "center")
-            
-            -- Draw room options
-            local rooms = innSystem:getAvailableRoomTypes()
-            
-            for i, room in ipairs(rooms) do
-                local y = 130 + (i-1) * 90
-                
-                -- Background for selection
-                if i == self.selectedRoomIndex then
-                    love.graphics.setColor(0.3, 0.3, 0.4, 0.7)
-                    love.graphics.rectangle("fill", 150, y, GAME.width - 300, 80, 5, 5)
-                end
-                
-                -- Room name
-                love.graphics.setFont(screenManager.fonts.medium)
-                love.graphics.setColor(1, 1, 1)
-                love.graphics.print(room.name, 170, y + 10)
-                
-                -- Room cost
-                love.graphics.setFont(screenManager.fonts.small)
-                if room.discounted then
-                    love.graphics.setColor(0.2, 1, 0.2)
-                    love.graphics.print("Cost: " .. room.cost .. " gold (discounted)", 170, y + 40)
-                else
-                    love.graphics.setColor(1, 0.8, 0.2)
-                    love.graphics.print("Cost: " .. room.cost .. " gold", 170, y + 40)
-                end
-                
-                -- Room description
-                love.graphics.setColor(0.8, 0.8, 1)
-                love.graphics.printf(room.description, 350, y + 10, GAME.width - 500, "left")
-                
-                -- Recovery values
-                love.graphics.setColor(0.7, 0.9, 0.7)
-                local recoveryText = "Recovery: "
-                if room.hpRecovery > 0 then
-                    recoveryText = recoveryText .. math.floor(room.hpRecovery * 100) .. "% HP, "
-                end
-                if room.mpRecovery > 0 then
-                    recoveryText = recoveryText .. math.floor(room.mpRecovery * 100) .. "% MP"
-                end
-                love.graphics.print(recoveryText, 350, y + 40)
-                
-                -- Status effect removal
-                if room.statusEffectRemoval then
-                    love.graphics.setColor(0.7, 0.7, 1)
-                    love.graphics.print("Removes status effects", 550, y + 40)
-                end
-            end
-        end,
-        
-        clicked = function(x, y, button)
-            if button == 1 then
-                -- Check if clicking on a room
-                local rooms = innSystem:getAvailableRoomTypes()
-                
-                for i, _ in ipairs(rooms) do
-                    local roomY = 130 + (i-1) * 90
-                    
-                    if x >= 150 and x <= GAME.width - 150 and
-                       y >= roomY and y <= roomY + 80 then
-                        self.selectedRoomIndex = i
-                        return true
-                    end
-                end
-            end
-            
-            return false
-        end
-    }
+    -- Create different section UIs
+    self:createMainSectionUI()
+    self:createRoomsSectionUI()
+    self:createFoodSectionUI()
+    self:createDrinksSectionUI()
     
-    -- Create food section panel
-    self.elements.foodPanel = {
-        visible = false,
-        draw = function()
-            -- Draw background
-            love.graphics.setColor(0.1, 0.1, 0.15, 0.7)
-            love.graphics.rectangle("fill", 100, 50, GAME.width - 200, GAME.height - 200, 10, 10)
-            
-            -- Draw title
-            love.graphics.setFont(screenManager.fonts.large)
-            love.graphics.setColor(1, 0.9, 0.7)
-            love.graphics.printf("Inn Food", 100, 70, GAME.width - 200, "center")
-            
-            -- Draw food options
-            local foods = innSystem.foodItems
-            
-            for i, food in ipairs(foods) do
-                local y = 130 + (i-1) * 90
-                
-                -- Background for selection
-                if i == self.selectedFoodIndex then
-                    love.graphics.setColor(0.3, 0.3, 0.4, 0.7)
-                    love.graphics.rectangle("fill", 150, y, GAME.width - 300, 80, 5, 5)
-                end
-                
-                -- Food name
-                love.graphics.setFont(screenManager.fonts.medium)
-                love.graphics.setColor(1, 1, 1)
-                love.graphics.print(food.name, 170, y + 10)
-                
-                -- Food cost
-                love.graphics.setFont(screenManager.fonts.small)
-                love.graphics.setColor(1, 0.8, 0.2)
-                
-                -- Apply discount
-                local tavernRepLevel = reputationSystem:getReputationLevel(reputationSystem.factions.TAVERN)
-                local cost = food.cost
-                
-                if tavernRepLevel >= reputationSystem.levels.FRIENDLY then
-                    cost = math.floor(cost * 0.9)
-                    love.graphics.setColor(0.2, 1, 0.2)
-                    love.graphics.print("Cost: " .. cost .. " gold (discounted)", 170, y + 40)
-                else
-                    love.graphics.print("Cost: " .. cost .. " gold", 170, y + 40)
-                end
-                
-                -- Food description
-                love.graphics.setColor(0.8, 0.8, 1)
-                love.graphics.printf(food.description, 350, y + 10, GAME.width - 500, "left")
-                
-                -- Effects
-                love.graphics.setColor(0.7, 0.9, 0.7)
-                local effectsText = "Effects: "
-                
-                for j, effect in ipairs(food.effects) do
-                    if effect.type == "heal" then
-                        effectsText = effectsText .. "Heal " .. effect.amount .. " HP"
-                    elseif effect.type == "buff" then
-                        effectsText = effectsText .. "+" .. effect.amount .. " " .. effect.stat .. " for " .. 
-                                     math.floor(effect.duration / 60) .. " min"
-                    end
-                    
-                    if j < #food.effects then
-                        effectsText = effectsText .. ", "
-                    end
-                end
-                
-                love.graphics.print(effectsText, 350, y + 40)
-            end
-        end,
-        
-        clicked = function(x, y, button)
-            if button == 1 then
-                -- Check if clicking on a food item
-                local foods = innSystem.foodItems
-                
-                for i, _ in ipairs(foods) do
-                    local foodY = 130 + (i-1) * 90
-                    
-                    if x >= 150 and x <= GAME.width - 150 and
-                       y >= foodY and y <= foodY + 80 then
-                        self.selectedFoodIndex = i
-                        return true
-                    end
-                end
-            end
-            
-            return false
-        end
-    }
+    -- Create confirmation dialog
+    self:createConfirmationDialog()
     
-    -- Create drinks section panel
-    self.elements.drinksPanel = {
-        visible = false,
-        draw = function()
-            -- Draw background
-            love.graphics.setColor(0.1, 0.1, 0.15, 0.7)
-            love.graphics.rectangle("fill", 100, 50, GAME.width - 200, GAME.height - 200, 10, 10)
-            
-            -- Draw title
-            love.graphics.setFont(screenManager.fonts.large)
-            love.graphics.setColor(1, 0.9, 0.7)
-            love.graphics.printf("Inn Drinks", 100, 70, GAME.width - 200, "center")
-            
-            -- Draw drink options
-            local drinks = innSystem.drinkItems
-            
-            for i, drink in ipairs(drinks) do
-                local y = 130 + (i-1) * 90
-                
-                -- Background for selection
-                if i == self.selectedDrinkIndex then
-                    love.graphics.setColor(0.3, 0.3, 0.4, 0.7)
-                    love.graphics.rectangle("fill", 150, y, GAME.width - 300, 80, 5, 5)
-                end
-                
-                -- Drink name
-                love.graphics.setFont(screenManager.fonts.medium)
-                love.graphics.setColor(1, 1, 1)
-                love.graphics.print(drink.name, 170, y + 10)
-                
-                -- Drink cost
-                love.graphics.setFont(screenManager.fonts.small)
-                
-                -- Apply discount
-                local tavernRepLevel = reputationSystem:getReputationLevel(reputationSystem.factions.TAVERN)
-                local cost = drink.cost
-                
-                if tavernRepLevel >= reputationSystem.levels.FRIENDLY then
-                    cost = math.floor(cost * 0.9)
-                    love.graphics.setColor(0.2, 1, 0.2)
-                    love.graphics.print("Cost: " .. cost .. " gold (discounted)", 170, y + 40)
-                else
-                    love.graphics.setColor(1, 0.8, 0.2)
-                    love.graphics.print("Cost: " .. cost .. " gold", 170, y + 40)
-                end
-                
-                -- Drink description
-                love.graphics.setColor(0.8, 0.8, 1)
-                love.graphics.printf(drink.description, 350, y + 10, GAME.width - 500, "left")
-                
-                -- Effects
-                love.graphics.setColor(0.7, 0.9, 0.7)
-                local effectsText = "Effects: "
-                
-                for j, effect in ipairs(drink.effects) do
-                    if effect.type == "restore_mp" then
-                        effectsText = effectsText .. "Restore " .. effect.amount .. " MP"
-                    elseif effect.type == "buff" then
-                        effectsText = effectsText .. "+" .. effect.amount .. " " .. effect.stat .. " for " .. 
-                                     math.floor(effect.duration / 60) .. " min"
-                    end
-                    
-                    if j < #drink.effects then
-                        effectsText = effectsText .. ", "
-                    end
-                end
-                
-                love.graphics.print(effectsText, 350, y + 40)
-                
-                -- Special note for tavern mug owners
-                if self:hasTavernMug() then
-                    love.graphics.setColor(1, 0.7, 0.3)
-                    love.graphics.print("* Enhanced with Tavern Mug", 600, y + 40)
-                end
-            end
-        end,
-        
-        clicked = function(x, y, button)
-            if button == 1 then
-                -- Check if clicking on a drink item
-                local drinks = innSystem.drinkItems
-                
-                for i, _ in ipairs(drinks) do
-                    local drinkY = 130 + (i-1) * 90
-                    
-                    if x >= 150 and x <= GAME.width - 150 and
-                       y >= drinkY and y <= drinkY + 80 then
-                        self.selectedDrinkIndex = i
-                        return true
-                    end
-                end
-            end
-            
-            return false
-        end
-    }
-    
-    -- Create event panel
-    self.elements.eventPanel = {
-        visible = false,
-        draw = function()
-            -- Draw background
-            love.graphics.setColor(0.1, 0.1, 0.25, 0.9)
-            love.graphics.rectangle("fill", 100, 100, GAME.width - 200, GAME.height - 200, 10, 10)
-            
-            if self.currentEvent then
-                -- Draw event title
-                love.graphics.setFont(screenManager.fonts.large)
-                love.graphics.setColor(1, 0.5, 0.3)
-                love.graphics.printf(self.currentEvent.name, 100, 120, GAME.width - 200, "center")
-                
-                -- Draw event description
-                love.graphics.setFont(screenManager.fonts.medium)
-                love.graphics.setColor(1, 1, 0.9)
-                love.graphics.printf(self.currentEvent.description, 150, 180, GAME.width - 300, "center")
-                
-                -- Draw choices
-                if not self.eventResult then
-                    love.graphics.setFont(screenManager.fonts.medium)
-                    
-                    for i, choice in ipairs(self.currentEvent.choices) do
-                        local y = 300 + (i-1) * 70
-                        
-                        -- Background for button
-                        love.graphics.setColor(0.3, 0.3, 0.5, 0.8)
-                        love.graphics.rectangle("fill", GAME.width/2 - 200, y, 400, 50, 5, 5)
-                        
-                        -- Border
-                        love.graphics.setColor(0.5, 0.5, 0.7)
-                        love.graphics.rectangle("line", GAME.width/2 - 200, y, 400, 50, 5, 5)
-                        
-                        -- Choice text
-                        love.graphics.setColor(1, 1, 1)
-                        love.graphics.printf(choice.text, GAME.width/2 - 190, y + 15, 380, "center")
-                    end
-                else
-                    -- Draw event result
-                    love.graphics.setFont(screenManager.fonts.medium)
-                    love.graphics.setColor(0.9, 1, 0.9)
-                    love.graphics.printf(self.eventResult, 150, 300, GAME.width - 300, "center")
-                    
-                    -- "Continue" button
-                    love.graphics.setColor(0.3, 0.5, 0.3, 0.8)
-                    love.graphics.rectangle("fill", GAME.width/2 - 100, 400, 200, 50, 5, 5)
-                    
-                    -- Border
-                    love.graphics.setColor(0.5, 0.7, 0.5)
-                    love.graphics.rectangle("line", GAME.width/2 - 100, 400, 200, 50, 5, 5)
-                    
-                    -- Button text
-                    love.graphics.setColor(1, 1, 1)
-                    love.graphics.printf("Continue", GAME.width/2 - 90, 415, 180, "center")
-                end
-            end
-        end,
-        
-        clicked = function(x, y, button)
-            if button == 1 and self.currentEvent then
-                if not self.eventResult then
-                    -- Check for choice selection
-                    for i, _ in ipairs(self.currentEvent.choices) do
-                        local choiceY = 300 + (i-1) * 70
-                        
-                        if x >= GAME.width/2 - 200 and x <= GAME.width/2 + 200 and
-                           y >= choiceY and y <= choiceY + 50 then
-                            
-                            -- Handle event choice
-                            local success, result = innSystem:handleEventOutcome(
-                                self.currentEvent.id, 
-                                i, 
-                                GAME.party[1]
-                            )
-                            
-                            if success then
-                                self.eventResult = result
-                                return true
-                            end
-                        end
-                    end
-                else
-                    -- Check for continue button
-                    if x >= GAME.width/2 - 100 and x <= GAME.width/2 + 100 and
-                       y >= 400 and y <= 450 then
-                        
-                        -- Return to main screen
-                        self.currentSection = "main"
-                        self:updatePanelVisibility()
-                        self.currentEvent = nil
-                        self.eventResult = nil
-                        return true
-                    end
-                end
-            end
-            
-            return false
-        end
-    }
-    
-    -- Create main menu buttons
-    local buttonWidth = 180
-    local buttonHeight = 50
-    local buttonX = GAME.width/2 - buttonWidth/2
-    local baseY = GAME.height - 250
-    local buttonSpacing = 60
-    
-    -- Rooms button
-    self.elements.roomsButton = screenManager.UI.Button(
-        buttonX - buttonWidth - 20, baseY + buttonSpacing,
-        buttonWidth, buttonHeight,
-        "Rest Rooms",
-        function()
-            self.currentSection = "rooms"
-            self:updatePanelVisibility()
-        end
-    )
-    
-    -- Food button
-    self.elements.foodButton = screenManager.UI.Button(
-        buttonX, baseY + buttonSpacing,
-        buttonWidth, buttonHeight,
-        "Order Food",
-        function()
-            self.currentSection = "food"
-            self:updatePanelVisibility()
-        end
-    )
-    
-    -- Drinks button
-    self.elements.drinksButton = screenManager.UI.Button(
-        buttonX + buttonWidth + 20, baseY + buttonSpacing,
-        buttonWidth, buttonHeight,
-        "Order Drinks",
-        function()
-            self.currentSection = "drinks"
-            self:updatePanelVisibility()
-        end
-    )
-    
-    -- Section-specific buttons
-    
-    -- Back button (common to most sections)
-    self.elements.backButton = screenManager.UI.Button(
-        GAME.width - 200, 20,
-        150, 40,
-        "Back to Town",
-        function()
-            if self.currentSection ~= "main" and self.currentSection ~= "event" then
-                self.currentSection = "main"
-                self:updatePanelVisibility()
-            else
-                -- Return to overworld
-                local gameState = require("states/gameState")
-                gameState:changeState("overworld")
-            end
-        end
-    )
-    
-    -- Rent room button
-    self.elements.rentRoomButton = screenManager.UI.Button(
-        GAME.width - 250, GAME.height - 190,
-        150, 40,
-        "Rent Room",
-        function()
-            local rooms = innSystem:getAvailableRoomTypes()
-            if self.selectedRoomIndex <= #rooms then
-                local selectedRoom = rooms[self.selectedRoomIndex]
-                
-                if selectedRoom then
-                    local success, message, event = innSystem:rest(GAME.party[1], selectedRoom.id)
-                    
-                    if success then
-                        -- Show message
-                        if event then
-                            -- Show event panel
-                            self.currentEvent = event
-                            self.currentSection = "event"
-                            self:updatePanelVisibility()
-                        else
-                            -- Show rest success message
-                            self.elements.popupMessage:show(message)
-                        end
-                    else
-                        -- Show error message
-                        self.elements.popupMessage:show(message)
-                    end
-                end
-            end
-        end
-    )
-    -- Add onClick method to support keyboard selection
-    self.elements.rentRoomButton.onClick = self.elements.rentRoomButton.callback
-    
-    -- Buy food button
-    self.elements.buyFoodButton = screenManager.UI.Button(
-        GAME.width - 250, GAME.height - 190,
-        150, 40,
-        "Buy Food",
-        function()
-            local foods = innSystem.foodItems
-            if self.selectedFoodIndex <= #foods then
-                local selectedFood = foods[self.selectedFoodIndex]
-                
-                if selectedFood then
-                    local success, message = innSystem:purchaseFood(selectedFood.id, GAME.party[1])
-                    
-                    -- Show result message
-                    self.elements.popupMessage:show(message)
-                end
-            end
-        end
-    )
-    -- Add onClick method to support keyboard selection
-    self.elements.buyFoodButton.onClick = self.elements.buyFoodButton.callback
-    
-    -- Buy drink button
-    self.elements.buyDrinkButton = screenManager.UI.Button(
-        GAME.width - 250, GAME.height - 190,
-        150, 40,
-        "Buy Drink",
-        function()
-            local drinks = innSystem.drinkItems
-            if self.selectedDrinkIndex <= #drinks then
-                local selectedDrink = drinks[self.selectedDrinkIndex]
-                
-                if selectedDrink then
-                    local success, message = innSystem:purchaseDrink(selectedDrink.id, GAME.party[1])
-                    
-                    -- Show result message
-                    self.elements.popupMessage:show(message)
-                end
-            end
-        end
-    )
-    -- Add onClick method to support keyboard selection
-    self.elements.buyDrinkButton.onClick = self.elements.buyDrinkButton.callback
-    
-    -- Popup message element
-    self.elements.popupMessage = {
-        visible = false,
-        message = "",
-        x = GAME.width / 2 - 200,
-        y = GAME.height / 2 - 100,
-        width = 400,
-        height = 200,
-        okButton = nil,
-        
-        init = function(self)
-            self.okButton = screenManager.UI.Button(
-                self.x + self.width/2 - 50, self.y + self.height - 60, 
-                100, 40, "OK", function() self.visible = false end
-            )
-        end,
-        
-        show = function(self, message)
-            if not self.okButton then self:init() end
-            self.message = message
-            self.visible = true
-        end,
-        
-        draw = function(self)
-            if not self.visible then return end
-            
-            -- Draw panel background
-            love.graphics.setColor(0.2, 0.2, 0.3, 0.95)
-            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 10, 10)
-            
-            -- Draw border
-            love.graphics.setColor(0.5, 0.5, 0.7)
-            love.graphics.rectangle("line", self.x, self.y, self.width, self.height, 10, 10)
-            
-            -- Draw message
-            love.graphics.setFont(screenManager.fonts.medium)
-            love.graphics.setColor(1, 1, 1)
-            love.graphics.printf(self.message, self.x + 20, self.y + 40, self.width - 40, "center")
-            
-            -- Draw OK button
-            self.okButton:draw()
-        end,
-        
-        clicked = function(self, x, y, button)
-            if not self.visible then return false end
-            
-            if self.okButton:clicked(x, y, button) then
-                return true
-            end
-            
-            return false
-        end
-    }
-    
-    -- Initialize popup message
-    self.elements.popupMessage:init()
-    
-    -- Update panel visibility
-    self:updatePanelVisibility()
+    -- Start with main section
+    self:showSection("main")
+end
 
-    -- Initialize party panel
-    self.elements.partyPanel = partyPanel
-    self.elements.partyPanel.visible = true
+function inn:createMainSectionUI()
+    -- Main section container
+    self.mainSectionContainer = luis.newFlexContainer(30, 10, 1, 1, nil, "MainSection")
+    
+    -- Welcome message
+    local welcomeLabel = luis.newLabel("Welcome to the Adventurer's Inn!", 28, 2, 1, 1, "center")
+    self.mainSectionContainer:addChild(welcomeLabel)
+    
+    local messageLabel = luis.newLabel("How may I serve you today? Rest well to recover your strength!", 28, 2, 1, 1, "center")
+    self.mainSectionContainer:addChild(messageLabel)
+    
+    -- Character status display
+    self.statusContainer = luis.newFlexContainer(28, 6, 1, 1, nil, "CharacterStatus")
+    self.characterStatusLabel = luis.newLabel("Character status will appear here", 28, 6, 1, 1, "left")
+    self.statusContainer:addChild(self.characterStatusLabel)
+    self.mainSectionContainer:addChild(self.statusContainer)
+    
+    self.contentContainer:addChild(self.mainSectionContainer)
+end
 
+function inn:createRoomsSectionUI()
+    -- Rooms section container
+    self.roomsSectionContainer = luis.newFlexContainer(30, 10, 1, 1, nil, "RoomsSection")
+    
+    -- Section title
+    local titleLabel = luis.newLabel("Choose a Room", 28, 2, 1, 1, "center")
+    self.roomsSectionContainer:addChild(titleLabel)
+    
+    -- Rooms list container
+    self.roomsListContainer = luis.newFlexContainer(28, 6, 1, 1, nil, "RoomsList")
+    self.roomsSectionContainer:addChild(self.roomsListContainer)
+    
+    -- Action button
+    self.rentRoomButton = luis.newButton("Rent Room", 8, 2, function() self:rentSelectedRoom() end, nil, 1, 1)
+    self.roomsSectionContainer:addChild(self.rentRoomButton)
+    
+    self.contentContainer:addChild(self.roomsSectionContainer)
+end
+
+function inn:createFoodSectionUI()
+    -- Food section container
+    self.foodSectionContainer = luis.newFlexContainer(30, 10, 1, 1, nil, "FoodSection")
+    
+    -- Section title
+    local titleLabel = luis.newLabel("Inn Menu - Food", 28, 2, 1, 1, "center")
+    self.foodSectionContainer:addChild(titleLabel)
+    
+    -- Food list container
+    self.foodListContainer = luis.newFlexContainer(28, 6, 1, 1, nil, "FoodList")
+    self.foodSectionContainer:addChild(self.foodListContainer)
+    
+    -- Action button
+    self.buyFoodButton = luis.newButton("Order Food", 8, 2, function() self:buySelectedFood() end, nil, 1, 1)
+    self.foodSectionContainer:addChild(self.buyFoodButton)
+    
+    self.contentContainer:addChild(self.foodSectionContainer)
+end
+
+function inn:createDrinksSectionUI()
+    -- Drinks section container
+    self.drinksSectionContainer = luis.newFlexContainer(30, 10, 1, 1, nil, "DrinksSection")
+    
+    -- Section title
+    local titleLabel = luis.newLabel("Inn Menu - Drinks", 28, 2, 1, 1, "center")
+    self.drinksSectionContainer:addChild(titleLabel)
+    
+    -- Drinks list container
+    self.drinksListContainer = luis.newFlexContainer(28, 6, 1, 1, nil, "DrinksList")
+    self.drinksSectionContainer:addChild(self.drinksListContainer)
+    
+    -- Action button
+    self.buyDrinkButton = luis.newButton("Order Drink", 8, 2, function() self:buySelectedDrink() end, nil, 1, 1)
+    self.drinksSectionContainer:addChild(self.buyDrinkButton)
+    
+    self.contentContainer:addChild(self.drinksSectionContainer)
+end
+
+function inn:createConfirmationDialog()
+    -- Confirmation dialog (centered modal)
+    local confirmContainer = luis.createElement("confirmationLayer", "FlexContainer", 20, 8, 10, 7, nil, "ConfirmDialog")
+    
+    -- Title and message
+    self.confirmTitleLabel = luis.newLabel("Confirm Action", 18, 2, 1, 1, "center")
+    self.confirmMessageLabel = luis.newLabel("Are you sure?", 18, 3, 1, 1, "center")
+    
+    confirmContainer:addChild(self.confirmTitleLabel)
+    confirmContainer:addChild(self.confirmMessageLabel)
+    
+    -- Action buttons
+    local buttonContainer = luis.newFlexContainer(18, 2, 1, 1, nil, "ConfirmButtons")
+    
+    self.confirmYesButton = luis.newButton("Yes", 6, 2, function() self:confirmAction() end, nil, 1, 1)
+    self.confirmNoButton = luis.newButton("No", 6, 2, function() self:cancelAction() end, nil, 1, 1)
+    
+    buttonContainer:addChild(self.confirmYesButton)
+    buttonContainer:addChild(self.confirmNoButton)
+    confirmContainer:addChild(buttonContainer)
+    
+    -- Start with confirmation layer disabled
+    luis.disableLayer("confirmationLayer")
 end
 
 function inn:updatePanelVisibility()
@@ -704,6 +244,9 @@ function inn:hasTavernMug()
 end
 
 function inn:enter()
+    -- Enable inn layer
+    luis.enableLayer("innLayer")
+    
     -- Reset current section and selections
     self.currentSection = "main"
     self.selectedRoomIndex = 1
@@ -717,6 +260,11 @@ function inn:enter()
         self.backgroundImage = love.graphics.newImage("assets/InnScreen.png")
     end
     
+    -- Update party panel with current party data
+    if GAME and GAME.party then
+        self.partyPanel:update(GAME.party, false) -- false = not in combat
+    end
+    
     -- Update panel visibility
     self:updatePanelVisibility()
     
@@ -725,8 +273,16 @@ function inn:enter()
 end
 
 function inn:exit()
-    -- The music will be stopped by the next screen's playMusic call
-    -- No need to explicitly stop it
+    -- Disable inn layer
+    luis.disableLayer("innLayer")
+    luis.disableLayer("confirmationLayer")
+end
+
+function inn:update(dt)
+    -- Update party panel
+    if self.partyPanel and GAME and GAME.party then
+        self.partyPanel:update(GAME.party, false)
+    end
 end
 
 function inn:draw()

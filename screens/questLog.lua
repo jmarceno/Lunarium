@@ -1,8 +1,12 @@
--- Quest Log Screen
+-- Quest Log Screen (LUIS)
 -- Where players can view their active and completed quests
 local screenManager = require("screens/screenManager")
 local assetManager = require("assets/assetManager")
 local questSystem = require("gameplay/questSystem")
+
+-- Get LUIS instance
+local initLuis = require("luis.init")
+local luis = initLuis("luis/widgets")
 
 local questLog = screenManager:createScreen("Quest Log")
 
@@ -15,465 +19,119 @@ function questLog:init()
     self.maxQuestScroll = 0
     self.selectedQuestIndex = 1
     self.questsPerView = 8
-    self.showConfirmDialog = false -- Add confirmation dialog state
+    self.showConfirmDialog = false
+    
+    -- Create LUIS layers
+    luis.newLayer("questLogLayer")
+    luis.newLayer("confirmDialogLayer")
     
     -- Create UI elements
     self:createUI()
 end
 
 function questLog:createUI()
-    -- Column 1: Category Buttons
-    self.elements.categoryPanel = {
-        x = 50,
-        y = 120,
-        width = 200,
-        height = 400,
-        
-        draw = function(self)
-            -- Draw panel background
-            screenManager:drawPanel("Categories", self.x, self.y, self.width, self.height)
-        end
+    -- Main container (40x22 grid)
+    local mainContainer = luis.createElement("questLogLayer", "FlexContainer", 36, 18, 2, 2, nil, "QuestLogMain")
+    
+    -- Left sidebar for categories
+    local categoryContainer = luis.newFlexContainer(8, 16, 1, 1, nil, "Categories")
+    
+    -- Category title
+    local categoryTitle = luis.newLabel("Categories", 8, 2, 1, 1, "center")
+    categoryContainer:addChild(categoryTitle)
+    
+    -- Category buttons
+    self.activeQuestsButton = luis.newButton("Active", 7, 2, function() self:selectCategory("active") end, nil, 1, 1)
+    self.completedQuestsButton = luis.newButton("Completed", 7, 2, function() self:selectCategory("completed") end, nil, 1, 1)
+    
+    categoryContainer:addChild(self.activeQuestsButton)
+    categoryContainer:addChild(self.completedQuestsButton)
+    
+    mainContainer:addChild(categoryContainer)
+    
+    -- Middle section for quest list
+    local questListContainer = luis.newFlexContainer(12, 16, 1, 1, nil, "QuestList")
+    
+    -- Quest list title
+    self.questListTitle = luis.newLabel("Active Quests", 12, 2, 1, 1, "center")
+    questListContainer:addChild(self.questListTitle)
+    
+    -- Quest items container (scrollable area)
+    self.questItemsContainer = luis.newFlexContainer(12, 12, 1, 1, nil, "QuestItems")
+    questListContainer:addChild(self.questItemsContainer)
+    
+    -- Navigation buttons
+    local navContainer = luis.newFlexContainer(12, 2, 1, 1, nil, "QuestNavigation")
+    
+    self.abandonQuestButton = luis.newButton("Abandon", 5, 2, function() self:abandonSelectedQuest() end, nil, 1, 1)
+    navContainer:addChild(self.abandonQuestButton)
+    
+    questListContainer:addChild(navContainer)
+    mainContainer:addChild(questListContainer)
+    
+    -- Right section for quest details
+    local detailsContainer = luis.newFlexContainer(16, 16, 1, 1, nil, "QuestDetails")
+    
+    -- Details title
+    self.detailsTitle = luis.newLabel("Quest Details", 16, 2, 1, 1, "center")
+    detailsContainer:addChild(self.detailsTitle)
+    
+    -- Quest details content
+    self.questDetailsLabel = luis.newLabel("Select a quest to view details", 16, 12, 1, 1, "left")
+    detailsContainer:addChild(self.questDetailsLabel)
+    
+    -- Back button
+    local backButton = luis.newButton("Back", 6, 2, function() self:goBack() end, nil, 1, 1)
+    detailsContainer:addChild(backButton)
+    
+    mainContainer:addChild(detailsContainer)
+    
+    -- Store references
+    self.uiElements = {
+        mainContainer = mainContainer,
+        categoryContainer = categoryContainer,
+        questListContainer = questListContainer,
+        detailsContainer = detailsContainer,
+        activeQuestsButton = self.activeQuestsButton,
+        completedQuestsButton = self.completedQuestsButton,
+        questListTitle = self.questListTitle,
+        questItemsContainer = self.questItemsContainer,
+        abandonQuestButton = self.abandonQuestButton,
+        detailsTitle = self.detailsTitle,
+        questDetailsLabel = self.questDetailsLabel,
+        backButton = backButton
     }
     
-    -- Create category buttons
-    self.elements.activeButton = screenManager.UI.Button(
-        70, 180, 160, 40, "Active Quests", 
-        function() questLog:selectCategory("active") end
-    )
-    self.elements.activeButton.visible = true
+    -- Create confirmation dialog
+    self:createConfirmationDialog()
     
-    self.elements.completedButton = screenManager.UI.Button(
-        70, 230, 160, 40, "Completed Quests", 
-        function() questLog:selectCategory("completed") end
-    )
-    self.elements.completedButton.visible = true
+    -- Initial setup
+    self:selectCategory("active")
+end
+
+function questLog:createConfirmationDialog()
+    -- Confirmation dialog (centered modal)
+    local confirmContainer = luis.createElement("confirmDialogLayer", "FlexContainer", 20, 8, 10, 7, nil, "ConfirmDialog")
     
-    -- Column 2: Quest List Panel
-    self.elements.questListPanel = {
-        x = 270,
-        y = 120,
-        width = 300,
-        height = 400,
-        
-        draw = function(self)
-            -- Draw panel background
-            screenManager:drawPanel("Quests", self.x, self.y, self.width, self.height)
-            
-            -- Get quests based on selected category
-            local quests = {}
-            if questLog.category == "active" then
-                quests = questSystem:getActiveQuests()
-            else
-                quests = questSystem:getCompletedQuests()
-            end
-            
-            -- De-duplicate quests by ID
-            local uniqueQuests = {}
-            local questIds = {}
-            
-            for _, quest in ipairs(quests) do
-                if not questIds[quest.id] then
-                    questIds[quest.id] = true
-                    table.insert(uniqueQuests, quest)
-                end
-            end
-            
-            -- Update max scroll value
-            questLog.maxQuestScroll = math.max(0, #uniqueQuests - questLog.questsPerView)
-            
-            -- Draw quests
-            local startIndex = questLog.questScroll + 1
-            local endIndex = math.min(startIndex + questLog.questsPerView - 1, #uniqueQuests)
-            
-            for i = startIndex, endIndex do
-                local quest = uniqueQuests[i]
-                local questY = self.y + 50 + (i - startIndex) * 40
-                
-                -- Draw quest entry background
-                if i == questLog.selectedQuestIndex then
-                    love.graphics.setColor(0.3, 0.3, 0.5)
-                else
-                    love.graphics.setColor(0.2, 0.2, 0.3)
-                end
-                
-                love.graphics.rectangle(
-                    "fill",
-                    self.x + 10, questY, 
-                    self.width - 40, 35,
-                    5, 5
-                )
-                
-                -- Draw quest name
-                love.graphics.setFont(screenManager.fonts.medium)
-                love.graphics.setColor(1, 1, 1)
-                
-                -- Truncate long names
-                local questName = quest.name
-                if love.graphics.getFont():getWidth(questName) > self.width - 60 then
-                    local truncatedName = ""
-                    for i = 1, #questName do
-                        if love.graphics.getFont():getWidth(truncatedName .. questName:sub(i,i) .. "...") > self.width - 60 then
-                            truncatedName = truncatedName .. "..."
-                            break
-                        end
-                        truncatedName = truncatedName .. questName:sub(i,i)
-                    end
-                    questName = truncatedName
-                end
-                
-                love.graphics.print(
-                    questName,
-                    self.x + 20, questY + 5
-                )
-            end
-            
-            -- Draw scrollbar if needed
-            if questLog.maxQuestScroll > 0 then
-                -- Draw scrollbar background
-                love.graphics.setColor(0.15, 0.15, 0.2)
-                love.graphics.rectangle(
-                    "fill",
-                    self.x + self.width - 25, self.y + 50,
-                    15, self.height - 70,
-                    5, 5
-                )
-                
-                -- Draw scrollbar handle
-                local scrollbarHeight = (self.height - 70) * (questLog.questsPerView / #uniqueQuests)
-                local scrollbarY = self.y + 50 + (self.height - 70 - scrollbarHeight) * (questLog.questScroll / questLog.maxQuestScroll)
-                
-                love.graphics.setColor(0.4, 0.4, 0.6)
-                love.graphics.rectangle(
-                    "fill",
-                    self.x + self.width - 25, scrollbarY,
-                    15, scrollbarHeight,
-                    5, 5
-                )
-            end
-            
-            -- Draw message if no quests
-            if #uniqueQuests == 0 then
-                love.graphics.setFont(screenManager.fonts.medium)
-                love.graphics.setColor(0.7, 0.7, 0.7)
-                
-                if questLog.category == "active" then
-                    love.graphics.printf(
-                        "No active quests.\nVisit the Guild or Tavern to find quests!",
-                        self.x + 20, self.y + 150,
-                        self.width - 40, "center"
-                    )
-                else
-                    love.graphics.printf(
-                        "No completed quests.\nComplete quests to see them here!",
-                        self.x + 20, self.y + 150,
-                        self.width - 40, "center"
-                    )
-                end
-            end
-        end,
-        
-        clicked = function(self, x, y, button)
-            if button ~= 1 then return false end
-            
-            -- Check if click is within panel content area
-            if x >= self.x + 10 and x <= self.x + self.width - 30 and
-               y >= self.y + 50 and y <= self.y + self.height - 20 then
-                
-                -- Get quests based on selected category
-                local quests = {}
-                if questLog.category == "active" then
-                    quests = questSystem:getActiveQuests()
-                else
-                    quests = questSystem:getCompletedQuests()
-                end
-                
-                -- De-duplicate quests by ID
-                local uniqueQuests = {}
-                local questIds = {}
-                
-                for _, quest in ipairs(quests) do
-                    if not questIds[quest.id] then
-                        questIds[quest.id] = true
-                        table.insert(uniqueQuests, quest)
-                    end
-                end
-                
-                -- Determine which quest was clicked
-                local startIndex = questLog.questScroll + 1
-                local endIndex = math.min(startIndex + questLog.questsPerView - 1, #uniqueQuests)
-                
-                for i = startIndex, endIndex do
-                    local questY = self.y + 50 + (i - startIndex) * 40
-                    
-                    if y >= questY and y <= questY + 35 then
-                        questLog.selectedQuestIndex = i
-                        questLog:selectQuest(uniqueQuests[i])
-                        return true
-                    end
-                end
-                
-                return true
-            end
-            
-            -- Check scrollbar click
-            if questLog.maxQuestScroll > 0 and
-               x >= self.x + self.width - 25 and x <= self.x + self.width - 10 and
-               y >= self.y + 50 and y <= self.y + self.height - 20 then
-                
-                -- Get quests based on category
-                local quests = {}
-                if questLog.category == "active" then
-                    quests = questSystem:getActiveQuests()
-                else
-                    quests = questSystem:getCompletedQuests()
-                end
-                
-                -- Calculate new scroll position
-                local uniqueQuestsCount = 0
-                local questIds = {}
-                for _, quest in ipairs(quests) do
-                    if not questIds[quest.id] then
-                        questIds[quest.id] = true
-                        uniqueQuestsCount = uniqueQuestsCount + 1
-                    end
-                end
-                
-                local scrollRatio = (y - (self.y + 50)) / (self.height - 70)
-                local newScroll = math.floor(scrollRatio * questLog.maxQuestScroll)
-                questLog.questScroll = math.max(0, math.min(questLog.maxQuestScroll, newScroll))
-                
-                return true
-            end
-            
-            return false
-        end,
-        
-        -- Add mouse wheel support
-        wheelmoved = function(self, x, y)
-            if y > 0 then
-                -- Scroll up
-                questLog.questScroll = math.max(0, questLog.questScroll - 1)
-            elseif y < 0 then
-                -- Scroll down
-                questLog.questScroll = math.min(questLog.maxQuestScroll, questLog.questScroll + 1)
-            end
-            
-            return true
-        end
-    }
+    -- Title and message
+    self.confirmTitleLabel = luis.newLabel("Confirm Action", 18, 2, 1, 1, "center")
+    self.confirmMessageLabel = luis.newLabel("Are you sure you want to abandon this quest?", 18, 3, 1, 1, "center")
     
-    -- Column 3: Quest Details Panel
-    self.elements.questDetailsPanel = {
-        x = 590,
-        y = 120,
-        width = 560,
-        height = 400,
-        
-        draw = function(self)
-            -- Draw panel background
-            screenManager:drawPanel("Quest Details", self.x, self.y, self.width, self.height)
-            
-            -- Draw quest details or placeholder message
-            if questLog.selectedQuest then
-                local quest = questLog.selectedQuest
-                
-                -- Draw quest name
-                love.graphics.setFont(screenManager.fonts.large)
-                love.graphics.setColor(1, 1, 1)
-                
-                love.graphics.printf(
-                    quest.name,
-                    self.x + 20, self.y + 50,
-                    self.width - 40, "center"
-                )
-                
-                -- Draw quest description
-                love.graphics.setFont(screenManager.fonts.medium)
-                love.graphics.setColor(0.9, 0.9, 0.9)
-                
-                love.graphics.printf(
-                    quest.description,
-                    self.x + 30, self.y + 100,
-                    self.width - 60, "left" -- Left aligned for better readability
-                )
-                
-                -- Draw quest objectives
-                love.graphics.setFont(screenManager.fonts.medium)
-                love.graphics.setColor(1, 1, 1)
-                
-                love.graphics.print(
-                    "Objectives:",
-                    self.x + 30, self.y + 180
-                )
-                
-                -- Draw objectives list
-                love.graphics.setFont(screenManager.fonts.small)
-                
-                if quest.objectives then
-                    for i, objective in ipairs(quest.objectives) do
-                        if objective.completed then
-                            love.graphics.setColor(0.2, 0.8, 0.2)
-                            love.graphics.print(
-                                "✓ " .. objective.description,
-                                self.x + 40, self.y + 210 + (i-1) * 25
-                            )
-                        else
-                            love.graphics.setColor(0.7, 0.7, 0.7)
-                            love.graphics.print(
-                                "□ " .. objective.description,
-                                self.x + 40, self.y + 210 + (i-1) * 25
-                            )
-                        end
-                    end
-                else
-                    love.graphics.setColor(0.7, 0.7, 0.7)
-                    love.graphics.print(
-                        "• Complete the quest",
-                        self.x + 40, self.y + 210
-                    )
-                end
-                
-                -- Draw rewards section
-                love.graphics.setFont(screenManager.fonts.medium)
-                love.graphics.setColor(1, 1, 1)
-                
-                love.graphics.print(
-                    "Rewards:",
-                    self.x + 30, self.y + 290
-                )
-                
-                -- Draw gold reward
-                love.graphics.setFont(screenManager.fonts.medium)
-                love.graphics.setColor(1, 1, 0)
-                
-                love.graphics.print(
-                    quest.rewards.gold .. " Gold",
-                    self.x + 50, self.y + 320
-                )
-                
-                -- Draw item rewards
-                if quest.rewards.items and #quest.rewards.items > 0 then
-                    love.graphics.setFont(screenManager.fonts.medium)
-                    love.graphics.setColor(1, 1, 1)
-                    
-                    love.graphics.print(
-                        "Items:",
-                        self.x + 50, self.y + 350
-                    )
-                    
-                    for i, item in ipairs(quest.rewards.items) do
-                        love.graphics.setFont(screenManager.fonts.small)
-                        love.graphics.setColor(0.8, 0.8, 1)
-                        
-                        local itemText = item.name
-                        if item.count and item.count > 1 then
-                            itemText = itemText .. " x" .. item.count
-                        end
-                        
-                        love.graphics.print(
-                            itemText,
-                            self.x + 70, self.y + 350 + i * 25
-                        )
-                    end
-                end
-            else
-                -- No quest selected
-                love.graphics.setFont(screenManager.fonts.medium)
-                love.graphics.setColor(0.7, 0.7, 0.7)
-                
-                love.graphics.printf(
-                    "Select a quest to view details",
-                    self.x + 20, self.y + 200,
-                    self.width - 40, "center"
-                )
-            end
-        end
-    }
+    confirmContainer:addChild(self.confirmTitleLabel)
+    confirmContainer:addChild(self.confirmMessageLabel)
     
-    -- Create back button
-    self.elements.backToGameButton = screenManager.UI.Button(
-        GAME.width - 170, GAME.height - 70, 
-        150, 40, "Back to Game", 
-        function() self:returnToGame() end
-    )
-    self.elements.backToGameButton.visible = true
+    -- Action buttons
+    local buttonContainer = luis.newFlexContainer(18, 2, 1, 1, nil, "ConfirmButtons")
     
-    -- Create abandon quest button (positioned below quest details panel)
-    self.elements.abandonQuestButton = screenManager.UI.Button(
-        590 + 560/2 - 75, 540, -- Center horizontally below quest details panel
-        150, 40, "Abandon Quest", 
-        function() self:showAbandonConfirmation() end
-    )
-    self.elements.abandonQuestButton.visible = false -- Only visible for active quests
-    self.elements.abandonQuestButton.colors = {
-        normal = {0.8, 0.3, 0.3},
-        hover = {0.9, 0.4, 0.4},
-        press = {0.7, 0.2, 0.2}
-    }
+    self.confirmYesButton = luis.newButton("Yes", 6, 2, function() self:confirmAbandonQuest() end, nil, 1, 1)
+    self.confirmNoButton = luis.newButton("No", 6, 2, function() self:cancelAbandonQuest() end, nil, 1, 1)
     
-    -- Create confirmation dialog elements
-    self.elements.confirmDialog = {
-        x = GAME.width/2 - 250,
-        y = GAME.height/2 - 100,
-        width = 500,
-        height = 200,
-        visible = false,
-        
-        draw = function(self)
-            if not self.visible then return end
-            
-            -- Draw dialog background
-            love.graphics.setColor(0.1, 0.1, 0.1, 0.8)
-            love.graphics.rectangle("fill", 0, 0, GAME.width, GAME.height) -- Overlay
-            
-            love.graphics.setColor(0.2, 0.2, 0.3)
-            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 10, 10)
-            
-            love.graphics.setColor(0.8, 0.8, 1)
-            love.graphics.rectangle("line", self.x, self.y, self.width, self.height, 10, 10)
-            
-            -- Draw dialog title
-            love.graphics.setFont(screenManager.fonts.large)
-            love.graphics.setColor(1, 1, 1)
-            love.graphics.printf("Abandon Quest?", self.x + 20, self.y + 20, self.width - 40, "center")
-            
-            -- Draw dialog text
-            love.graphics.setFont(screenManager.fonts.medium)
-            love.graphics.setColor(0.9, 0.9, 0.9)
-            love.graphics.printf(
-                "Are you sure you want to abandon this quest?\n\nYou will lose 5 reputation with the quest giver,\nbut the quest will be available to take again.",
-                self.x + 30, self.y + 60, self.width - 60, "center"
-            )
-        end
-    }
+    buttonContainer:addChild(self.confirmYesButton)
+    buttonContainer:addChild(self.confirmNoButton)
+    confirmContainer:addChild(buttonContainer)
     
-    -- Create confirmation dialog buttons
-    self.elements.confirmYesButton = screenManager.UI.Button(
-        GAME.width/2 - 120, GAME.height/2 + 50,
-        100, 35, "Yes", 
-        function() self:confirmAbandon() end
-    )
-    self.elements.confirmYesButton.visible = false
-    self.elements.confirmYesButton.colors = {
-        normal = {0.8, 0.3, 0.3},
-        hover = {0.9, 0.4, 0.4},
-        press = {0.7, 0.2, 0.2}
-    }
-    
-    self.elements.confirmNoButton = screenManager.UI.Button(
-        GAME.width/2 + 20, GAME.height/2 + 50,
-        100, 35, "No", 
-        function() self:cancelAbandon() end
-    )
-    self.elements.confirmNoButton.visible = false
-    self.elements.confirmNoButton.colors = {
-        normal = {0.3, 0.6, 0.3},
-        hover = {0.4, 0.7, 0.4},
-        press = {0.2, 0.5, 0.2}
-    }
-    
-    -- Set initial visibility state
-    self:updateElementVisibility()
+    -- Start with confirmation layer disabled
+    luis.disableLayer("confirmDialogLayer")
 end
 
 function questLog:updateElementVisibility()

@@ -1,9 +1,13 @@
--- Guild Screen
+-- Guild Screen (LUIS)
 -- Where players can accept quests from the Adventurers' Guild
 local screenManager = require("screens/screenManager")
 local assetManager = require("assets/assetManager")
 local questSystem = require("gameplay/questSystem")
-local partyPanel = require("screens/ui_slices/partyPanel")
+local partyPanelLuis = require("ui_elements/partyPanelLuis")
+
+-- Get LUIS instance
+local initLuis = require("luis.init")
+local luis = initLuis("luis/widgets")
 
 local guild = screenManager:createScreen("Adventurers' Guild")
 
@@ -17,8 +21,16 @@ function guild:init()
     -- Load background image directly using love.graphics
     self.backgroundImage = love.graphics.newImage("assets/GuildScreen.png")
     
+    -- Create LUIS layers
+    luis.newLayer("guildLayer")
+    luis.newLayer("confirmationLayer")
+    
     -- Create UI elements
     self:createUI()
+    
+    -- Setup party panel
+    self.partyPanel = partyPanelLuis:create()
+    luis.insertElement("guildLayer", self.partyPanel.container)
 end
 
 function guild:createUI()
@@ -377,10 +389,6 @@ function guild:createUI()
     
     -- Set initial visibility state
     self:updateElementVisibility()
-
-    -- Initialize party panel
-    self.elements.partyPanel = partyPanel
-    self.elements.partyPanel.visible = true
 end
 
 function guild:updateElementVisibility()
@@ -412,26 +420,37 @@ function guild:updateElementVisibility()
 end
 
 function guild:enter()
-    -- Start playing guild music
-    -- assetManager:playMusic("town") -- Use town music for now
+    -- Enable guild layer
+    luis.enableLayer("guildLayer")
     
-    -- Ensure background image is loaded
-    if not self.backgroundImage then
-        self.backgroundImage = love.graphics.newImage("assets/GuildScreen.png")
-    end
-    
-    -- Load quests
+    -- Load available quests
     self:loadQuests()
     
-    -- Initialize state
+    -- Reset state
     self.state = "main"
     self.selectedQuest = nil
+    
+    -- Update party panel with current party data
+    if GAME and GAME.party then
+        self.partyPanel:update(GAME.party, false) -- false = not in combat
+    end
     
     -- Update element visibility
     self:updateElementVisibility()
 end
 
+function guild:exit()
+    -- Disable guild layer
+    luis.disableLayer("guildLayer")
+    luis.disableLayer("confirmationLayer")
+end
+
 function guild:update(dt)
+    -- Update party panel
+    if self.partyPanel and GAME and GAME.party then
+        self.partyPanel:update(GAME.party, false)
+    end
+    
     -- Update refresh timer
     self.refreshTimer = self.refreshTimer + dt
     
@@ -466,10 +485,7 @@ function guild:draw()
     -- Draw back button
     self.elements.backToTownButton:draw()
 
-    -- Draw party panel if visible
-    if self.elements.partyPanel and self.elements.partyPanel.visible then
-        self.elements.partyPanel:draw()
-    end
+    -- LUIS handles party panel drawing automatically
 end
 
 function guild:mousepressed(x, y, button, istouch, presses)
