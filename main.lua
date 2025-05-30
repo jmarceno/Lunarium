@@ -151,11 +151,11 @@ function love.draw()
     -- Draw letterbox/pillarbox bars first
     scaling:drawBars()
     
-    -- Apply scaling transformation
-    scaling:push()
-    
     -- Draw loading screen
     if isLoading then
+        -- Apply scaling transformation for loading screen
+        scaling:push()
+        
         love.graphics.clear(0.1, 0.1, 0.1)
         love.graphics.setFont(loadingFont)
         
@@ -176,10 +176,22 @@ function love.draw()
         return
     end
     
-    -- Draw current screen
-    if GAME.currentState then
-        GAME.currentState:draw()
+    -- For raycaster (3D view), render at full resolution without scaling
+    if GAME.currentState and GAME.currentState.draw then
+        -- Check if this is the dungeon state (which contains the raycaster)
+        if gameState:getCurrentStateName() == "dungeon" then
+            -- Draw the 3D raycaster view at full resolution
+            GAME.currentState:draw()
+        else
+            -- Apply scaling transformation for other screens
+            scaling:push()
+            GAME.currentState:draw()
+            scaling:pop()
+        end
     end
+    
+    -- Apply scaling transformation for UI elements and debug info
+    scaling:push()
     
     -- Draw debug info if enabled
     if GAME.debug then

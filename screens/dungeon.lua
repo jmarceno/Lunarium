@@ -1360,10 +1360,65 @@ function dungeon:draw()
 
     -- Draw based on current state
     if self.state == STATES.EXPLORING then
-        -- Draw 3D view
+        -- Draw 3D view (unscaled)
         self:drawExploringState()
 
-        -- Draw UI elements that should appear in exploring state
+        -- Draw UI elements that should appear in exploring state (scaled)
+        local scaling = require("utils/scaling")
+        scaling:push()
+        
+        -- Draw status bar if it exists and is visible
+        if self.elements.statusBar and self.statusBarVisible then -- Dungeon's own flag for timer
+            self.elements.statusBar:draw(self) -- Pass dungeon instance
+        end
+        
+        -- Draw objective reached reminder if applicable
+        if self.objective and self.objective.reached and not self.objective.completed and 
+           self.currentQuest and self.currentQuest.type == "EXPLORE" then
+            -- Display a message indicating the player should return to entrance
+            love.graphics.setColor(0, 1, 0, 0.7 + math.sin(love.timer.getTime() * 2) * 0.3) -- Pulsing green
+            love.graphics.setFont(screenManager.fonts.medium)
+            
+            local targetWidth, targetHeight = scaling:getTargetResolution()
+            love.graphics.printf(
+                "Objective reached! Return to the entrance to complete your quest.",
+                0, 100, targetWidth, "center"
+            )
+        end
+        
+        -- Draw debug info
+        if GAME.debug then
+            love.graphics.setColor(1, 1, 0)
+            love.graphics.setFont(screenManager.fonts.small)
+            love.graphics.print("Player Pos: " .. string.format("%.2f, %.2f", self.playerPos.x, self.playerPos.y), 10, 70)
+            love.graphics.print("Player Angle: " .. string.format("%.2f", self.playerPos.angle), 10, 90)
+            love.graphics.print("Map size: " .. self.map.width .. "x" .. self.map.height, 10, 110)
+
+            if self.map and self.map.getHintFactor then
+                local playerCellX = math.floor(self.playerPos.x)
+                local playerCellY = math.floor(self.playerPos.y)
+                local floorHint = self.map:getHintFactor(playerCellX, playerCellY, "floor")
+                love.graphics.print("Floor Hint (Player Tile): " .. string.format("%.2f", floorHint or 0), 10, 130)
+
+                -- For wall hint factor: Cast a short ray to find the wall in front.
+                local rayDirX = math.cos(self.playerPos.angle)
+                local rayDirY = math.sin(self.playerPos.angle)
+                -- Check a short distance in front of the player (e.g., 0.5 units)
+                local wallCheckX = self.playerPos.x + rayDirX * 0.5 
+                local wallCheckY = self.playerPos.y + rayDirY * 0.5
+                local wallCellX = math.floor(wallCheckX)
+                local wallCellY = math.floor(wallCheckY)
+                local wallHintText = "Wall Hint (Front): N/A"
+
+                -- Check if the cell in front is actually a wall before getting its hint factor
+                if self.map:getCell(wallCellX, wallCellY) > 0 then 
+                    local wallHint = self.map:getHintFactor(wallCellX, wallCellY, "wall")
+                    wallHintText = "Wall Hint (Front): " .. string.format("%.2f", wallHint or 0)
+                end
+                love.graphics.print(wallHintText, 10, 150)
+            end
+        end
+        
         if self.elements.minimap then
             self.elements.minimap:draw(self) -- Pass dungeon instance (self)
         end
@@ -1378,11 +1433,11 @@ function dungeon:draw()
             love.graphics.setFont(screenManager.fonts.medium)
             love.graphics.setColor(1, 0.5, 0.5, 0.9)
             
-            -- Draw trap warning in center of screen
+            local targetWidth, targetHeight = scaling:getTargetResolution()
             love.graphics.printf(
                 "Trap Detected! Disarm [T]", 
-                GAME.width / 2 - 150, 
-                GAME.height / 2 + 80,
+                targetWidth / 2 - 150, 
+                targetHeight / 2 + 80,
                 300, "center"
             )
         end
@@ -1390,39 +1445,54 @@ function dungeon:draw()
         -- Draw floating texts
         self:drawFloatingTexts()
         
+        scaling:pop()
+        
     elseif self.state == STATES.COMBAT then
-        -- Draw combat UI
+        -- Draw combat UI (scaled)
+        local scaling = require("utils/scaling")
+        scaling:push()
+        
         if self.combat then
             self.combat:draw()
         else
             -- Handle case where combat system is missing
             love.graphics.setColor(1, 0, 0)
             love.graphics.setFont(screenManager.fonts.medium)
-            love.graphics.printf("Error: Combat system not initialized.", 0, GAME.height/2 - 50, GAME.width, "center")
+            local targetWidth, targetHeight = scaling:getTargetResolution()
+            love.graphics.printf("Error: Combat system not initialized.", 0, targetHeight/2 - 50, targetWidth, "center")
             
             -- Reset to EXPLORING if combat is nil
             print("ERROR: Combat state active but combat system is nil. Reverting to EXPLORING.")
             self.state = STATES.EXPLORING
         end
+        
+        scaling:pop()
+        
     elseif self.state == STATES.COMPLETED then
+        -- Draw completion message and button (scaled)
+        local scaling = require("utils/scaling")
+        scaling:push()
+        
+        local targetWidth, targetHeight = scaling:getTargetResolution()
+        
         -- Draw completion message and button
         love.graphics.setColor(0, 0, 0, 0.7)
-        love.graphics.rectangle("fill", 0, 0, GAME.width, GAME.height)
+        love.graphics.rectangle("fill", 0, 0, targetWidth, targetHeight)
         
         love.graphics.setFont(screenManager.fonts.large)
         love.graphics.setColor(1, 1, 1)
         love.graphics.printf(
             "Dungeon Completed!",
-            0, GAME.height / 3,
-            GAME.width, "center"
+            0, targetHeight / 3,
+            targetWidth, "center"
         )
         
         if self.currentQuest then
             love.graphics.setFont(screenManager.fonts.medium)
             love.graphics.printf(
                 "Quest: " .. self.currentQuest.name .. " - Complete",
-                0, GAME.height / 3 + 50,
-                GAME.width, "center"
+                0, targetHeight / 3 + 50,
+                targetWidth, "center"
             )
         end
         
@@ -1430,7 +1500,13 @@ function dungeon:draw()
         if self.elements.completeButton then
             self.elements.completeButton:draw()
         end
+        
+        scaling:pop()
     end
+    
+    -- Draw global UI elements (scaled)
+    local scaling = require("utils/scaling")
+    scaling:push()
     
     -- Draw UI buttons (except in combat)
     if self.state ~= STATES.COMBAT then
@@ -1453,14 +1529,17 @@ function dungeon:draw()
         
         -- Draw targeting reticle on enemy if one is targeted
         if self.trapThrowing.targetedEnemy then
+            local targetWidth, targetHeight = scaling:getTargetResolution()
             -- This is a simplified indicator. You might want to implement a proper 3D overlay
             love.graphics.setColor(1, 0.3, 0.3, 0.8)
-            love.graphics.circle("line", GAME.width/2, GAME.height/2, 30)
+            love.graphics.circle("line", targetWidth/2, targetHeight/2, 30)
             love.graphics.setColor(1, 0.3, 0.3, 0.4)
-            love.graphics.circle("fill", GAME.width/2, GAME.height/2, 30)
+            love.graphics.circle("fill", targetWidth/2, targetHeight/2, 30)
             love.graphics.setColor(1, 1, 1, 1)
         end
     end
+    
+    scaling:pop()
 end
 
 -- Draw floating texts
@@ -1680,65 +1759,12 @@ function dungeon:drawExploringState()
         return
     end
     
-    -- Draw 3D view from raycaster
+    -- Draw 3D view from raycaster (unscaled)
     love.graphics.setColor(1, 1, 1)
     raycaster:render(self.map, self.entities)
     
-    -- Draw status bar if it exists and is visible
-    if self.elements.statusBar and self.statusBarVisible then -- Dungeon's own flag for timer
-        self.elements.statusBar:draw(self) -- Pass dungeon instance
-    end
-    
-    -- Draw objective reached reminder if applicable
-    if self.objective and self.objective.reached and not self.objective.completed and 
-       self.currentQuest and self.currentQuest.type == "EXPLORE" then
-        -- Display a message indicating the player should return to entrance
-        love.graphics.setColor(0, 1, 0, 0.7 + math.sin(love.timer.getTime() * 2) * 0.3) -- Pulsing green
-        love.graphics.setFont(screenManager.fonts.medium)
-        love.graphics.printf(
-            "Objective reached! Return to the entrance to complete your quest.",
-            0, 100, GAME.width, "center"
-        )
-    end
-    
-    -- Draw debug info
-    if GAME.debug then
-        love.graphics.setColor(1, 1, 0)
-        love.graphics.setFont(screenManager.fonts.small)
-        love.graphics.print("Player Pos: " .. string.format("%.2f, %.2f", self.playerPos.x, self.playerPos.y), 10, 70)
-        love.graphics.print("Player Angle: " .. string.format("%.2f", self.playerPos.angle), 10, 90)
-        love.graphics.print("Map size: " .. self.map.width .. "x" .. self.map.height, 10, 110)
-
-        if self.map and self.map.getHintFactor then
-            local playerCellX = math.floor(self.playerPos.x)
-            local playerCellY = math.floor(self.playerPos.y)
-            local floorHint = self.map:getHintFactor(playerCellX, playerCellY, "floor")
-            love.graphics.print("Floor Hint (Player Tile): " .. string.format("%.2f", floorHint or 0), 10, 130)
-
-            -- For wall hint factor: Cast a short ray to find the wall in front.
-            local rayDirX = math.cos(self.playerPos.angle)
-            local rayDirY = math.sin(self.playerPos.angle)
-            -- Check a short distance in front of the player (e.g., 0.5 units)
-            local wallCheckX = self.playerPos.x + rayDirX * 0.5 
-            local wallCheckY = self.playerPos.y + rayDirY * 0.5
-            local wallCellX = math.floor(wallCheckX)
-            local wallCellY = math.floor(wallCheckY)
-            local wallHintText = "Wall Hint (Front): N/A"
-
-            -- Check if the cell in front is actually a wall before getting its hint factor
-            if self.map:getCell(wallCellX, wallCellY) > 0 then 
-                local wallHint = self.map:getHintFactor(wallCellX, wallCellY, "wall")
-                wallHintText = "Wall Hint (Front): " .. string.format("%.2f", wallHint or 0)
-            end
-            love.graphics.print(wallHintText, 10, 150)
-        end
-        
-        -- Draw entity info, starting further down to accommodate new hint prints
-        -- local entityStartY = 110 
-        -- for i, entity in ipairs(self.entities) do
-        --     love.graphics.print("Entity " .. i .. ": " .. string.format("%.2f, %.2f", entity.x, entity.y), 10, entityStartY + (i-1) * 20)
-        -- end
-    end
+    -- All UI elements will be drawn by the main draw function with scaling
+    -- This function now only handles the 3D raycaster rendering
 end
 
 -- Toggle Status Bar Visibility

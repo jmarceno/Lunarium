@@ -157,8 +157,9 @@ end
 
 -- Initialize the raycaster
 function raycaster:init(width, height)
-    self.viewWidth = width or self.viewWidth
-    self.viewHeight = height or self.viewHeight
+    local windowWidth, windowHeight = love.graphics.getDimensions()
+    self.viewWidth = windowWidth--width or self.viewWidth
+    self.viewHeight = windowHeight--height or self.viewHeight
     
     -- Calculate derived values
     self.halfHeight = self.viewHeight / 2
