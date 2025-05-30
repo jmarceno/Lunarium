@@ -884,17 +884,18 @@ function dungeon:update(dt)
             -- Not setting isMoving true for rotation, only for actual movement
         end
         
-        if love.keyboard.isDown("q") then
-            raycaster:strafeCamera(-moveSpeed, self.map)
-            playerMoved = true
-            self.isMoving = true
-        end
+        -- Strafe disabled for now
+        -- if love.keyboard.isDown("q") then
+        --     raycaster:strafeCamera(-moveSpeed, self.map)
+        --     playerMoved = true
+        --     self.isMoving = true
+        -- end
         
-        if love.keyboard.isDown("e") then
-            raycaster:strafeCamera(moveSpeed, self.map)
-            playerMoved = true
-            self.isMoving = true
-        end
+        -- if love.keyboard.isDown("e") then
+        --     raycaster:strafeCamera(moveSpeed, self.map)
+        --     playerMoved = true
+        --     self.isMoving = true
+        -- end
         
         -- Check if player has moved to a new cell (which could trigger traps)
         if playerMoved and self.isMoving then
@@ -1055,16 +1056,17 @@ function dungeon:updateExploring(dt)
         raycaster:rotateCamera(self.turnSpeed)
         self.playerPos.angle = raycaster.camera.angle
     end
-    if love.keyboard.isDown("q") then
-        raycaster:strafeCamera(-self.moveSpeed, self.map)
-        self.playerPos.x = raycaster.camera.x
-        self.playerPos.y = raycaster.camera.y
-    end
-    if love.keyboard.isDown("e") then
-        raycaster:strafeCamera(self.moveSpeed, self.map)
-        self.playerPos.x = raycaster.camera.x
-        self.playerPos.y = raycaster.camera.y
-    end
+    -- Strafe disabled for now
+    -- if love.keyboard.isDown("q") then
+    --     raycaster:strafeCamera(-self.moveSpeed, self.map)
+    --     self.playerPos.x = raycaster.camera.x
+    --     self.playerPos.y = raycaster.camera.y
+    -- end
+    -- if love.keyboard.isDown("e") then
+    --     raycaster:strafeCamera(self.moveSpeed, self.map)
+    --     self.playerPos.x = raycaster.camera.x
+    --     self.playerPos.y = raycaster.camera.y
+    -- end
     
     -- Check for entity interaction
     self:checkEntityInteraction()
@@ -1226,6 +1228,37 @@ function dungeon:checkEntityInteraction()
                         self.activeChestEntity = nil
                     end
                 )
+                break
+            elseif entity.type == "quest_item" then
+                -- Collect quest item
+                print("Collecting quest item: " .. entity.name)
+                
+                -- Update quest progress
+                questSystem:updateProgress("item_pickup", {
+                    itemId = entity.questItemId,
+                    count = 1
+                })
+                
+                -- Show floating text
+                uiFunctions.showFloatingText(
+                    "Collected: " .. entity.name,
+                    GAME.width / 2,
+                    GAME.height / 2 - 60,
+                    {0.3, 0.8, 1.0, 1}, -- Blue color for quest items
+                    2.0,
+                    self.floatingTexts
+                )
+                
+                -- Play pickup sound
+                assetManager:playSound("pickup")
+                
+                -- Remove quest item from entities
+                for i = #self.entities, 1, -1 do
+                    if self.entities[i] == entity then
+                        table.remove(self.entities, i)
+                        break
+                    end
+                end
                 break
             elseif entity.type == "objective" and entity.isObjective then
                 -- Mark objective as reached (but don't complete it yet)
