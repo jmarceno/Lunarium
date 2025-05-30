@@ -93,6 +93,7 @@ function combatSystem:createCombat(party, enemy, isAmbush)
     combat.modifySpellCastTime = coreFunctions.modifySpellCastTime
     combat.cancelSpell = coreFunctions.cancelSpell
     combat.isEntityCasting = coreFunctions.isEntityCasting
+    combat.updateSpellQueueTime = coreFunctions.updateSpellQueueTime
     
     -- Add UI functions
     combat.createUI = uiFunctions.createUI

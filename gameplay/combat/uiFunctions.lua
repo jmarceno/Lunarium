@@ -9,6 +9,17 @@ local partyPanel = require("screens/ui_slices/partyPanel")
 
 local combatSystem = {}  -- Forward declaration
 
+-- Helper function to safely get fonts with fallbacks
+local function safeGetFont(fontName)
+    if screenManager.fonts and screenManager.fonts[fontName] then
+        return screenManager.fonts[fontName]
+    elseif screenManager.fonts and screenManager.fonts.small then
+        return screenManager.fonts.small
+    else
+        return love.graphics.getFont()
+    end
+end
+
 -- Helper functions for UI Refactoring
 local function drawListContainer(listElement, title, borderColor)
     if not listElement.visible then return end
@@ -22,7 +33,7 @@ local function drawListContainer(listElement, title, borderColor)
     love.graphics.rectangle("line", listElement.x, listElement.y, listElement.width, listElement.height)
 
     -- Draw title
-    love.graphics.setFont(screenManager.fonts.medium)
+    love.graphics.setFont(safeGetFont("medium"))
     love.graphics.setColor(1, 1, 1)
     love.graphics.print(title, listElement.x + 10, listElement.y + 5)
 end
@@ -49,12 +60,12 @@ local function drawTooltipContent(tooltipX, tooltipY, tooltipWidth, tooltipHeigh
     love.graphics.rectangle("line", tooltipX, tooltipY, tooltipWidth, tooltipHeight, 5, 5)
 
     -- Draw effect name
-    love.graphics.setFont(screenManager.fonts.medium)
+    love.graphics.setFont(safeGetFont("medium"))
     love.graphics.setColor(1, 1, 1)
     love.graphics.print(effectInfo.name, tooltipX + 10, tooltipY + 10)
 
     -- Draw effect description
-    love.graphics.setFont(screenManager.fonts.small)
+    love.graphics.setFont(safeGetFont("small"))
     love.graphics.setColor(0.9, 0.9, 0.9)
     love.graphics.printf(effectInfo.description, tooltipX + 10, tooltipY + 35, tooltipWidth - 20, "left")
 
@@ -97,7 +108,7 @@ local function drawSingleMinionDisplay(minion, slotX, yPos, slotWidth, slotHeigh
     love.graphics.setColor(0.7, 0.7, 0.7)
     love.graphics.rectangle("line", slotX, yPos, slotWidth, slotHeight, 5, 5)
 
-    love.graphics.setFont(screenManager.fonts.small)
+    love.graphics.setFont(safeGetFont("small"))
     love.graphics.setColor(1, 1, 1)
     love.graphics.print(minion.name, slotX + 5, yPos + 5)
 
@@ -111,7 +122,7 @@ local function drawSingleMinionDisplay(minion, slotX, yPos, slotWidth, slotHeigh
     love.graphics.rectangle("fill", slotX + 5, yPos + 22, hpBarWidth * hpPercent, hpBarHeight)
     
     local textY = yPos + 33 -- Starting Y for text below HP bar
-    love.graphics.setFont(screenManager.fonts.small)
+    love.graphics.setFont(safeGetFont("small"))
     love.graphics.setColor(1, 1, 1)
     love.graphics.print("HP: " .. math.floor(minion.currentHP) .. "/" .. math.floor(minion.maxHP), slotX + 5, textY)
     textY = textY + 12
@@ -219,7 +230,7 @@ local function createUI(self)
             local endIdx = math.min(startIdx + self.maxSkillsVisible - 1, #self.skills)
             
             -- Draw skill list
-            love.graphics.setFont(screenManager.fonts.small)
+            love.graphics.setFont(safeGetFont("small"))
             for i = startIdx, endIdx do
                 local skill = self.skills[i]
                 local displayIndex = i - startIdx
@@ -371,7 +382,7 @@ local function createUI(self)
             drawListContainer(self, "Items", {0.5, 0.8, 0.5})
             
             -- Draw item list
-            love.graphics.setFont(screenManager.fonts.small)
+            love.graphics.setFont(safeGetFont("small"))
             for i, item in ipairs(self.items) do
                 local y = self.y + 30 + (i - 1) * 25
                 
@@ -398,7 +409,7 @@ local function createUI(self)
             -- Check if click is within bounds
             if isClickInsideList(self, x, y) then
                
-                -- Check item selection
+                -- Check if click is within bounds
                 for i, item in ipairs(self.items) do
                     local itemY = self.y + 30 + (i - 1) * 25
                     
@@ -437,7 +448,7 @@ local function createUI(self)
             drawListContainer(self, "Select Target", {0.5, 0.7, 0.8})
             
             -- Draw party member list
-            love.graphics.setFont(screenManager.fonts.small)
+            love.graphics.setFont(safeGetFont("small"))
             
             -- Use the stored combat reference
             local party = self.combatRef.party
@@ -550,15 +561,120 @@ local function createUI(self)
     self.elements.itemBackButton.visible = false
 end
 
--- Draw combat UI
+-- Draw action meter progress bars for all entities
+local function drawActionMeterBars(self)
+    -- Only draw if we have a turn manager
+    if not self.turnManager then return end
+    
+    -- Get all entity status from turn manager
+    local entityStatus = self.turnManager:getAllEntityStatus()
+    if #entityStatus == 0 then return end
+    
+    -- Position above the spell queue - reduced width by 25%
+    local queueX = GAME.width - 230  -- Reduced from 300 to 230
+    local queueY = 20
+    local queueWidth = 210  -- Reduced from 280 to 210 (25% reduction)
+    local itemHeight = 35
+    local spacing = 3
+    
+    -- Calculate total height
+    local totalHeight = (itemHeight + spacing) * #entityStatus + 20
+    
+    -- Draw background
+    love.graphics.setColor(0, 0, 0, 0.7)
+    love.graphics.rectangle("fill", queueX, queueY, queueWidth, totalHeight, 5, 5)
+    
+    -- Draw border
+    love.graphics.setColor(0.6, 0.4, 0.8, 0.7)
+    love.graphics.rectangle("line", queueX, queueY, queueWidth, totalHeight, 5, 5)
+    
+    -- Check if any entity is paused to add to title
+    local anyPaused = false
+    for _, status in ipairs(entityStatus) do
+        if status.isPaused then
+            anyPaused = true
+            break
+        end
+    end
+    
+    -- Draw title with font safety check, include PAUSED if needed
+    local titleFont = safeGetFont("medium") or safeGetFont("small") or love.graphics.getFont()
+    love.graphics.setFont(titleFont)
+    love.graphics.setColor(1, 1, 1)
+    local titleText = "Action Meters"
+    if anyPaused then
+        titleText = "Action Meters (PAUSED)"
+    end
+    love.graphics.print(titleText, queueX + 10, queueY + 5)
+    
+    -- Draw each entity's action meter
+    for i, status in ipairs(entityStatus) do
+        local itemY = queueY + 25 + (i-1) * (itemHeight + spacing)
+        
+        -- Choose color based on entity type
+        local nameColor = {1, 1, 1}
+        if status.type == "player" then
+            nameColor = {0.5, 0.8, 1}
+        elseif status.type == "enemy" then
+            nameColor = {1, 0.5, 0.5}
+        elseif status.type == "minion" then
+            nameColor = {0.8, 1, 0.5}
+        end
+        
+        -- Draw entity name with font safety check
+        local nameFont = safeGetFont("small") or love.graphics.getFont()
+        love.graphics.setFont(nameFont)
+        love.graphics.setColor(nameColor[1], nameColor[2], nameColor[3])
+        love.graphics.print(status.entity.name, queueX + 10, itemY)
+        
+        -- Draw progress bar background
+        love.graphics.setColor(0.3, 0.3, 0.3)
+        love.graphics.rectangle("fill", queueX + 10, itemY + 15, queueWidth - 20, 10)
+        
+        -- Draw progress bar fill
+        local fillColor = {0.2, 0.6, 0.8} -- Default blue
+        if status.isReady then
+            fillColor = {0.2, 1, 0.2} -- Green when ready
+        elseif status.isPaused then
+            fillColor = {0.8, 0.8, 0.2} -- Yellow when paused
+        end
+        
+        love.graphics.setColor(fillColor[1], fillColor[2], fillColor[3])
+        love.graphics.rectangle("fill", queueX + 10, itemY + 15, (queueWidth - 20) * status.progress, 10)
+        
+        -- Draw status text with font safety check - no more individual PAUSED text
+        love.graphics.setColor(1, 1, 1)
+        local statusFont = safeGetFont("tiny") or safeGetFont("small") or love.graphics.getFont()
+        love.graphics.setFont(statusFont)
+        local statusText = ""
+        if status.isReady then
+            statusText = "READY"
+        else
+            statusText = string.format("%.1f%%", status.progress * 100)
+        end
+        love.graphics.print(statusText, queueX + queueWidth - 50, itemY + 16)
+    end
+end
+
 -- Draw spell queue progress bars
 local function drawSpellQueue(self)
     if #self.spellQueue == 0 then return end
     
-    -- Position in top right corner
-    local queueX = GAME.width - 300
-    local queueY = 20
-    local queueWidth = 280
+    -- Position below action meters (if they exist) - updated to match new action meter width
+    local queueX = GAME.width - 230  -- Changed from 300 to 230 to match action meters
+    local baseY = 20
+    
+    -- Adjust position if action meters are being drawn
+    if self.turnManager then
+        local entityStatus = self.turnManager:getAllEntityStatus()
+        if #entityStatus > 0 then
+            local actionMeterHeight = (#entityStatus * 38) + 20  -- 35 + 3 spacing, plus padding
+            baseY = baseY + actionMeterHeight + 10 -- 10px gap between action meters and spell queue
+        end
+    end
+    
+    local queueY = baseY
+    local queueWidth = 210  -- Changed from 280 to 210 to match action meters
     local itemHeight = 40
     local spacing = 5
     
@@ -570,8 +686,9 @@ local function drawSpellQueue(self)
     love.graphics.setColor(0.4, 0.6, 0.8, 0.7)
     love.graphics.rectangle("line", queueX, queueY, queueWidth, (itemHeight + spacing) * #self.spellQueue + 10, 5, 5)
     
-    -- Draw title
-    love.graphics.setFont(screenManager.fonts.medium)
+    -- Draw title with font safety check
+    local titleFont = safeGetFont("medium") or safeGetFont("small") or love.graphics.getFont()
+    love.graphics.setFont(titleFont)
     love.graphics.setColor(1, 1, 1)
     love.graphics.print("Spell Queue", queueX + 10, queueY + 5)
     
@@ -579,13 +696,17 @@ local function drawSpellQueue(self)
     for i, spell in ipairs(self.spellQueue) do
         local itemY = queueY + 30 + (i-1) * (itemHeight + spacing)
         
-        -- Draw spell name and caster
-        love.graphics.setFont(screenManager.fonts.small)
+        -- Draw spell name and caster with font safety check
+        local spellFont = safeGetFont("small") or love.graphics.getFont()
+        love.graphics.setFont(spellFont)
         love.graphics.setColor(1, 1, 1)
         love.graphics.print(spell.caster.name .. " - " .. spell.skill.name, queueX + 10, itemY)
         
-        -- Calculate progress percentage
-        local progressPercent = spell.progress / spell.totalCastingTime
+        -- Calculate progress percentage for new time-based system
+        local progressPercent = 0
+        if spell.totalCastingTime > 0 then
+            progressPercent = (spell.totalCastingTime - spell.castingTimeRemaining) / spell.totalCastingTime
+        end
         
         -- Draw progress bar background
         love.graphics.setColor(0.3, 0.3, 0.3)
@@ -610,8 +731,8 @@ local function drawSpellQueue(self)
             -- Show CASTING... during the visual effect phase
             love.graphics.print("CASTING...", queueX + 10, itemY + 19)
         else
-            -- Show progress numbers while casting
-            love.graphics.print(spell.progress .. "/" .. spell.totalCastingTime, 
+            -- Show remaining time in seconds
+            love.graphics.print(string.format("%.1fs", spell.castingTimeRemaining), 
                             queueX + queueWidth - 40, itemY + 19)
         end
     end
@@ -629,8 +750,9 @@ local function drawVictoryPrompt(self)
     local promptY = 150 -- Above the character turn display
     love.graphics.rectangle("fill", promptX, promptY, promptWidth, promptHeight, 10, 10)
     
-    -- Draw victory message
-    love.graphics.setFont(screenManager.fonts.medium)
+    -- Draw victory message with font safety check
+    local victoryFont = safeGetFont("medium") or safeGetFont("small") or love.graphics.getFont()
+    love.graphics.setFont(victoryFont)
     
     -- Draw with a glow effect
     local time = love.timer.getTime()
@@ -638,7 +760,7 @@ local function drawVictoryPrompt(self)
     love.graphics.setColor(1 * brightness, 1 * brightness, 0.2 * brightness)
     
     local text = "All enemies defeated! Press any key to continue..."
-    local textWidth = screenManager.fonts.medium:getWidth(text)
+    local textWidth = victoryFont:getWidth(text)
     love.graphics.print(text, promptX + (promptWidth - textWidth) / 2, promptY + 30)
  end
 
@@ -693,6 +815,9 @@ local function draw(self)
         
         -- Draw combat log
         self:drawCombatLog()
+        
+        -- Draw action meter bars
+        drawActionMeterBars(self)
         
         -- Draw spell queue
         drawSpellQueue(self)
@@ -794,7 +919,7 @@ end
 -- Draw a single enemy at specified position
 local function drawSingleEnemy(self, enemy, x, y)
     -- Draw enemy name
-    love.graphics.setFont(screenManager.fonts.large)
+    love.graphics.setFont(safeGetFont("large"))
     love.graphics.setColor(1, 0.5, 0.5)
     love.graphics.print(enemy.name, x, y)
     
@@ -806,7 +931,7 @@ local function drawSingleEnemy(self, enemy, x, y)
     love.graphics.rectangle("fill", x, y + 40, healthWidth, 20)
     
     -- Draw HP text - moved 20px to the right
-    love.graphics.setFont(screenManager.fonts.small)
+    love.graphics.setFont(safeGetFont("small"))
     love.graphics.setColor(1, 1, 1)
     
     -- Display HP values directly - should never be nil
@@ -845,13 +970,13 @@ local function drawSingleEnemy(self, enemy, x, y)
         love.graphics.setColor(0.6, 0.6, 0.6)
         love.graphics.rectangle("fill", x + 40, y + 70, 120, 120)
         love.graphics.setColor(0.8, 0.4, 0.4)
-        love.graphics.setFont(screenManager.fonts.medium)
+        love.graphics.setFont(safeGetFont("medium"))
         love.graphics.printf(enemy.name or "Monster", x + 40, y + 120, 120, "center")
         
         -- Debug info for sprite loading failure
         if GAME.debug and enemy.id then
             love.graphics.setColor(1, 1, 0)
-            love.graphics.setFont(screenManager.fonts.small)
+            love.graphics.setFont(safeGetFont("small"))
             love.graphics.printf("ID: " .. enemy.id .. "\nSpriteKey: " .. (enemy.sprite or "N/A"), x + 40, y + 150, 120, "center")
         end
     end
@@ -864,7 +989,7 @@ local function drawSingleEnemy(self, enemy, x, y)
     
     -- Draw resistances/vulnerabilities if this is the selected target
     if enemy and self.selectedTarget == enemy and enemy.resistances then
-        love.graphics.setFont(screenManager.fonts.small)
+        love.graphics.setFont(safeGetFont("small"))
         love.graphics.setColor(1, 1, 1, 0.8)
         
         local resistY = y + 230
@@ -934,12 +1059,12 @@ local function drawCombatLog(self)
     love.graphics.rectangle("line", logX, logY, logWidth, logHeight, 5, 5)
     
     -- Draw log title
-    love.graphics.setFont(screenManager.fonts.medium)
+    love.graphics.setFont(safeGetFont("medium"))
     love.graphics.setColor(1, 1, 1)
     love.graphics.print("Combat Log", logX + 10, logY + 5)
     
     -- Draw log entries
-    love.graphics.setFont(screenManager.fonts.small)
+    love.graphics.setFont(safeGetFont("small"))
     
     -- Calculate line height - double the font height to prevent overlap completely
     local fontHeight = love.graphics.getFont():getHeight()
@@ -967,7 +1092,7 @@ local function drawPlayerTurnUI(self)
     if not currentChar then return end
     
     -- Draw turn info - centered above the buttons
-    love.graphics.setFont(screenManager.fonts.medium)
+    love.graphics.setFont(safeGetFont("medium"))
     love.graphics.setColor(1, 1, 1)
     
     -- Position turn text higher to avoid overlap
@@ -987,8 +1112,9 @@ local function drawPlayerTurnUI(self)
     love.graphics.setColor(1, 1, 1)
     love.graphics.print(turnText, textX, turnTextY)
     
-    -- Draw action buttons - always draw them if it's player's turn
+    -- Draw UI based on whether an action is selected
     if not self.selectedAction then
+        -- No action selected - show action buttons
         -- Make sure action buttons are visible
         self:showActionButtons()
         
@@ -998,11 +1124,11 @@ local function drawPlayerTurnUI(self)
         self.elements.itemButton:draw()
         self.elements.defendButton:draw()
         
-        -- Hide confirm and back buttons
+        -- Hide confirm and back buttons since no action is selected
         self.elements.confirmButton.visible = false
         self.elements.backButton.visible = false
     else
-        -- Hide action buttons during selection
+        -- Action is selected - hide action buttons and show selection UI
         self:hideActionButtons()
         
         -- Debug: Show the current state
@@ -1035,31 +1161,32 @@ local function drawPlayerTurnUI(self)
             self.elements.itemBackButton.visible = false
         elseif self.elements.itemList.visible then
             -- For item selection, use the item-specific buttons
-            self.elements.confirmButton.visible = false
-            self.elements.backButton.visible = false
-            
-            -- Show item-specific buttons
-            self.elements.itemConfirmButton.visible = true
-            self.elements.itemBackButton.visible = true
-            
-            -- Draw the item-specific buttons
-            self.elements.itemConfirmButton:draw()
-            self.elements.itemBackButton:draw()
-        elseif (self.elements.enemySelectList and self.elements.enemySelectList.visible) or
-                self.elements.partySelectList.visible then
-            -- For target selection (enemy or party), show only back button
-            self.elements.confirmButton.visible = false
-            self.elements.backButton.visible = true
-            
-            -- Update back button position for target selection
-            if self.elements.enemySelectList and self.elements.enemySelectList.visible then
-                self.elements.backButton.x = self.elements.enemySelectList.x - self.elements.backButton.width - 10
-                self.elements.backButton.y = self.elements.enemySelectList.y
-            elseif self.elements.partySelectList.visible then
-                self.elements.backButton.x = self.elements.partySelectList.x - self.elements.backButton.width - 10
-                self.elements.backButton.y = self.elements.partySelectList.y
+            if self.elements.itemConfirmButton then
+                self.elements.itemConfirmButton.visible = true
+                self.elements.itemConfirmButton:draw()
             end
             
+            if self.elements.itemBackButton then
+                self.elements.itemBackButton.visible = true
+                self.elements.itemBackButton:draw()
+            end
+            
+            -- Hide regular confirm/back buttons
+            self.elements.confirmButton.visible = false
+            self.elements.backButton.visible = false
+        elseif self.elements.partySelectList.visible then
+            -- For party selection, use the regular back button only (auto-confirm enabled)
+            self.elements.confirmButton.visible = false
+            self.elements.backButton.visible = true
+            self.elements.backButton:draw()
+            
+            -- Hide item-specific buttons
+            self.elements.itemConfirmButton.visible = false
+            self.elements.itemBackButton.visible = false
+        elseif self.elements.enemySelectList and self.elements.enemySelectList.visible then
+            -- For enemy selection, use the regular back button only (auto-confirm enabled)
+            self.elements.confirmButton.visible = false
+            self.elements.backButton.visible = true
             self.elements.backButton:draw()
             
             -- Hide item-specific buttons
@@ -1077,7 +1204,7 @@ local function drawEnemyTurnUI(self)
     local turnTextY = buttonY - 40
     
     -- Draw "Enemy Turn" text centered
-    love.graphics.setFont(screenManager.fonts.medium)
+    love.graphics.setFont(safeGetFont("medium"))
     love.graphics.setColor(1, 0.5, 0.5)
     
     local turnText = "Enemy Turn"
@@ -1087,7 +1214,7 @@ local function drawEnemyTurnUI(self)
     love.graphics.print(turnText, textX, turnTextY)
     
     -- Show a "Waiting..." message below it
-    love.graphics.setFont(screenManager.fonts.small)
+    love.graphics.setFont(safeGetFont("small"))
     love.graphics.setColor(1, 1, 1, 0.7)
     
     local waitText = "Waiting for enemy action..."
@@ -1104,26 +1231,26 @@ local function drawVictoryUI(self)
     love.graphics.rectangle('fill', 0, 0, love.graphics.getWidth(), love.graphics.getHeight())
     
     -- Draw victory message
-    love.graphics.setFont(screenManager.fonts.large)
+    love.graphics.setFont(safeGetFont("large"))
     love.graphics.setColor(1, 1, 1)
     local text = "VICTORY!"
-    local textWidth = screenManager.fonts.large:getWidth(text)
+    local textWidth = safeGetFont("large"):getWidth(text)
     love.graphics.print(text, (love.graphics.getWidth() - textWidth) / 2, love.graphics.getHeight() / 3)
     
     -- Draw rewards summary
-    love.graphics.setFont(screenManager.fonts.medium)
+    love.graphics.setFont(safeGetFont("medium"))
     love.graphics.setColor(1, 1, 0.5)
     local rewardsText = "You defeated all enemies!"
-    local rewardsWidth = screenManager.fonts.medium:getWidth(rewardsText)
+    local rewardsWidth = safeGetFont("medium"):getWidth(rewardsText)
     love.graphics.print(rewardsText, (love.graphics.getWidth() - rewardsWidth) / 2, love.graphics.getHeight() / 2)
     
     -- Draw continue prompt with blinking effect
     local time = love.timer.getTime()
     local alpha = 0.5 + 0.5 * math.sin(time * 3)  -- Blinking effect
-    love.graphics.setFont(screenManager.fonts.medium)
+    love.graphics.setFont(safeGetFont("medium"))
     love.graphics.setColor(1, 1, 1, alpha)
     local prompt = "Press SPACE, ENTER, Z, or X to continue..."
-    local promptWidth = screenManager.fonts.medium:getWidth(prompt)
+    local promptWidth = safeGetFont("medium"):getWidth(prompt)
     love.graphics.print(prompt, (love.graphics.getWidth() - promptWidth) / 2, love.graphics.getHeight() * 2/3)
 end
 
@@ -1134,7 +1261,7 @@ local function drawDefeatUI(self)
     love.graphics.rectangle("fill", 0, 0, GAME.width, GAME.height)
     
     -- Draw defeat message
-    love.graphics.setFont(screenManager.fonts.large)
+    love.graphics.setFont(safeGetFont("large"))
     love.graphics.setColor(0.8, 0.2, 0.2)
     love.graphics.printf(
         "Defeat!",
@@ -1143,7 +1270,7 @@ local function drawDefeatUI(self)
     )
     
     -- Draw "Press Enter to continue" text
-    love.graphics.setFont(screenManager.fonts.medium)
+    love.graphics.setFont(safeGetFont("medium"))
     love.graphics.setColor(1, 1, 1, 0.7 + math.sin(love.timer.getTime() * 4) * 0.3)
     love.graphics.printf(
         "Press Enter to continue",
@@ -1181,7 +1308,7 @@ local function showEnemySelectionUI(self, actionType)
                 drawListContainer(self, "Select Target", {0.8, 0.5, 0.5})
                 
                 -- Draw enemy list
-                love.graphics.setFont(screenManager.fonts.small)
+                love.graphics.setFont(safeGetFont("small"))
                 
                 -- Use the stored combat reference
                 local enemies = self.combatRef.enemies
@@ -1284,8 +1411,8 @@ local function confirmEnemySelection(self)
     -- Set the selected enemy as the target
     self.selectedTarget = self.enemies[selectedIndex]
     
-    -- Hide enemy selection UI
-    self.elements.enemySelectList.visible = false
+    -- Hide all UI elements and clear state
+    self:hideSelectionLists()
     
     -- Execute the action based on type
     if self.enemySelectionActionType == "attack" then
@@ -1534,7 +1661,7 @@ local function drawMinions(self)
     -- If there are no minions, draw a message
     if minionsDrawn == 0 and GAME.debug then
         love.graphics.setColor(0.7, 0.7, 0.7, 0.5)
-        love.graphics.setFont(screenManager.fonts.small)
+        love.graphics.setFont(safeGetFont("small"))
         love.graphics.print("No active minions", slotX, slotY)
     end
 end

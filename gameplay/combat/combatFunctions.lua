@@ -119,8 +119,8 @@ local function confirmPartySelection(self)
     -- Set the selected party member as the target
     self.selectedTarget = self.party[selectedIndex]
     
-    -- Hide party selection UI
-    self.elements.partySelectList.visible = false
+    -- Hide all UI elements and clear state
+    self:hideSelectionLists()
     
     -- Execute the action based on type
     if self.partySelectionActionType == "skill" then

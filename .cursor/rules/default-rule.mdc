@@ -12,3 +12,6 @@ Do not try to run any script/program inside the project if you were not explicit
 You should always try your best to support Mouse and Keyboard on any feature you implement
 
 Do not commit code unless you were specifically asked to
+You are not allowed to run the game
+Never try to run the game
+You should never test the code by executing terminal/console commands

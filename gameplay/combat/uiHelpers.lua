@@ -24,6 +24,22 @@ local function hideSelectionLists(self)
     if self.elements.enemySelectList then
         self.elements.enemySelectList.visible = false
     end
+    
+    -- Also hide item-specific buttons
+    if self.elements.itemConfirmButton then
+        self.elements.itemConfirmButton.visible = false
+    end
+    if self.elements.itemBackButton then
+        self.elements.itemBackButton.visible = false
+    end
+    
+    -- Hide confirm and back buttons
+    if self.elements.confirmButton then
+        self.elements.confirmButton.visible = false
+    end
+    if self.elements.backButton then
+        self.elements.backButton.visible = false
+    end
 end
 
 local function showConfirmBackButtons(self, showConfirm, showBack)

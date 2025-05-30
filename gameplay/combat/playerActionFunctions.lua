@@ -91,8 +91,17 @@ local function executePlayerAction(self)
         end
     end
     
-    -- Ensure action buttons will be visible for next player's turn
-    self:showActionButtons()
+    -- Clear selection state
+    self.selectedAction = nil
+    self.selectedTarget = nil
+    
+    -- Hide all UI elements
+    self:hideActionButtons()
+    self:hideSelectionLists()
+    if self.elements.confirmButton then self.elements.confirmButton.visible = false end
+    if self.elements.backButton then self.elements.backButton.visible = false end
+    if self.elements.itemConfirmButton then self.elements.itemConfirmButton.visible = false end
+    if self.elements.itemBackButton then self.elements.itemBackButton.visible = false end
     
     -- End turn after a short delay
     self.turnEndDelay = 0.7
@@ -547,8 +556,18 @@ local function executeSkill(self, caster, skill, target, fromQueue)
         )
     end
     
-    -- Make sure action buttons will be visible for next turn
-    self:showActionButtons()
+    -- Clear selection state
+    self.selectedAction = nil
+    self.selectedSkill = nil
+    self.selectedTarget = nil
+    
+    -- Hide all UI elements
+    self:hideActionButtons()
+    self:hideSelectionLists()
+    if self.elements.confirmButton then self.elements.confirmButton.visible = false end
+    if self.elements.backButton then self.elements.backButton.visible = false end
+    if self.elements.itemConfirmButton then self.elements.itemConfirmButton.visible = false end
+    if self.elements.itemBackButton then self.elements.itemBackButton.visible = false end
     
     -- End turn after a short delay
     self.turnEndDelay = 0.7
@@ -620,8 +639,17 @@ local function executeStealSkill(self, character)
         )
     end
     
-    -- Make sure buttons are visible
-    self:showActionButtons()
+    -- Clear selection state
+    self.selectedAction = nil
+    self.selectedTarget = nil
+    
+    -- Hide all UI elements
+    self:hideActionButtons()
+    self:hideSelectionLists()
+    if self.elements.confirmButton then self.elements.confirmButton.visible = false end
+    if self.elements.backButton then self.elements.backButton.visible = false end
+    if self.elements.itemConfirmButton then self.elements.itemConfirmButton.visible = false end
+    if self.elements.itemBackButton then self.elements.itemBackButton.visible = false end
     
     -- End turn after a short delay
     self.turnEndDelay = 0.7
@@ -902,6 +930,14 @@ local function executeDefend(self)
     
     -- Add to combat log
     self:addLog(currentChar.name .. " takes a defensive stance!")
+    
+    -- Clear selection state
+    self.selectedAction = nil
+    self.selectedTarget = nil
+    
+    -- Hide all UI elements
+    self:hideActionButtons()
+    self:hideSelectionLists()
     
     -- End turn after a short delay (like other actions)
     self.turnEndDelay = 0.5 -- Use a short delay consistent with others or adjust as needed

@@ -8,6 +8,7 @@ local statusEffects = require("gameplay/statusEffects")
 local trapSystem = require("gameplay/trapSystem")
 local assetManager = require("assets/assetManager")
 local characterSystem = require("gameplay/character")
+local turnManager = require("gameplay/combat/turnManager")
 
 local combatSystem = {}  -- Forward declaration to reference STATE values
 
@@ -99,8 +100,9 @@ local function setupCombatants(self)
         end
     end
     
-    -- Determine initial turn order
-    self:determineTurnOrder()
+    -- Initialize the new turn manager
+    self.turnManager = turnManager
+    self.turnManager:init(self)
     
     -- Add initial combat log entry
     if self.isAmbush then
@@ -113,88 +115,12 @@ local function setupCombatants(self)
     return true
 end
 
--- Determine turn order
+-- Determine turn order (now handled by turn manager)
 local function determineTurnOrder(self)
-    self.turnOrder = {}
-    
-    -- Add party members to turn order
-    for i, character in ipairs(self.party) do
-        if character.active then
-            table.insert(self.turnOrder, {
-                type = "player",
-                index = i,
-                speed = character.attributes.DEX or 10
-            })
-            
-            -- Add active minions for this character
-            local charMinions = minionManager:getActiveMinions(character)
-            if charMinions and #charMinions > 0 then
-                if GAME.debug then
-                    print("Found " .. #charMinions .. " active minions for " .. character.name)
-                end
-                
-                for j, minion in ipairs(charMinions) do
-                    -- Only add minions that take actions (not passive spirits)
-                    if minion.takesActions then
-                        table.insert(self.turnOrder, {
-                            type = "minion",
-                            owner = i, -- Reference to the owner's index in party
-                            index = j, -- Index in character's minion array
-                            speed = minion.speed or 8
-                        })
-                        
-                        -- Store minion reference in combat.minions
-                        if not self.minions[i] then 
-                            self.minions[i] = {}
-                        end
-                        self.minions[i][j] = minion
-                        
-                        if GAME.debug then
-                            print("Added minion to turn order: " .. minion.name)
-                        end
-                    end
-                end
-            end
-            
-            -- Also check the local combat minions list for this character
-            if self.minions[i] then
-                for j, minion in pairs(self.minions[i]) do
-                    -- Skip if already processed from minionManager
-                    if not minion.processed then
-                        if minion.takesActions and minion.active then
-                            table.insert(self.turnOrder, {
-                                type = "minion",
-                                owner = i, -- Reference to the owner's index in party
-                                index = j, -- Index in combat's minion array
-                                speed = minion.speed or 8
-                            })
-                            
-                            if GAME.debug then
-                                print("Added combat-local minion to turn order: " .. minion.name)
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-    
-    -- Add all enemies to turn order
-    for i, enemy in ipairs(self.enemies) do
-        table.insert(self.turnOrder, {
-            type = "enemy",
-            index = i,
-            speed = enemy.stats.speed or 10
-        })
-    end
-    
-    -- Sort by speed
-    table.sort(self.turnOrder, function(a, b)
-        return a.speed > b.speed
-    end)
-    
+    -- This function is now handled by the turn manager
+    -- Keep it for compatibility but it does nothing
     if GAME.debug then
-        print("Turn order determined with " .. #self.turnOrder .. " entries")
+        print("Turn order is now managed by the turn manager")
     end
 end
 
@@ -239,173 +165,44 @@ local function update(self, dt)
                 return
             end
             
-            -- Normal turn progression
-            self:nextTurn()
+            -- If this was a player turn that just ended, notify the turn manager
+            if self.state == combatSystem.STATE.PLAYER_TURN and self.turnManager then
+                self.turnManager:playerTurnCompleted()
+            end
+            
+            -- The turn manager will handle turn progression
+            self.turnEndDelay = nil
         end
         return
     end
     
-    -- Check for inactive character on their turn
-    if self.state == combatSystem.STATE.PLAYER_TURN and 
-       (self.currentCharacter < 1 or 
-        self.currentCharacter > #self.party or 
-        not self.party[self.currentCharacter].active) then
-        self:nextTurn()
+    -- Update the turn manager (this handles action meter ticking and turn queue processing)
+    if self.turnManager then
+        self.turnManager:update(dt)
+    end
+    
+    -- Update spell queue progression with new time-based system
+    self:updateSpellQueueTime(dt)
+end
+
+-- New function to update spell queue based on time instead of turns
+local function updateSpellQueueTime(self, dt)
+    -- Don't progress spell queue if player turn is active (everything pauses)
+    if self.turnManager and self.turnManager.isPlayerTurnActive then
         return
     end
     
-    -- Enemy turn processing            
-    if self.state == combatSystem.STATE.ENEMY_TURN then       
-        if self.enemyTurnDelay == nil then
-            -- Initialize enemy turns - set the active enemy index to the first enemy
-            self.activeEnemyIndex = 1
-            self.enemyTurnDelay = 1.0  -- Initial delay before first enemy acts
-            
-            -- Debug output to check enemy state
-            if GAME.debug then
-                print("Starting enemy turns with " .. #self.enemies .. " enemies")
-                for i, enemy in ipairs(self.enemies) do
-                    print("Enemy " .. i .. ": " .. enemy.name .. " (active: " .. tostring(enemy.active) .. ", HP: " .. enemy.currentHP .. "/" .. enemy.maxHP .. ")")
-                end
-            end
-            
-            -- Check if ANY enemies are active
-            local anyActive = false
-            for _, enemy in ipairs(self.enemies) do
-                if enemy.active then
-                    anyActive = true
-                    break
-                end
-            end
-            
-            -- If no active enemies at all, go to next turn
-            if not anyActive then
-                print("No active enemies at start of enemy turn, skipping to next turn")
-                self:addLog("No active enemies remaining", {0.7, 0.7, 0.7})
-                self.enemyTurnDelay = nil
-                self:nextTurn()
-                return
-            end
-            
-            -- Find the first active enemy
-            while self.activeEnemyIndex <= #self.enemies and not self.enemies[self.activeEnemyIndex].active do
-                self.activeEnemyIndex = self.activeEnemyIndex + 1
-            end
-            
-            -- If no active enemies found in sequence, go to next turn
-            if self.activeEnemyIndex > #self.enemies then
-                print("Reached end of enemy list without finding active enemy")
-                self:addLog("No active enemies to take turns", {0.7, 0.7, 0.7})
-                self.enemyTurnDelay = nil
-                self:nextTurn()
-                return
-            end
-        end
-        
-        self.enemyTurnDelay = self.enemyTurnDelay - dt
-        
-        if self.enemyTurnDelay and self.enemyTurnDelay <= 0 then
-            -- Debug
-            print("Enemy turn timer expired, executing enemy turn for index " .. self.activeEnemyIndex)
-            
-            -- Execute current enemy's turn
-            self:executeEnemyTurn()
-            
-            -- Find the next active enemy
-            local foundNextEnemy = false
-            while self.activeEnemyIndex <= #self.enemies do
-                if self.enemies[self.activeEnemyIndex].active then
-                    foundNextEnemy = true
-                    break
-                end
-                self.activeEnemyIndex = self.activeEnemyIndex + 1
-            end
-            
-            -- Check if we need to move to the next enemy or turn
-            if not foundNextEnemy or self.activeEnemyIndex > #self.enemies then
-                -- We've completed all enemy turns
-                print("All enemies have taken their turns, transitioning to next turn state")
-                self.enemyTurnDelay = nil
-                self:nextTurn() -- Go to player turn
-            else
-                -- More enemies to process, set a delay before next enemy acts
-                self.enemyTurnDelay = 0.7 -- Delay between enemy actions
-                print("Moving to next enemy turn: " .. self.activeEnemyIndex)
-            end
-        end
-    end
-    
-    -- Add new minion turn handling
-    if self.state == combatSystem.STATE.MINION_TURN then
-        if self.minionTurnDelay == nil then
-            -- Initialize minion turns
-            self.minionTurnDelay = 0.8
-        end
-        
-        self.minionTurnDelay = self.minionTurnDelay - dt
-        
-        if self.minionTurnDelay and self.minionTurnDelay <= 0 then
-            -- Execute current minion's turn
-            self:executeMinionTurn()
-            
-            -- If the minion's action resulted in victory or defeat, the state will be set.
-            -- The main update loop checks for this at its beginning.
-            -- We use self:isOver() here to prevent scheduling another turn if combat ended.
-            if self:isOver() then
-                 self.minionTurnDelay = nil -- Prevent re-entry if somehow update is called again before state fully processes
-                 return -- Combat is over, exit this block
-            end
-            
-            -- If combat is not over, set a short delay then allow nextTurn() to be called
-            -- via the turnEndDelay mechanism. This correctly determines the next actor.
-            self.turnEndDelay = 0.5 -- Delay before processing nextTurn logic
-            self.minionTurnDelay = nil -- Reset for the next potential sequence of minion turns
-        end
-    end
-end
-
--- Move to next character's turn
--- Add to spell queue
-local function addToSpellQueue(self, caster, skill, target)
-    -- Create a new spell queue entry
-    local entry = {
-        caster = caster,
-        skill = skill,
-        target = target,
-        progress = 0,
-        totalCastingTime = skill.castingTime,
-        castingTimeRemaining = skill.castingTime,
-        isCasting = true  -- Flag to indicate entity is currently casting
-    }
-    
-    -- Add to the queue
-    table.insert(self.spellQueue, entry)
-    
-    -- Mark caster as casting
-    caster.isCasting = true
-    
-    -- Add log entry for spell casting
-    local targetName = (target and target.name) or "area"
-    self:addLog(caster.name .. " begins casting " .. skill.name .. " on " .. targetName .. " (" .. skill.castingTime .. " turns)", {0.5, 0.8, 1})
-    
-    return entry
-end
-
--- Track spells that are in the completion animation
-local spellCompletionEffects = {}
-
--- Progress all spells in the queue
-local function progressSpellQueue(self)
     for i = #self.spellQueue, 1, -1 do
         local spell = self.spellQueue[i]
-        -- Only progress if the caster is still active and not already completing
         if spell.caster.active and not spell.completionStarted then
-            -- Progress the spell
-            spell.progress = spell.progress + 1
-            spell.castingTimeRemaining = math.max(0, spell.castingTimeRemaining - 1)
+            -- Decrease remaining cast time in seconds (spell queue now uses seconds instead of turns)
+            spell.castingTimeRemaining = spell.castingTimeRemaining - dt
+            
+            -- Update progress for display
+            spell.progress = spell.totalCastingTime - spell.castingTimeRemaining
             
             -- Check if the spell is complete
-            if spell.progress >= spell.totalCastingTime then
+            if spell.castingTimeRemaining <= 0 then
                 spell.isComplete = true
                 spell.completionStarted = true
                 spell.completionTimer = 0.5  -- Visual effect duration after cast
@@ -436,6 +233,35 @@ local function progressSpellQueue(self)
         end
     end
 end
+
+-- Add to spell queue
+local function addToSpellQueue(self, caster, skill, target)
+    -- Create a new spell queue entry
+    local entry = {
+        caster = caster,
+        skill = skill,
+        target = target,
+        progress = 0,
+        totalCastingTime = skill.castingTime,
+        castingTimeRemaining = skill.castingTime, -- Now in seconds instead of turns
+        isCasting = true  -- Flag to indicate entity is currently casting
+    }
+    
+    -- Add to the queue
+    table.insert(self.spellQueue, entry)
+    
+    -- Mark caster as casting
+    caster.isCasting = true
+    
+    -- Add log entry for spell casting
+    local targetName = (target and target.name) or "area"
+    self:addLog(caster.name .. " begins casting " .. skill.name .. " on " .. targetName .. " (" .. skill.castingTime .. " seconds)", {0.5, 0.8, 1})
+    
+    return entry
+end
+
+-- Track spells that are in the completion animation
+local spellCompletionEffects = {}
 
 -- Handle visual effects for completed spells
 local function executeCompletedSpells(self)
@@ -972,6 +798,7 @@ return {
     setupCombatants = setupCombatants,
     determineTurnOrder = determineTurnOrder,
     update = update,
+    updateSpellQueueTime = updateSpellQueueTime,
     nextTurn = nextTurn,
     partyDefeated = partyDefeated,
     transitionToEnemyTurn = transitionToEnemyTurn,
