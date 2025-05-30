@@ -4,7 +4,7 @@ local screenManager = require("screens/screenManager")
 local assetManager = require("assets/assetManager")
 local itemSystem = require("gameplay/item")
 local partyPanel = require("screens/ui_slices/partyPanel")
-local smithRecipes = require("gameplay/smithRecipes_definitions")
+local smithRecipes = require("data/smithRecipes_definitions")
 
 local smith = screenManager:createScreen("Smith")
 

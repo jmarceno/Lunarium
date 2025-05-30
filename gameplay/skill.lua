@@ -6,7 +6,7 @@ local skillSystem = {
 }
 
 -- Import skill definitions
-skillSystem.skills = require("gameplay/skill_definitions")
+skillSystem.skills = require("data/skill_definitions")
 
 -- Skill types
 skillSystem.SKILL_TYPE = {

@@ -2,7 +2,7 @@
 -- Defines items, equipment, and consumables
 
 -- Import item definitions from external file
-local itemDefs = require("gameplay/item_definitions")
+local itemDefs = require("data/item_definitions")
 
 -- Import unique and set item definitions
 local uniqueItemDefs = require("data/items/unique_items")

@@ -3,7 +3,7 @@ local monsterData = {}
 local assets = require("assets/assetManager")
 
 -- Import monster definitions
-local monsterDefinitions = require("gameplay/monster_definitions")
+local monsterDefinitions = require("data/monster_definitions")
 monsterData.monsters = monsterDefinitions.monsters
 monsterData.idMapping = monsterDefinitions.idMapping
 

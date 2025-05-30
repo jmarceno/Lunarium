@@ -1,7 +1,7 @@
 local damageTypes = require("gameplay/damageTypes")
 local statusEffects = require("gameplay/statusEffects")
-local monsterAbilities = require("gameplay/monsterAbilities")
-local minionAbilities = require("gameplay/minionAbilities")
+local monsterAbilities = require("data/monsterAbilities")
+local minionAbilities = require("data/minionAbilities")
 
 local monsterAttackSystem = {}
 

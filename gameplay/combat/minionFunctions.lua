@@ -3,7 +3,7 @@ local skillSystem = require("gameplay/skill")
 local assetManager = require("assets/assetManager")
 local minionManager = require("gameplay/minionManager")
 local monsterAttackSystem = require("gameplay/monsterAttackSystem")
-local minionAbilities = require("gameplay/minionAbilities")
+local minionAbilities = require("data/minionAbilities")
 local statusEffects = require("gameplay/statusEffects")
 local combatSystem = {}  -- Forward declaration
 

@@ -2,7 +2,8 @@
 -- Manages quest generation, tracking, and completion
 local itemSystem = require("gameplay/item")
 local reputationSystem = require("gameplay/reputationSystem")
-local questDefinitions = require("gameplay/quest_definitions")
+local questDefinitions = require("data/quest_definitions")
+local monsterDefinitions = require("data/monster_definitions")
 
 local questSystem = {
     quests = {},
@@ -368,7 +369,7 @@ function questSystem:generateRandomQuest(giver, level, difficulty)
     
     if questType == "KILL" then
         -- Monster targets based on level and categories
-        local monsterCategories = monster_definitions.monsterCategories
+        local monsterCategories = monsterDefinitions.monsterCategories
         
         -- Select appropriate category based on level
         local categoryIndex = math.min(math.ceil(level / 2), #monsterCategories)
@@ -426,7 +427,7 @@ function questSystem:generateRandomQuest(giver, level, difficulty)
         }
     elseif questType == "BOSS" then
         -- Bosses
-        local bosses = monster_definitions.bosses 
+        local bosses = monsterDefinitions.bosses 
         -- Locations
         local locations = questDefinitions.bosslocations
         

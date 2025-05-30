@@ -10,7 +10,7 @@ local jobSystem = {
 }
 
 -- Import job definitions
-jobSystem.jobs = require("gameplay/job_definitions")
+jobSystem.jobs = require("data/job_definitions")
 
 -- Get a job definition by name
 function jobSystem:getJob(name)
