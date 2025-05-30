@@ -96,7 +96,7 @@ questSystem.questTypes = {
         end,
         checkCompletion = function(objective, event, data)
             if event == "item_pickup" and data.itemId == objective.itemId then
-                objective.current = objective.current + data.count or 1
+                objective.current = objective.current + (data.count or 1)
                 return objective.current >= objective.count
             end
             return false
