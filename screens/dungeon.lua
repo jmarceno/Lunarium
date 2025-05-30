@@ -86,73 +86,9 @@ function dungeon:init()
     -- Add detected trap tracking to avoid repeat notifications
     self.detectedTraps = {}
     
-    -- LUIS layer name
-    self.luisLayer = "dungeonHud"
-    
     -- UI elements (Initialize the table first!)
     self.elements = {}
     
-    -- Create LUIS UI
-    self:createUI()
-    
-    -- Initialize the minion manager
-    minionManager:init()
-    
-    -- Add trap throwing system for Artificer
-    self.trapThrowing = {
-        active = false,
-        selectedTrap = nil,
-        targetedEnemy = nil
-    }
-    
-    -- Initialize trap throwing UI
-    self:initTrapThrowingUI()
-    
-    return self
-end
-
-function dungeon:createUI()
-    -- Main HUD container - positioned at bottom right for UI buttons
-    self.hudContainer = luis.newFlexContainer(46, 30, 17, 8)
-    self.hudContainer:setDirection("column")
-    self.hudContainer:setJustifyContent("flex-start")
-    self.hudContainer:setAlignItems("stretch")
-    self.hudContainer:setPadding(1, 1, 1, 1)
-    
-    -- Character Info Button
-    self.characterInfoButton = luis.newButton(0, 0, 15, 2, "Party Info (C)", function()
-        self:openCharacterInfo()
-    end)
-    
-    -- Inventory Button
-    self.inventoryButton = luis.newButton(0, 0, 15, 2, "Inventory (I)", function()
-        self:openInventory()
-    end)
-    
-    -- Status/Quest Button
-    self.statusButton = luis.newButton(0, 0, 15, 2, "Quest Status (J)", function()
-        self:toggleStatusBar()
-    end)
-    
-    self.hudContainer:addChild(self.characterInfoButton)
-    self.hudContainer:addChild(self.inventoryButton)
-    self.hudContainer:addChild(self.statusButton)
-    
-    -- Complete quest button (initially hidden, positioned in center)
-    self.completeButton = luis.newButton(26, 35, 12, 3, "Return to Town", function()
-        self:completeQuest()
-    end)
-    self.completeButton:setVisible(false)
-    
-    -- Trap disarm notification label (initially hidden)
-    self.trapNotificationLabel = luis.newLabel(22, 25, 20, 3, "Trap Detected! Disarm [T]")
-    self.trapNotificationLabel:setVisible(false)
-    
-    -- Objective completion label (initially hidden)
-    self.objectiveLabel = luis.newLabel(5, 10, 54, 3, "Objective reached! Return to the entrance to complete your quest.")
-    self.objectiveLabel:setVisible(false)
-    
-    -- Store old panels for compatibility (these use custom drawing)
     -- Confirmation Dialog (now uses confirmDialogPanel)
     self.elements.confirmDialog = confirmDialogPanel:new({
         x = 20,
@@ -161,6 +97,30 @@ function dungeon:createUI()
         height = 150
         -- yOffset will be used internally by the panel for resize
     })
+    
+    -- Add other UI elements
+    self.elements.completeButton = screenManager.UI.Button(
+        GAME.width / 2 - 100, GAME.height - 80, 
+        200, 50, "Return to Town", 
+        function() self:completeQuest() end
+    )
+    
+    -- Character Info Button (Bottom Right, above Inventory)
+    self.elements.characterInfoButton = screenManager.UI.Button(
+        GAME.width - 170, GAME.height - 233, 150, 30, "Party Info (C)",
+        function() self:openCharacterInfo() end
+    )
+    
+    -- Inventory Button (Bottom Right, above Status and Quest Status)
+    self.elements.inventoryButton = screenManager.UI.Button(
+        GAME.width - 170, GAME.height - 193, 150, 30, "Inventory (I)",
+        function() self:openInventory() end
+    )
+    -- Status Button (Bottom Right, Bellow Inventory)
+    self.elements.statusButton = screenManager.UI.Button(
+        GAME.width - 170, GAME.height - 153, 150, 30, "Quest Status (J)",
+        function() self:toggleStatusBar() end
+    )
     
     -- Initialize minimap (now uses minimapPanel)
     self.elements.minimap = minimapPanel:new({
@@ -180,8 +140,23 @@ function dungeon:createUI()
         visible = self.statusBarVisible -- Initialize with dungeon's state
     })
 
-    -- Initialize party panel
-    self.elements.partyPanel = partyPanel
+     -- Initialize party panel
+     self.elements.partyPanel = partyPanel
+
+     -- Initialize the minion manager
+    minionManager:init()
+    
+    -- Add trap throwing system for Artificer
+    self.trapThrowing = {
+        active = false,
+        selectedTrap = nil,
+        targetedEnemy = nil
+    }
+    
+    -- Initialize trap throwing UI
+    self:initTrapThrowingUI()
+    
+    return self
 end
 
 -- Helper function to initialize player position and angle
@@ -213,13 +188,6 @@ end
 function dungeon:enter(params)
     -- Debug output to track flow
     print("Entering dungeon screen with params:", params and table.concat({"from_levelup="..(params.from_levelup and "true" or "false"), "from="..(params.from or "nil")}, ", ") or "nil")
-    
-    -- Set up LUIS layer
-    luis.setCurrentLayer(self.luisLayer)
-    luis.insertElement(self.luisLayer, self.hudContainer)
-    luis.insertElement(self.luisLayer, self.completeButton)
-    luis.insertElement(self.luisLayer, self.trapNotificationLabel)
-    luis.insertElement(self.luisLayer, self.objectiveLabel)
     
     -- Set footstep sound volume to a lower level
     assetManager:setSoundVolume("footstep_gravel_walk_01", 0.05) -- Set to 30% of normal volume
@@ -358,13 +326,6 @@ function dungeon:enter(params)
     
     -- Reveal the area around the starting position
     self.map:revealArea(self.playerPos.x, self.playerPos.y, self.fogOfWarRadius)
-end
-
-function dungeon:exit()
-    -- Clean up LUIS layer
-    if luis.getLayer(self.luisLayer) then
-        luis.clearLayer(self.luisLayer)
-    end
 end
 
 function dungeon:populateDungeon(difficulty)
@@ -1412,22 +1373,24 @@ function dungeon:draw()
             self.elements.partyPanel:draw()
         end
         
-        -- Update trap detection notification visibility
+        -- Draw active trap disarm prompt if a trap is detected
         if self.activeTrap and self.activeTrap.isTrapDetected and not self.elements.confirmDialog.visible then
-            self.trapNotificationLabel:setVisible(true)
-        else
-            self.trapNotificationLabel:setVisible(false)
+            love.graphics.setFont(screenManager.fonts.medium)
+            love.graphics.setColor(1, 0.5, 0.5, 0.9)
+            
+            -- Draw trap warning in center of screen
+            love.graphics.printf(
+                "Trap Detected! Disarm [T]", 
+                GAME.width / 2 - 150, 
+                GAME.height / 2 + 80,
+                300, "center"
+            )
         end
         
         -- Draw floating texts
         self:drawFloatingTexts()
         
     elseif self.state == STATES.COMBAT then
-        -- Hide HUD during combat
-        self.hudContainer:setVisible(false)
-        self.trapNotificationLabel:setVisible(false)
-        self.objectiveLabel:setVisible(false)
-        
         -- Draw combat UI
         if self.combat then
             self.combat:draw()
@@ -1442,13 +1405,7 @@ function dungeon:draw()
             self.state = STATES.EXPLORING
         end
     elseif self.state == STATES.COMPLETED then
-        -- Hide normal HUD and show completion UI
-        self.hudContainer:setVisible(false)
-        self.trapNotificationLabel:setVisible(false)
-        self.objectiveLabel:setVisible(false)
-        self.completeButton:setVisible(true)
-        
-        -- Draw completion message
+        -- Draw completion message and button
         love.graphics.setColor(0, 0, 0, 0.7)
         love.graphics.rectangle("fill", 0, 0, GAME.width, GAME.height)
         
@@ -1468,13 +1425,21 @@ function dungeon:draw()
                 GAME.width, "center"
             )
         end
-    else
-        -- Ensure HUD is visible for other states
-        self.hudContainer:setVisible(true)
-        self.completeButton:setVisible(false)
+        
+        -- Draw return button
+        if self.elements.completeButton then
+            self.elements.completeButton:draw()
+        end
     end
     
-    -- Draw confirmation dialog last (if visible) - uses custom drawing
+    -- Draw UI buttons (except in combat)
+    if self.state ~= STATES.COMBAT then
+        if self.elements.characterInfoButton then self.elements.characterInfoButton:draw() end
+        if self.elements.inventoryButton then self.elements.inventoryButton:draw() end
+        if self.elements.statusButton then self.elements.statusButton:draw() end
+    end
+    
+    -- Draw confirmation dialog last (if visible)
     if self.elements.confirmDialog and self.elements.confirmDialog.visible then
         self.elements.confirmDialog:draw()
     end
@@ -1595,9 +1560,13 @@ function dungeon:mousepressed(x, y, button, istouch, presses)
         return self.elements.confirmDialog:clicked(x, y, button)
     end
     
-    -- LUIS now handles all button clicks automatically through callbacks
-    -- No need to manually check button clicks for inventory, character info, status buttons
-    
+    -- Handle Inventory/Quest button clicks ONLY if panels are NOT open
+    if self.state == STATES.EXPLORING then
+        if self.elements.characterInfoButton:clicked(x, y, button) then return true end
+        if self.elements.inventoryButton:clicked(x, y, button) then return true end
+        if self.elements.statusButton:clicked(x, y, button) then return true end
+    end
+
     -- Pass mouse press to combat system ONLY if in combat state
     if self.state == STATES.COMBAT and self.combat then
         if self.combat:mousepressed(x, y, button) then
@@ -1609,6 +1578,12 @@ function dungeon:mousepressed(x, y, button, istouch, presses)
                 self:failQuest()
             end
             return true -- Indicate click was handled and led to state change
+        end
+    -- Handle mouse press for completed state (Return to Town button)
+    elseif self.state == STATES.COMPLETED then
+        if self.elements.completeButton and self.elements.completeButton:clicked(x, y, button) then
+             self:completeQuest()
+             return true -- Handled
         end
     end
     
@@ -1663,11 +1638,14 @@ function dungeon:onResize(width, height)
     -- Update raycaster camera
     raycaster:setCamera(self.playerPos.x, self.playerPos.y, self.playerPos.angle)
     
-    -- LUIS handles UI element positioning automatically
-    -- Only need to update non-LUIS elements like minimap
-    if self.elements.minimap then
-        self.elements.minimap.x = width - 220
-    end
+    -- Update UI element positions
+    self.elements.completeButton.x = width / 2 - 100
+    self.elements.completeButton.y = height - 80
+    
+    -- Update minimap position
+    self.elements.minimap.x = width - 220
+    
+    -- You might need to update other position-dependent elements here
 end
 
 -- Open Inventory Screen
@@ -1711,12 +1689,16 @@ function dungeon:drawExploringState()
         self.elements.statusBar:draw(self) -- Pass dungeon instance
     end
     
-    -- Update objective reached reminder visibility
+    -- Draw objective reached reminder if applicable
     if self.objective and self.objective.reached and not self.objective.completed and 
        self.currentQuest and self.currentQuest.type == "EXPLORE" then
-        self.objectiveLabel:setVisible(true)
-    else
-        self.objectiveLabel:setVisible(false)
+        -- Display a message indicating the player should return to entrance
+        love.graphics.setColor(0, 1, 0, 0.7 + math.sin(love.timer.getTime() * 2) * 0.3) -- Pulsing green
+        love.graphics.setFont(screenManager.fonts.medium)
+        love.graphics.printf(
+            "Objective reached! Return to the entrance to complete your quest.",
+            0, 100, GAME.width, "center"
+        )
     end
     
     -- Draw debug info

@@ -1,45 +1,39 @@
--- Smith Screen (LUIS)
--- Where players can craft weapons and armor from monster parts
+-- Smith Screen
+-- Where players can craft items from monster parts
 local screenManager = require("screens/screenManager")
 local assetManager = require("assets/assetManager")
 local itemSystem = require("gameplay/item")
-local partyPanelLuis = require("ui_elements/partyPanelLuis")
-
--- Get LUIS instance
-local initLuis = require("luis.init")
-local luis = initLuis("luis/widgets")
+local partyPanel = require("screens/ui_slices/partyPanel")
+local smithRecipes = require("data/smithRecipes_definitions")
 
 local smith = screenManager:createScreen("Smith")
 
 function smith:init()
     -- Initialize state
-    self.state = "main" -- main, recipe_details
+    self.state = "main" -- main, recipe_details, craft_result
+    self.recipes = {}
     self.selectedRecipe = nil
-    self.availableRecipes = {}
+    self.craftedItem = nil
     self.selectedCategory = "All"
     self.pageOffset = 0
-    self.recipesPerPage = 6
-    
-    -- Load background image directly using love.graphics
-    self.backgroundImage = love.graphics.newImage("assets/SmithScreen.png")
+    self.recipesPerPage = 5
     
     -- Categories
     self.categories = {
         "All",
         "Weapons",
-        "Armor"
+        "Armor",
+        "Accessories"
     }
     
-    -- Create LUIS layers
-    luis.newLayer("smithLayer")
-    luis.newLayer("confirmationLayer")
+    -- Load background image directly using love.graphics
+    self.backgroundImage = love.graphics.newImage("assets/SmithScreen.png")
+    
+    -- Create recipes
+    self:createRecipes()
     
     -- Create UI elements
     self:createUI()
-    
-    -- Setup party panel
-    self.partyPanel = partyPanelLuis:create()
-    luis.insertElement("smithLayer", self.partyPanel.container)
 end
 
 function smith:createRecipes()
@@ -637,7 +631,7 @@ function smith:createUI()
     self:updateElementVisibility()
     
     -- Initialize party panel
-    self.elements.partyPanel = partyPanelLuis
+    self.elements.partyPanel = partyPanel
     self.elements.partyPanel.visible = true
 end
 
@@ -682,28 +676,25 @@ function smith:updateElementVisibility()
 end
 
 function smith:enter()
-    -- Enable smith layer
-    luis.enableLayer("smithLayer")
+    -- Start playing smith music
+    -- assetManager:playMusic("town") -- Use town music for now
+    
+    -- Ensure background image is loaded
+    if not self.backgroundImage then
+        self.backgroundImage = love.graphics.newImage("assets/SmithScreen.png")
+    end
     
     -- Initialize state
     self.state = "main"
     self.selectedRecipe = nil
+    self.craftedItem = nil
+    self.elements.recipeDetailsPanel.visible = false
+    self.elements.craftResultPanel.visible = false
     self.selectedCategory = "All"
     self.pageOffset = 0
     
-    -- Update party panel with current party data
-    if GAME and GAME.party then
-        self.partyPanel:update(GAME.party, false) -- false = not in combat
-    end
-    
     -- Update element visibility
     self:updateElementVisibility()
-end
-
-function smith:exit()
-    -- Disable smith layer
-    luis.disableLayer("smithLayer")
-    luis.disableLayer("confirmationLayer")
 end
 
 function smith:draw()
@@ -725,12 +716,19 @@ function smith:draw()
         self.elements.recipeListPanel:draw()
     elseif self.state == "recipe_details" then
         self.elements.recipeDetailsPanel:draw()
+    elseif self.state == "craft_result" then
+        -- Draw background panels
+        self.elements.recipeListPanel:draw()
+        self.elements.craftResultPanel:draw()
     end
     
     -- Draw back button
     self.elements.backToTownButton:draw()
     
-    -- LUIS handles party panel drawing automatically
+    -- Draw party panel if visible
+    if self.elements.partyPanel and self.elements.partyPanel.visible then
+        self.elements.partyPanel:draw()
+    end
 end
 
 function smith:mousepressed(x, y, button, istouch, presses)

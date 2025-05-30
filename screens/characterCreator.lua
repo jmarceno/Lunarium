@@ -1,13 +1,9 @@
--- Character Creator Screen (LUIS)
+-- Character Creator Screen
 local screenManager = require("screens/screenManager")
 local assetManager = require("assets/assetManager")
 local saveLoad = require("utils/saveLoad")
 local characterSystem = require("gameplay/character")
 local jobSystem = require("gameplay/job")
-
--- Get LUIS instance
-local initLuis = require("luis.init")
-local luis = initLuis("luis/widgets")
 
 local characterCreator = screenManager:createScreen("Character Creator")
 
@@ -25,6 +21,9 @@ function characterCreator:init()
     self.tempAttributes = {}
     self.charName = ""
     self.portraitId = nil
+    self.portraitScrollY = 0
+    self.maxPortraitScrollY = 0
+    self.attributeWarning = "" -- Message for attribute allocation
     
     -- Initialize base attributes
     for _, attr in ipairs(characterSystem.attributes) do
@@ -32,277 +31,984 @@ function characterCreator:init()
         self.tempAttributes[attr] = 5
     end
     
-    -- Create LUIS layers for different steps
-    luis.newLayer("characterCreatorLayer")
-    luis.newLayer("jobSelectionLayer")
-    luis.newLayer("attributeLayer")
-    luis.newLayer("nameInputLayer")
-    luis.newLayer("previewLayer")
-    
     -- Create UI elements
     self:createUI()
-    
-    -- Start with job selection
-    self:showJobSelection()
 end
 
 function characterCreator:createUI()
-    -- Create main character creator container
-    local mainContainer = luis.createElement("characterCreatorLayer", "FlexContainer", 35, 18, 2, 3, nil, "CharCreatorMain")
+    -- Step indicators
+    self.elements.steps = {
+        x = 50,
+        y = 100,
+        width = GAME.width - 100,
+        height = 30,
+        
+        draw = function(self)
+            local steps = {"Choose Job", "Assign Attributes", "Name Character", "Preview"}
+            local stepWidth = self.width / #steps
+            
+            -- Draw steps
+            for i, stepName in ipairs(steps) do
+                local x = self.x + (i - 1) * stepWidth
+                local isActive = characterCreator.currentStep == i
+                
+                -- Draw background
+                love.graphics.setColor(isActive and {0.3, 0.5, 0.8} or {0.2, 0.2, 0.3})
+                love.graphics.rectangle("fill", x, self.y, stepWidth - 10, self.height, 5, 5)
+                
+                -- Draw step name
+                love.graphics.setFont(screenManager.fonts.small)
+                love.graphics.setColor(1, 1, 1)
+                
+                local textWidth = screenManager.fonts.small:getWidth(stepName)
+                love.graphics.print(
+                    stepName,
+                    x + (stepWidth - 10 - textWidth) / 2,
+                    self.y + (self.height - screenManager.fonts.small:getHeight()) / 2
+                )
+            end
+        end
+    }
     
-    -- Character slots panel (right side)
-    local slotsContainer = luis.newFlexContainer(8, 16, 1, 1, nil, "CharacterSlots")
+    -- Character slots
+    self.elements.charSlots = {
+        x = GAME.width - 250,
+        y = 150,
+        width = 200,
+        height = 200,
+        
+        draw = function(self)
+            -- Draw character slots
+            for i = 1, 4 do
+                local x = self.x
+                local y = self.y + (i - 1) * 50
+                local isActive = characterCreator.currentCharacter == i
+                
+                -- Draw background
+                if characterCreator.characters[i] then
+                    love.graphics.setColor(isActive and {0.3, 0.5, 0.8} or {0.2, 0.3, 0.4})
+                else
+                    love.graphics.setColor(isActive and {0.3, 0.3, 0.5} or {0.2, 0.2, 0.3})
+                end
+                love.graphics.rectangle("fill", x, y, self.width, 40, 5, 5)
+                
+                -- Draw character info if exists
+                if characterCreator.characters[i] then
+                    local char = characterCreator.characters[i]
+                    love.graphics.setFont(screenManager.fonts.small)
+                    love.graphics.setColor(1, 1, 1)
+                    love.graphics.print(char.name, x + 10, y + 5)
+                    
+                    love.graphics.setColor(0.8, 0.8, 1)
+                    love.graphics.print(char.job, x + 10, y + 22)
+                else
+                    love.graphics.setFont(screenManager.fonts.small)
+                    love.graphics.setColor(0.7, 0.7, 0.7)
+                    love.graphics.print("Empty Slot", x + 10, y + 12)
+                end
+            end
+        end,
+        
+        clicked = function(self, x, y, button)
+            if button ~= 1 then return false end
+            
+            -- Check if within bounds
+            if x >= self.x and x <= self.x + self.width then
+                for i = 1, 4 do
+                    local slotY = self.y + (i - 1) * 50
+                    
+                    if y >= slotY and y <= slotY + 40 then
+                        characterCreator:selectCharacterSlot(i)
+                        return true
+                    end
+                end
+            end
+            
+            return false
+        end
+    }
     
-    -- Create character slot buttons
-    self.characterSlots = {}
-    for i = 1, 4 do
-        local slotButton = luis.newButton("Empty Slot", 7, 3, 
-            function() self:selectCharacterSlot(i) end, nil, 1, 1)
-        slotsContainer:addChild(slotButton)
-        self.characterSlots[i] = slotButton
-    end
+    -- Job selection grid
+    self.elements.jobGrid = {
+        x = 50,
+        y = 150,
+        width = GAME.width - 350,
+        height = 300,
+        jobs = {},
+        visible = true,
+        
+        init = function(self)
+            -- Load base jobs
+            self.jobs = jobSystem:getBaseJobs()
+        end,
+        
+        draw = function(self)
+            -- Skip if not visible
+            if self.visible == false then return end
+            
+            -- Draw jobs in a grid
+            local jobWidth = 150
+            local jobHeight = 120
+            local cols = math.floor(self.width / jobWidth)
+            
+            for i, job in ipairs(self.jobs) do
+                local col = (i - 1) % cols
+                local row = math.floor((i - 1) / cols)
+                
+                local x = self.x + col * jobWidth
+                local y = self.y + row * jobHeight
+                
+                -- Draw job background
+                local isSelected = characterCreator.selectedJob == job.name
+                
+                if isSelected then
+                    love.graphics.setColor(0.3, 0.5, 0.8)
+                else
+                    love.graphics.setColor(0.2, 0.2, 0.3)
+                end
+                
+                love.graphics.rectangle("fill", x + 5, y + 5, jobWidth - 10, jobHeight - 10, 5, 5)
+                
+                -- Draw job name
+                love.graphics.setFont(screenManager.fonts.medium)
+                love.graphics.setColor(1, 1, 1)
+                
+                local nameWidth = screenManager.fonts.medium:getWidth(job.name)
+                love.graphics.print(
+                    job.name,
+                    x + 5 + (jobWidth - 10 - nameWidth) / 2,
+                    y + 15
+                )
+                
+                -- Draw job description
+                love.graphics.setFont(screenManager.fonts.small)
+                love.graphics.setColor(0.8, 0.8, 0.8)
+                
+                love.graphics.printf(
+                    job.description,
+                    x + 10, y + 45,
+                    jobWidth - 20, "center"
+                )
+            end
+        end,
+        
+        clicked = function(self, x, y, button)
+            -- Skip if not visible
+            if self.visible == false then return false end
+            
+            if button ~= 1 then return false end
+            
+            -- Check if within bounds
+            if x >= self.x and x <= self.x + self.width and
+               y >= self.y and y <= self.y + self.height then
+                
+                -- Determine which job was clicked
+                local jobWidth = 150
+                local jobHeight = 120
+                local cols = math.floor(self.width / jobWidth)
+                
+                for i, job in ipairs(self.jobs) do
+                    local col = (i - 1) % cols
+                    local row = math.floor((i - 1) / cols)
+                    
+                    local jobX = self.x + col * jobWidth
+                    local jobY = self.y + row * jobHeight
+                    
+                    if x >= jobX + 5 and x <= jobX + jobWidth - 5 and
+                       y >= jobY + 5 and y <= jobY + jobHeight - 5 then
+                        characterCreator:selectJob(job.name)
+                        return true
+                    end
+                end
+            end
+            
+            return false
+        end
+    }
     
-    mainContainer:addChild(slotsContainer)
+    -- Job progression graph to show advanced jobs requiring the selected job
+    self.elements.jobProgression = {
+        x = self.elements.jobGrid.x,
+        y = self.elements.jobGrid.y + self.elements.jobGrid.height + 20,
+        width = self.elements.jobGrid.width,
+        height = 200,
+        jobs = {},
+        visible = false,
+        update = function(self)
+            if characterCreator.selectedJob then
+                -- Format job name to remove spaces for system lookup
+                local formattedJobName = characterCreator.selectedJob:gsub("%s+", "")
+                self.jobs = jobSystem:getJobProgressions(formattedJobName)
+            else
+                self.jobs = {}
+            end
+        end,
+        draw = function(self)
+            if not self.visible then return end
+            self:update()
+            -- Draw title
+            love.graphics.setFont(screenManager.fonts.medium)
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.print("Progressions for " .. characterCreator.selectedJob, self.x, self.y - 30)
+            -- Draw progression jobs grid
+            local jobWidth = 150
+            local jobHeight = 100
+            local cols = math.floor(self.width / jobWidth)
+            for i, job in ipairs(self.jobs) do
+                local col = (i - 1) % cols
+                local row = math.floor((i - 1) / cols)
+                local x = self.x + col * jobWidth
+                local y = self.y + row * jobHeight
+                -- Draw background
+                love.graphics.setColor(0.2, 0.2, 0.3)
+                love.graphics.rectangle("fill", x + 5, y + 5, jobWidth - 10, jobHeight - 10, 5, 5)
+                -- Draw job name
+                love.graphics.setFont(screenManager.fonts.small)
+                love.graphics.setColor(1, 1, 1)
+                love.graphics.print(job.name, x + 10, y + 10)
+                -- Draw requirements
+                local reqText = ""
+                if job.requirements then
+                    local parts = {}
+                    for reqJob, reqLevel in pairs(job.requirements) do
+                        table.insert(parts, reqJob .. " Lv" .. reqLevel)
+                    end
+                    reqText = table.concat(parts, ", ")
+                else
+                    reqText = "None"
+                end
+                love.graphics.setFont(screenManager.fonts.small)
+                love.graphics.printf("Requires: " .. reqText, x + 10, y + 30, jobWidth - 20, "left")
+            end
+        end,
+        clicked = function(self, x, y, button)
+            if not self.visible or button ~= 1 then return false end
+            if x >= self.x and x <= self.x + self.width and
+               y >= self.y and y <= self.y + self.height then
+                local jobWidth = 150
+                local jobHeight = 100
+                local cols = math.floor(self.width / jobWidth)
+                for i, job in ipairs(self.jobs) do
+                    local col = (i - 1) % cols
+                    local row = math.floor((i - 1) / cols)
+                    local jobX = self.x + col * jobWidth
+                    local jobY = self.y + row * jobHeight
+                    if x >= jobX + 5 and x <= jobX + jobWidth - 5 and
+                       y >= jobY + 5 and y <= jobY + jobHeight - 5 then
+                        characterCreator:selectJob(job.name)
+                        return true
+                    end
+                end
+            end
+            return false
+        end
+    }
+    
+    -- Attribute allocation
+    self.elements.attributes = {
+        x = 50,
+        y = 150,
+        width = GAME.width - 350,
+        height = 300,
+        visible = true,
+        hoveredAttribute = nil,
+        selectedAttributeIndex = 1, -- Initialize with first attribute selected
+        
+        draw = function(self)
+            -- Skip if not visible
+            if self.visible == false then return end
+            
+            -- Draw points remaining
+            love.graphics.setFont(screenManager.fonts.medium)
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.print(
+                "Points Remaining: " .. characterCreator.attributePoints,
+                self.x, self.y + 300
+            )
+            
+            -- Draw keyboard navigation hint
+            love.graphics.setFont(screenManager.fonts.small)
+            love.graphics.setColor(0.8, 0.8, 0.8)
+            love.graphics.print("(Use W/S to select attribute, A/D to adjust points, PageUp/PageDown to navigate tabs)", 
+                self.x, self.y + 330)
+            
+            -- Get mouse position to determine hover state
+            local mx, my = love.mouse.getPosition()
+            
+            -- Draw attributes
+            for i, attr in ipairs(characterSystem.attributes) do
+                local y = self.y + (i - 1) * 40
+                
+                -- Check if mouse is hovering this attribute
+                local isHovered = mx >= self.x and mx <= self.x + 250 and
+                                my >= y and my <= y + 30
+                
+                -- Check if this attribute is selected with keyboard
+                local isSelected = (i == self.selectedAttributeIndex)
+                                
+                -- Draw highlight for selected or hovered attribute
+                if isSelected then
+                    -- Keyboard selected attribute gets a brighter highlight
+                    love.graphics.setColor(0.3, 0.5, 0.7, 0.7)
+                    love.graphics.rectangle("fill", self.x - 5, y - 5, 260, 40, 5, 5)
+                    self.hoveredAttribute = attr
+                elseif isHovered then
+                    -- Mouse hovered attribute gets a softer highlight
+                    love.graphics.setColor(0.2, 0.3, 0.4, 0.5)
+                    love.graphics.rectangle("fill", self.x - 5, y - 5, 260, 40, 5, 5)
+                    self.hoveredAttribute = attr
+                end
+                
+                -- Draw attribute name
+                love.graphics.setFont(screenManager.fonts.medium)
+                love.graphics.setColor(1, 1, 1)
+                love.graphics.print(attr, self.x, y)
+                
+                -- Draw attribute value
+                local value = characterCreator.tempAttributes[attr]
+                local valueWidth = screenManager.fonts.medium:getWidth(tostring(value))
+                
+                love.graphics.print(
+                    tostring(value),
+                    self.x + 150 - valueWidth / 2,
+                    y
+                )
+                
+                -- Draw decrease button
+                local canDecrease = value > characterCreator.baseAttributes[attr]
+                love.graphics.setColor(canDecrease and {0.8, 0.2, 0.2} or {0.4, 0.1, 0.1})
+                love.graphics.rectangle("fill", self.x + 180, y, 30, 30, 5, 5)
+                
+                love.graphics.setColor(1, 1, 1)
+                love.graphics.setFont(screenManager.fonts.medium)
+                love.graphics.print("-", self.x + 190, y + 5)
+                
+                -- Draw increase button
+                local canIncrease = characterCreator.attributePoints > 0 and value < characterSystem.BASE_ATTRIBUTE_CAP
+                love.graphics.setColor(canIncrease and {0.2, 0.8, 0.2} or {0.1, 0.4, 0.1})
+                love.graphics.rectangle("fill", self.x + 220, y, 30, 30, 5, 5)
+                
+                love.graphics.setColor(1, 1, 1)
+                love.graphics.print("+", self.x + 230, y + 5)
+            end
+        end,
+        
+        clicked = function(self, x, y, button)
+            -- Skip if not visible
+            if self.visible == false then return false end
+            
+            if button ~= 1 then return false end
+            
+            -- Check if within bounds of attribute buttons or rows
+            for i, attr in ipairs(characterSystem.attributes) do
+                local attrY = self.y + (i - 1) * 40
+                
+                -- Check if clicking within the attribute row (for selection)
+                if x >= self.x and x <= self.x + 250 and
+                   y >= attrY and y <= attrY + 30 then
+                    -- Update selected attribute index
+                    self.selectedAttributeIndex = i
+                    self.hoveredAttribute = attr
+                    
+                    -- Check specific buttons
+                    -- Check decrease button
+                    if x >= self.x + 180 and x <= self.x + 210 then
+                        characterCreator:decreaseAttribute(attr)
+                        return true
+                    end
+                    
+                    -- Check increase button
+                    if x >= self.x + 220 and x <= self.x + 250 then
+                        characterCreator:increaseAttribute(attr)
+                        return true
+                    end
+                    
+                    -- Clicked on row but not on buttons
+                    return true
+                end
+            end
+            
+            return false
+        end,
+        
+        wheelmoved = function(self, x, y)
+            -- Skip if not visible
+            if self.visible == false then return false end
+            
+            -- Check if mouse is over an attribute
+            local mx, my = love.mouse.getPosition()
+            
+            for i, attr in ipairs(characterSystem.attributes) do
+                local attrY = self.y + (i - 1) * 40
+                
+                -- Check if mouse is over this attribute row (wider area than the buttons)
+                if mx >= self.x and mx <= self.x + 250 and
+                   my >= attrY and my <= attrY + 30 then
+                    
+                    -- Update selected attribute index when interacting with scroll wheel
+                    self.selectedAttributeIndex = i
+                    self.hoveredAttribute = attr
+                    
+                    -- Scroll up increases attribute, scroll down decreases
+                    if y > 0 then
+                        -- Scroll up - increase attribute
+                        characterCreator:increaseAttribute(attr)
+                        return true
+                    elseif y < 0 then
+                        -- Scroll down - decrease attribute
+                        characterCreator:decreaseAttribute(attr)
+                        return true
+                    end
+                end
+            end
+            
+            return false
+        end
+    }
+    
+    -- Name input
+    self.elements.nameInput = screenManager.UI.InputField(
+        50, 200, 300, 40, "Enter character name", 20
+    )
+    
+    -- Profile selection
+    self.elements.profileSelection = {
+        x = 50,
+        y = 280,
+        width = 950,
+        height = 300,
+        portraitSize = 64,
+        spacing = 10,
+        cols = 13,
+        scrollSpeed = 40,
+        
+        draw = function(self)
+            -- Draw label
+            love.graphics.setFont(screenManager.fonts.medium)
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.print("Select Character Portrait", self.x, self.y - 30)
+            
+            -- Get portraits
+            local portraits = {}
+            local portraitIds = {}
+            
+            for id, portrait in pairs(assetManager.images.portraits) do
+                table.insert(portraits, portrait)
+                table.insert(portraitIds, id)
+            end
+            
+            -- Set up scrollable area
+            love.graphics.setScissor(self.x, self.y, self.width, self.height)
+            
+            -- Draw profile selection grid
+            local portraitSize = self.portraitSize
+            local spacing = self.spacing
+            local cols = self.cols
+            local totalPortraits = #portraits
+            local rows = math.ceil(totalPortraits / cols)
+            
+            -- Calculate max scroll
+            characterCreator.maxPortraitScrollY = math.max(0, 
+                (rows * (portraitSize + spacing)) - self.height)
+            
+            for i = 1, totalPortraits do
+                local col = (i - 1) % cols
+                local row = math.floor((i - 1) / cols)
+                
+                local x = self.x + col * (portraitSize + spacing)
+                local y = self.y + row * (portraitSize + spacing) - characterCreator.portraitScrollY
+                
+                -- Only draw if within visible area
+                if y + portraitSize >= self.y and y <= self.y + self.height then
+                    -- Draw selection highlight
+                    if portraitIds[i] == characterCreator.portraitId then
+                        love.graphics.setColor(0.3, 0.5, 0.8)
+                        love.graphics.rectangle(
+                            "fill", 
+                            x - 3, y - 3, 
+                            portraitSize + 6, portraitSize + 6
+                        )
+                    end
+                    
+                    -- Draw profile image
+                    love.graphics.setColor(1, 1, 1)
+                    love.graphics.draw(portraits[i], x, y, 0, 1, 1)
+                end
+            end
+            
+            -- Reset scissor
+            love.graphics.setScissor()
+            
+            -- Draw scroll indicators if needed
+            if characterCreator.maxPortraitScrollY > 0 then
+                -- Draw up indicator if not at top
+                if characterCreator.portraitScrollY > 0 then
+                    love.graphics.setColor(1, 1, 1, 0.7)
+                    love.graphics.polygon('fill', 
+                        self.x + self.width - 20, self.y + 10,
+                        self.x + self.width - 10, self.y + 20,
+                        self.x + self.width - 30, self.y + 20
+                    )
+                end
+                
+                -- Draw down indicator if not at bottom
+                if characterCreator.portraitScrollY < characterCreator.maxPortraitScrollY then
+                    love.graphics.setColor(1, 1, 1, 0.7)
+                    love.graphics.polygon('fill', 
+                        self.x + self.width - 20, self.y + self.height - 10,
+                        self.x + self.width - 10, self.y + self.height - 20,
+                        self.x + self.width - 30, self.y + self.height - 20
+                    )
+                end
+            end
+        end,
+        
+        clicked = function(self, x, y, button)
+            if button ~= 1 then return false end
+            
+            -- Check if within bounds
+            if x >= self.x and x <= self.x + self.width and
+               y >= self.y and y <= self.y + self.height then
+                
+                -- Determine which profile was clicked
+                local portraits = {}
+                local portraitIds = {}
+                
+                for id, portrait in pairs(assetManager.images.portraits) do
+                    table.insert(portraits, portrait)
+                    table.insert(portraitIds, id)
+                end
+                
+                local portraitSize = self.portraitSize
+                local spacing = self.spacing
+                local cols = self.cols
+                
+                for i = 1, #portraits do
+                    local col = (i - 1) % cols
+                    local row = math.floor((i - 1) / cols)
+                    
+                    local portraitX = self.x + col * (portraitSize + spacing)
+                    local portraitY = self.y + row * (portraitSize + spacing) - characterCreator.portraitScrollY
+                    
+                    if x >= portraitX and x <= portraitX + portraitSize and
+                       y >= portraitY and y <= portraitY + portraitSize then
+                        characterCreator.portraitId = portraitIds[i]
+                        return true
+                    end
+                end
+                
+                return true -- Click was within area but no portrait clicked
+            end
+            
+            return false
+        end,
+        
+        wheelmoved = function(self, x, y)
+            -- Apply scroll to portrait view
+            characterCreator.portraitScrollY = math.max(0, 
+                math.min(characterCreator.maxPortraitScrollY, 
+                    characterCreator.portraitScrollY - y * self.scrollSpeed))
+            return true
+        end
+    }
+    
+    -- Character preview
+    self.elements.characterPreview = {
+        x = 50,
+        y = 150,
+        width = GAME.width - 350,
+        height = 300,
+        
+        draw = function(self)
+            if not characterCreator.tempChar then 
+                -- Draw a message if tempChar is missing
+                love.graphics.setFont(screenManager.fonts.medium)
+                love.graphics.setColor(1, 0.3, 0.3)
+                love.graphics.printf("Character preview not available", 
+                    self.x, self.y + self.height/2 - 20, 
+                    self.width, "center")
+                return 
+            end
+            
+            local char = characterCreator.tempChar
+            
+            -- Draw character profile
+            love.graphics.setColor(1, 1, 1)
+            local portraitDrawn = false
+            
+            if char.portraitId and assetManager.images.portraits[char.portraitId] then
+                love.graphics.draw(
+                    assetManager.images.portraits[char.portraitId],
+                    self.x, self.y,
+                    0, 0.5, 0.5
+                )
+                portraitDrawn = true
+            elseif char.profileIndex and assetManager.images.profiles[char.profileIndex] then
+                love.graphics.draw(
+                    assetManager.images.profiles[char.profileIndex],
+                    self.x, self.y,
+                    0, 0.5, 0.5
+                )
+                portraitDrawn = true
+            end
+            
+            -- Draw placeholder if no portrait is available
+            if not portraitDrawn then
+                love.graphics.setColor(0.7, 0.7, 0.7)
+                love.graphics.rectangle("fill", self.x, self.y, 86, 86)
+                love.graphics.setColor(0.3, 0.3, 0.3)
+                love.graphics.rectangle("line", self.x, self.y, 86, 86)
+                love.graphics.setFont(screenManager.fonts.small)
+                love.graphics.setColor(0.3, 0.3, 0.3)
+                love.graphics.printf("No\nPortrait", self.x, self.y + 25, 86, "center")
+            end
+            
+            -- Draw character details
+            love.graphics.setFont(screenManager.fonts.medium)
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.print(char.name, self.x + 100, self.y)
+            
+            love.graphics.setFont(screenManager.fonts.small)
+            love.graphics.setColor(0.8, 0.8, 1)
+            love.graphics.print("Level " .. characterSystem:_calculateTotalLevel(char) .. " " .. char.job, self.x + 100, self.y + 25)
+            
+            -- Draw attributes
+            love.graphics.setFont(screenManager.fonts.small)
+            love.graphics.setColor(1, 1, 1)
+            
+            local attrY = self.y + 70
+            for _, attr in ipairs(characterSystem.attributes) do
+                love.graphics.print(attr .. ": " .. char.attributes[attr], self.x + 100, attrY)
+                attrY = attrY + 20
+            end
+            
+            -- Draw derived stats
+            love.graphics.setFont(screenManager.fonts.medium)
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.print("Stats", self.x, self.y + 220)
+            
+            love.graphics.setFont(screenManager.fonts.small)
+            love.graphics.print("HP: " .. char.maxHP, self.x, self.y + 250)
+            love.graphics.print("MP: " .. char.maxMP, self.x + 100, self.y + 250)
+            
+            local meleeHit = characterSystem:calculateMeleeHitChance(
+                char.attributes.STR, char.attributes.DEX
+            )
+            local rangedHit = characterSystem:calculateRangedHitChance(
+                char.attributes.DEX, char.attributes.STR
+            )
+            
+            love.graphics.print("Melee Hit: " .. math.floor(meleeHit) .. "%", self.x, self.y + 270)
+            love.graphics.print("Ranged Hit: " .. math.floor(rangedHit) .. "%", self.x + 100, self.y + 270)
+            
+            -- Draw skills
+            love.graphics.setFont(screenManager.fonts.medium)
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.print("Starting Skills", self.x + 250, self.y)
+            
+            love.graphics.setFont(screenManager.fonts.small)
+            local skillY = self.y + 30
+            for skillName, skillInfo in pairs(char.skills) do
+                love.graphics.print(skillName, self.x + 250, skillY)
+                skillY = skillY + 20
+            end
+        end
+    }
     
     -- Navigation buttons
-    local navContainer = luis.newFlexContainer(35, 3, 1, 1, nil, "Navigation")
+    self.elements.prevButton = screenManager.UI.Button(
+        50, GAME.height - 80, 150, 40, "Previous", 
+        function() self:prevStep() end
+    )
+    self.elements.prevButton.visible = true
+
+    self.elements.nextButton = screenManager.UI.Button(
+        GAME.width - 200, GAME.height - 80, 150, 40, "Next", 
+        function() self:nextStep() end
+    )
+    self.elements.nextButton.visible = true
+
+    -- Finish button (for last step)
+    self.elements.finishButton = screenManager.UI.Button(
+        GAME.width - 200, GAME.height - 80, 150, 40, "Create", 
+        function() self:finishCharacter() end
+    )
+    self.elements.finishButton.visible = false  -- Initially hidden, shown in step 4
     
-    self.prevButton = luis.newButton("Previous", 6, 2, function() self:previousStep() end, nil, 1, 1)
-    self.nextButton = luis.newButton("Next", 6, 2, function() self:nextStep() end, nil, 1, 1)
-    self.finishButton = luis.newButton("Finish", 6, 2, function() self:finishCharacterCreation() end, nil, 1, 1)
-    self.backButton = luis.newButton("Back to Menu", 8, 2, function() self:backToMainMenu() end, nil, 1, 1)
-    
-    navContainer:addChild(self.prevButton)
-    navContainer:addChild(self.nextButton)
-    navContainer:addChild(self.finishButton)
-    navContainer:addChild(self.backButton)
-    
-    mainContainer:addChild(navContainer)
-    
-    -- Job Selection UI
-    self:createJobSelectionUI()
-    
-    -- Attribute Selection UI
-    self:createAttributeUI()
-    
-    -- Name Input UI
-    self:createNameInputUI()
-    
-    -- Preview UI
-    self:createPreviewUI()
+    -- Initialize job grid
+    self.elements.jobGrid:init()
 end
 
-function characterCreator:createJobSelectionUI()
-    local jobContainer = luis.createElement("jobSelectionLayer", "FlexContainer", 30, 16, 2, 3, nil, "JobSelection")
+function characterCreator:enter(params)
+    -- Reset state
+    self.state = "main"
+    self.currentStep = 1
+    self.newGame = params and params.newGame or false
     
-    -- Job title
-    local jobTitle = luis.newLabel("Choose Job", 25, 2, 1, 1, "center")
-    jobContainer:addChild(jobTitle)
-    
-    -- Job buttons container (grid layout)
-    local jobGrid = luis.newFlexContainer(28, 12, 1, 1, nil, "JobGrid")
-    
-    -- Get available jobs and create buttons
-    local jobs = jobSystem:getBaseJobs()
-    self.jobButtons = {}
-    
-    for _, job in ipairs(jobs) do
-        local jobButton = luis.newButton(job.name, 8, 3, 
-            function() self:selectJob(job.name) end, nil, 1, 1)
-        jobGrid:addChild(jobButton)
-        self.jobButtons[job.name] = jobButton
-    end
-    
-    jobContainer:addChild(jobGrid)
-    
-    -- Job description area
-    self.jobDescription = luis.newLabel("Select a job to see description", 28, 3, 1, 1, "left")
-    jobContainer:addChild(self.jobDescription)
-end
-
-function characterCreator:createAttributeUI()
-    local attrContainer = luis.createElement("attributeLayer", "FlexContainer", 30, 16, 2, 3, nil, "AttributeSelection")
-    
-    -- Attribute title
-    local attrTitle = luis.newLabel("Assign Attributes", 25, 2, 1, 1, "center")
-    attrContainer:addChild(attrTitle)
-    
-    -- Points remaining label
-    self.pointsLabel = luis.newLabel("Points Remaining: " .. self.attributePoints, 25, 1, 1, 1, "center")
-    attrContainer:addChild(self.pointsLabel)
-    
-    -- Attribute controls container
-    local attrGrid = luis.newFlexContainer(28, 10, 1, 1, nil, "AttributeGrid")
-    
-    self.attributeControls = {}
-    for _, attr in ipairs(characterSystem.attributes) do
-        local attrRow = luis.newFlexContainer(26, 2, 1, 1, nil, "Attr" .. attr)
-        
-        -- Attribute name
-        local nameLabel = luis.newLabel(attr, 8, 1, 1, 1, "left")
-        attrRow:addChild(nameLabel)
-        
-        -- Decrease button
-        local decreaseBtn = luis.newButton("-", 2, 1, 
-            function() self:adjustAttribute(attr, -1) end, nil, 1, 1)
-        attrRow:addChild(decreaseBtn)
-        
-        -- Value label
-        local valueLabel = luis.newLabel(tostring(self.tempAttributes[attr]), 3, 1, 1, 1, "center")
-        attrRow:addChild(valueLabel)
-        
-        -- Increase button
-        local increaseBtn = luis.newButton("+", 2, 1, 
-            function() self:adjustAttribute(attr, 1) end, nil, 1, 1)
-        attrRow:addChild(increaseBtn)
-        
-        attrGrid:addChild(attrRow)
-        
-        self.attributeControls[attr] = {
-            decrease = decreaseBtn,
-            value = valueLabel,
-            increase = increaseBtn
-        }
-    end
-    
-    attrContainer:addChild(attrGrid)
-end
-
-function characterCreator:createNameInputUI()
-    local nameContainer = luis.createElement("nameInputLayer", "FlexContainer", 30, 16, 2, 3, nil, "NameInput")
-    
-    -- Name title
-    local nameTitle = luis.newLabel("Name Your Character", 25, 2, 1, 1, "center")
-    nameContainer:addChild(nameTitle)
-    
-    -- Name input field
-    self.nameInput = luis.newTextInput("Enter name here...", 20, 2, 
-        function(text) self.charName = text end, 1, 1)
-    nameContainer:addChild(self.nameInput)
-    
-    -- Portrait selection (simplified)
-    local portraitLabel = luis.newLabel("Portrait Selection (placeholder)", 25, 2, 1, 1, "center")
-    nameContainer:addChild(portraitLabel)
-end
-
-function characterCreator:createPreviewUI()
-    local previewContainer = luis.createElement("previewLayer", "FlexContainer", 30, 16, 2, 3, nil, "Preview")
-    
-    -- Preview title
-    local previewTitle = luis.newLabel("Character Preview", 25, 2, 1, 1, "center")
-    previewContainer:addChild(previewTitle)
-    
-    -- Character summary
-    self.previewSummary = luis.newLabel("Character details will appear here", 25, 10, 1, 1, "left")
-    previewContainer:addChild(self.previewSummary)
-end
-
-function characterCreator:enter(options)
-    -- Handle enter parameters
-    if options and options.newGame then
-        self.newGame = true
+    -- If new game, initialize party
+    if self.newGame then
         self.characters = {}
         self.currentCharacter = 1
+    else
+        -- Load existing party if available
+        self.characters = GAME.party or {}
+        self.currentCharacter = math.min(#self.characters + 1, 4)
     end
     
-    -- Start with job selection
-    self:showJobSelection()
-    self:updateCharacterSlots()
-end
-
-function characterCreator:showJobSelection()
-    self.currentStep = 1
-    luis.disableLayer("attributeLayer")
-    luis.disableLayer("nameInputLayer")
-    luis.disableLayer("previewLayer")
-    luis.enableLayer("characterCreatorLayer")
-    luis.enableLayer("jobSelectionLayer")
-    self:updateNavigationButtons()
-end
-
-function characterCreator:showAttributeSelection()
-    self.currentStep = 2
-    luis.disableLayer("jobSelectionLayer")
-    luis.disableLayer("nameInputLayer")
-    luis.disableLayer("previewLayer")
-    luis.enableLayer("characterCreatorLayer")
-    luis.enableLayer("attributeLayer")
-    self:updateNavigationButtons()
-    self:updateAttributeControls()
-end
-
-function characterCreator:showNameInput()
-    self.currentStep = 3
-    luis.disableLayer("jobSelectionLayer")
-    luis.disableLayer("attributeLayer")
-    luis.disableLayer("previewLayer")
-    luis.enableLayer("characterCreatorLayer")
-    luis.enableLayer("nameInputLayer")
-    self:updateNavigationButtons()
-end
-
-function characterCreator:showPreview()
-    self.currentStep = 4
-    luis.disableLayer("jobSelectionLayer")
-    luis.disableLayer("attributeLayer")
-    luis.disableLayer("nameInputLayer")
-    luis.enableLayer("characterCreatorLayer")
-    luis.enableLayer("previewLayer")
-    self:updateNavigationButtons()
-    self:updatePreview()
+    -- Reset temp variables
+    self:resetTempChar()
 end
 
 function characterCreator:update(dt)
-    -- LUIS handles all UI updates automatically
+    -- Update input fields
+    self.elements.nameInput:update(dt)
 end
 
 function characterCreator:draw()
     -- Draw background
-    love.graphics.clear(0.1, 0.1, 0.15)
+    love.graphics.clear(screenManager.colors.background)
     
     -- Draw title
-    love.graphics.setFont(screenManager.fonts.title)
-    love.graphics.setColor(1, 1, 1)
-    local titleText = "Character Creator"
-    local titleWidth = screenManager.fonts.title:getWidth(titleText)
-    love.graphics.print(titleText, (GAME.width - titleWidth) / 2, 20)
+    love.graphics.setFont(screenManager.fonts.large)
+    love.graphics.setColor(screenManager.colors.title)
+    love.graphics.print("Character Creator", 50, 50)
     
-    -- Draw current character indicator
-    love.graphics.setFont(screenManager.fonts.medium)
-    love.graphics.setColor(0.8, 0.8, 1)
-    local charText = "Character " .. self.currentCharacter .. " of 4"
-    love.graphics.print(charText, 20, 80)
+    -- Draw step indicators
+    self.elements.steps:draw()
     
-    -- LUIS handles all UI rendering automatically via main.lua
-end
-
-function characterCreator:selectCharacterSlot(slot)
-    self.currentCharacter = slot
-    self:updateCharacterSlots()
+    -- Draw character slots
+    self.elements.charSlots:draw()
     
-    -- If the slot has an existing character, load its data for editing
-    if self.characters[slot] then
-        local char = self.characters[slot]
-        self.selectedJob = char.job
-        self.charName = char.name
-        self.tempAttributes = {}
-        for attr, value in pairs(char.attributes) do
-            self.tempAttributes[attr] = value
-        end
-        self.portraitId = char.portraitId
+    -- Update button visibility based on current step
+    self:updateElementVisibility()
+    
+    -- Draw current step content
+    if self.currentStep == 1 then
+        -- Job selection
+        self.elements.jobGrid:draw()
+        -- Draw progression graph if a job is selected
+        if self.elements.jobProgression then self.elements.jobProgression:draw() end
+    elseif self.currentStep == 2 then
+        -- Attribute allocation
+        self.elements.attributes:draw()
+    elseif self.currentStep == 3 then
+        -- Character naming and profile selection
+        love.graphics.setFont(screenManager.fonts.medium)
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.print("Character Name", 50, 170)
         
-        -- Update UI to reflect the loaded character
-        if self.nameInput then
-            self.nameInput.text = self.charName
+        self.elements.nameInput:draw()
+        self.elements.profileSelection:draw()
+    elseif self.currentStep == 4 then
+        -- Character preview
+        self.elements.characterPreview:draw()
+    end
+    
+    -- Always draw navigation buttons separately from updateElementVisibility
+    if self.currentStep > 1 then
+        self.elements.prevButton:draw()
+        if GAME.debug then
+            love.graphics.setColor(1, 1, 0)
+            love.graphics.print("Previous Button: " .. (self.elements.prevButton.visible and "visible" or "hidden"), 10, GAME.height - 110)
         end
-        if self.jobDescription then
-            local jobData = jobSystem:getJobByName(self.selectedJob)
-            if jobData then
-                self.jobDescription.text = jobData.description or "No description available"
-            end
+    end
+    
+    if self.currentStep < 4 then
+        self.elements.nextButton:draw()
+        if GAME.debug then
+            love.graphics.setColor(1, 1, 0)
+            love.graphics.print("Next Button: " .. (self.elements.nextButton.visible and "visible" or "hidden"), GAME.width - 200, GAME.height - 110)
         end
     else
-        -- Reset for new character
+        self.elements.finishButton:draw()
+        if GAME.debug then
+            love.graphics.setColor(1, 1, 0)
+            love.graphics.print("Create Button: " .. (self.elements.finishButton.visible and "visible" or "hidden"), GAME.width - 200, GAME.height - 110)
+        end
+    end
+    
+    -- Display attribute allocation warning message
+    if self.currentStep == 2 and self.attributeWarning ~= "" then
+        love.graphics.setFont(screenManager.fonts.small)
+        love.graphics.setColor(1, 0.2, 0.2) -- Red color for warning
+        local textWidth = screenManager.fonts.small:getWidth(self.attributeWarning)
+        love.graphics.print(self.attributeWarning, GAME.width - 200 - textWidth - 10, GAME.height - 60)
+    end
+end
+
+function characterCreator:updateElementVisibility()
+    -- Navigation buttons visibility based on current step
+    if self.currentStep > 1 then
+        self.elements.prevButton.visible = true
+    else
+        self.elements.prevButton.visible = false
+    end
+    
+    if self.currentStep < 4 then
+        self.elements.nextButton.visible = true
+        self.elements.finishButton.visible = false
+    else
+        self.elements.nextButton.visible = false
+        self.elements.finishButton.visible = true
+        
+        -- Ensure tempChar exists when on preview step
+        if not self.tempChar then
+            self:createTempChar()
+        end
+    end
+    
+    if GAME.debug then
+        print("Button visibility updated - Step: " .. self.currentStep)
+        print("  Previous: " .. (self.elements.prevButton.visible and "visible" or "hidden"))
+        print("  Next: " .. (self.elements.nextButton.visible and "visible" or "hidden"))
+        print("  Create: " .. (self.elements.finishButton.visible and "visible" or "hidden"))
+    end
+    
+    -- Job grid visibility
+    if self.elements.jobGrid then
+        self.elements.jobGrid.visible = (self.currentStep == 1)
+    end
+    
+    -- Job progression graph visibility
+    if self.elements.jobProgression then
+        self.elements.jobProgression.visible = (self.currentStep == 1 and self.selectedJob ~= nil)
+    end
+    
+    -- Attributes visibility
+    if self.elements.attributes then
+        self.elements.attributes.visible = (self.currentStep == 2)
+    end
+    
+    -- Name input and profile selection visibility
+    if self.elements.nameInput then
+        self.elements.nameInput.visible = (self.currentStep == 3)
+    end
+    
+    if self.elements.profileSelection then
+        self.elements.profileSelection.visible = (self.currentStep == 3)
+    end
+    
+    -- Character preview visibility
+    if self.elements.characterPreview then
+        self.elements.characterPreview.visible = (self.currentStep == 4)
+    end
+end
+
+function characterCreator:keypressed(key, scancode, isrepeat)
+    -- Pass to input fields
+    if self.currentStep == 3 then
+        self.elements.nameInput:keyPressed(key)
+    end
+    
+    -- Use PageUp for next step, PageDown for previous step
+    if key == "pageup" then
+        if self.currentStep < 4 and self.elements.nextButton.visible then
+            self:nextStep()
+            return true
+        end
+    elseif key == "pagedown" then
+        if self.elements.prevButton.visible then
+            self:prevStep()
+            return true
+        end
+    elseif key == "return" then
+        if self.currentStep < 4 and self.elements.nextButton.visible then
+            self:nextStep()
+            return true
+        elseif self.currentStep == 4 and self.elements.finishButton.visible then
+            self:finishCharacter()
+            return true
+        end
+    end
+    
+    -- Attribute navigation and adjustment with keyboard on attribute step
+    if self.currentStep == 2 then
+        local attrElement = self.elements.attributes
+        if not attrElement then return false end
+        
+        -- Get the current selected attribute
+        local numAttributes = #characterSystem.attributes
+        local currentAttr = characterSystem.attributes[attrElement.selectedAttributeIndex]
+        
+        if key == "up" or key == "w" then
+            -- Move selection up to previous attribute
+            attrElement.selectedAttributeIndex = math.max(1, attrElement.selectedAttributeIndex - 1)
+            attrElement.hoveredAttribute = characterSystem.attributes[attrElement.selectedAttributeIndex]
+            return true
+        elseif key == "down" or key == "s" then
+            -- Move selection down to next attribute
+            attrElement.selectedAttributeIndex = math.min(numAttributes, attrElement.selectedAttributeIndex + 1)
+            attrElement.hoveredAttribute = characterSystem.attributes[attrElement.selectedAttributeIndex]
+            return true
+        elseif key == "right" or key == "d" then
+            -- Increase the selected attribute
+            if currentAttr then
+                self:increaseAttribute(currentAttr)
+            end
+            return true
+        elseif key == "left" or key == "a" then
+            -- Decrease the selected attribute
+            if currentAttr then
+                self:decreaseAttribute(currentAttr)
+            end
+            return true
+        end
+    end
+    
+    return false
+end
+
+function characterCreator:textinput(text)
+    -- Pass to input fields
+    self.elements.nameInput:textInput(text)
+end
+
+function characterCreator:mousepressed(x, y, button, istouch, presses)
+    -- Pass to UI elements that are visible for the current step
+    local clickHandled = false
+    
+    for name, element in pairs(self.elements) do
+        -- Only process visible elements
+        if element.visible ~= false then
+            if element.clicked then
+                if element:clicked(x, y, button) then
+                    -- Play click sound
+                    assetManager:playSound("click")
+                    
+                    if GAME.debug then
+                        print("Button clicked: " .. name)
+                    end
+                    
+                    clickHandled = true
+                    -- Don't break to allow hover effects on other elements
+                end
+            end
+        end
+    end
+    
+    return clickHandled
+end
+
+function characterCreator:mousereleased(x, y, button, istouch, presses)
+    -- Pass to UI elements
+    for _, element in pairs(self.elements) do
+        if element.released then
+            element:released(x, y)
+        end
+    end
+end
+
+function characterCreator:selectCharacterSlot(index)
+    -- Select character slot
+    self.currentCharacter = index
+    
+    -- If character exists, load it for editing
+    if self.characters[index] then
+        -- TODO: Implement character editing
+        -- For now, just create a new character
+        self:resetTempChar()
+    else
+        -- Reset temporary character
         self:resetTempChar()
     end
 end
@@ -329,203 +1035,235 @@ function characterCreator:printDebugInfo(message)
 end
 
 function characterCreator:selectJob(jobName)
+    -- Select job
     self.selectedJob = jobName
     
-    -- Update job description
-    if self.jobDescription then
-        local jobData = jobSystem:getJobByName(jobName)
-        if jobData then
-            self.jobDescription.text = jobData.description or "No description available"
-        end
+    -- Format the job name for system lookups (remove spaces)
+    local formattedJobName = jobName:gsub("%s+", "")
+    
+    -- Show and populate progression graph
+    if self.elements.jobProgression then
+        self.elements.jobProgression.visible = true
+        self.elements.jobProgression:update()
     end
     
-    -- Update job button highlighting
-    for name, button in pairs(self.jobButtons) do
-        if name == jobName then
-            button:setTheme({backgroundColor = {0.3, 0.5, 0.8}})
-        else
-            button:setTheme({backgroundColor = {0.2, 0.2, 0.3}})
+    if GAME.debug then
+        print("Selected job: " .. jobName)
+        print("Formatted job name for lookup: " .. formattedJobName)
+    end
+    
+    -- Update base attributes based on job
+    local job = jobSystem:getJob(formattedJobName)
+    if job and job.attributeModifiers then
+        for attr, _ in pairs(self.baseAttributes) do
+            self.baseAttributes[attr] = 5 -- Reset to default
         end
+        
+        for attr, mod in pairs(job.attributeModifiers) do
+            self.baseAttributes[attr] = self.baseAttributes[attr] + mod
+        end
+        
+        -- Reset temp attributes to match base attributes
+        for attr, value in pairs(self.baseAttributes) do
+            self.tempAttributes[attr] = value
+        end
+        
+        -- Reset attribute points
+        self.attributePoints = 20
+    end
+    
+    -- Print debug info
+    self:printDebugInfo("Job selected: " .. jobName)
+end
+
+function characterCreator:increaseAttribute(attr)
+    -- Check if points available and not at cap
+    if self.attributePoints > 0 and self.tempAttributes[attr] < characterSystem.BASE_ATTRIBUTE_CAP then
+        -- Increase attribute
+        self.tempAttributes[attr] = self.tempAttributes[attr] + 1
+        
+        -- Decrease points
+        self.attributePoints = self.attributePoints - 1
     end
 end
 
-function characterCreator:adjustAttribute(attribute, change)
-    local currentValue = self.tempAttributes[attribute]
-    local newValue = currentValue + change
-    
-    -- Check constraints
-    if change > 0 then
-        -- Increasing
-        if self.attributePoints > 0 and newValue <= (characterSystem.BASE_ATTRIBUTE_CAP or 20) then
-            self.tempAttributes[attribute] = newValue
-            self.attributePoints = self.attributePoints - 1
-        end
-    else
-        -- Decreasing
-        if newValue >= self.baseAttributes[attribute] then
-            self.tempAttributes[attribute] = newValue
-            self.attributePoints = self.attributePoints + 1
-        end
-    end
-    
-    -- Update UI
-    self:updateAttributeControls()
-    if self.pointsLabel then
-        self.pointsLabel.text = "Points Remaining: " .. self.attributePoints
+function characterCreator:decreaseAttribute(attr)
+    -- Check if above base value
+    if self.tempAttributes[attr] > self.baseAttributes[attr] then
+        -- Decrease attribute
+        self.tempAttributes[attr] = self.tempAttributes[attr] - 1
+        
+        -- Increase points
+        self.attributePoints = self.attributePoints + 1
     end
 end
 
-function characterCreator:updateAttributeControls()
-    if not self.attributeControls then return end
+function characterCreator:resetTempChar()
+    -- Reset selected job
+    self.selectedJob = nil
     
-    for attr, controls in pairs(self.attributeControls) do
-        local value = self.tempAttributes[attr]
-        
-        -- Update value display
-        controls.value.text = tostring(value)
-        
-        -- Update button states
-        local canDecrease = value > self.baseAttributes[attr]
-        local canIncrease = self.attributePoints > 0 and value < (characterSystem.BASE_ATTRIBUTE_CAP or 20)
-        
-        controls.decrease:setEnabled(canDecrease)
-        controls.increase:setEnabled(canIncrease)
+    -- Hide progression graph and clear its jobs
+    if self.elements.jobProgression then
+        self.elements.jobProgression.visible = false
+        self.elements.jobProgression.jobs = {}
     end
+    
+    -- Reset attribute points
+    self.attributePoints = 20
+    
+    -- Reset attributes to base values
+    for _, attr in ipairs(characterSystem.attributes) do
+        self.tempAttributes[attr] = self.baseAttributes[attr]
+    end
+    
+    -- Reset character name
+    self.elements.nameInput:setValue("")
+    
+    -- Reset portrait selection
+    self.portraitId = nil
+    self.portraitScrollY = 0
+    
+    -- Reset attribute warning
+    self.attributeWarning = ""
 end
 
-function characterCreator:updateCharacterSlots()
-    if not self.characterSlots then return end
-    
-    for i, slotButton in ipairs(self.characterSlots) do
-        if self.characters[i] then
-            local char = self.characters[i]
-            slotButton.text = char.name .. "\n" .. char.job
-            if i == self.currentCharacter then
-                slotButton:setTheme({backgroundColor = {0.3, 0.5, 0.8}})
-            else
-                slotButton:setTheme({backgroundColor = {0.2, 0.3, 0.4}})
-            end
-        else
-            slotButton.text = "Empty Slot"
-            if i == self.currentCharacter then
-                slotButton:setTheme({backgroundColor = {0.3, 0.3, 0.5}})
-            else
-                slotButton:setTheme({backgroundColor = {0.2, 0.2, 0.3}})
-            end
-        end
-    end
-end
-
-function characterCreator:updateNavigationButtons()
-    if not self.prevButton or not self.nextButton or not self.finishButton then return end
-    
-    -- Previous button
-    self.prevButton:setVisible(self.currentStep > 1)
-    
-    -- Next/Finish buttons
-    if self.currentStep < 4 then
-        self.nextButton:setVisible(true)
-        self.finishButton:setVisible(false)
-    else
-        self.nextButton:setVisible(false)
-        self.finishButton:setVisible(true)
-    end
-end
-
-function characterCreator:updatePreview()
-    if not self.previewSummary then return end
-    
-    -- Create temp character for preview
-    if self:createTempChar() then
-        local char = self.tempChar
-        local summary = string.format(
-            "Name: %s\nJob: %s\nLevel: %d\n\nAttributes:\n",
-            char.name, char.job, (char.level or 1)
-        )
-        
-        for _, attr in ipairs(characterSystem.attributes) do
-            summary = summary .. string.format("%s: %d\n", attr, char.attributes[attr])
-        end
-        
-        summary = summary .. string.format(
-            "\nHP: %d\nMP: %d",
-            char.maxHP or 100, char.maxMP or 50
-        )
-        
-        self.previewSummary.text = summary
-    else
-        self.previewSummary.text = "Error creating character preview"
-    end
-end
-
-function characterCreator:previousStep()
+function characterCreator:prevStep()
+    -- Go to previous step
     if self.currentStep > 1 then
         self.currentStep = self.currentStep - 1
-        self:showCurrentStep()
+        
+        -- Update element visibility
+        self:updateElementVisibility()
+        
+        -- Print debug info
+        self:printDebugInfo("Moved to previous step")
     end
 end
 
 function characterCreator:nextStep()
-    if self:isStepComplete() then
-        if self.currentStep < 4 then
-            self.currentStep = self.currentStep + 1
-            self:showCurrentStep()
-        end
-    end
-end
+    -- Reset attribute warning message
+    self.attributeWarning = ""
 
-function characterCreator:showCurrentStep()
-    if self.currentStep == 1 then
-        self:showJobSelection()
-    elseif self.currentStep == 2 then
-        self:showAttributeSelection()
-    elseif self.currentStep == 3 then
-        self:showNameInput()
-    elseif self.currentStep == 4 then
-        self:showPreview()
+    -- Check if current step is complete
+    if not self:isStepComplete() then
+        -- Show warning only if on attribute step and points remain
+        if self.currentStep == 2 and self.attributePoints > 0 then
+            self.attributeWarning = "Allocate all attribute points!"
+        end
+        return
+    end
+    
+    -- Check if we can advance to the next step
+    if self.currentStep < 4 then
+        local nextStep = self.currentStep + 1
+
+        -- If moving to the preview step (Step 4), create the temporary character first
+        if nextStep == 4 then
+            if not self:createTempChar() then
+                print("Error: Failed to create temporary character for preview.")
+                return -- Don't advance if temp char failed
+            end
+            
+            -- Double check that the tempChar exists
+            if not self.tempChar then
+                print("Error: tempChar not created properly.")
+                return
+            end
+        end
+
+        -- Advance to the next step
+        self.currentStep = nextStep
+        
+        -- Update element visibility after changing step
+        self:updateElementVisibility()
+        
+        -- Print debug info
+        self:printDebugInfo("Moved to step " .. self.currentStep)
     end
 end
 
 function characterCreator:isStepComplete()
     if self.currentStep == 1 then
+        -- Job selection
         return self.selectedJob ~= nil
     elseif self.currentStep == 2 then
+        -- Attribute allocation - must use all points
         return self.attributePoints == 0
     elseif self.currentStep == 3 then
-        return self.charName ~= "" and self.charName ~= "Enter name here..."
-    elseif self.currentStep == 4 then
-        return true
+        -- Character naming and portrait selection
+        return self.elements.nameInput:getValue() ~= "" and self.portraitId ~= nil
     end
-    return false
+    
+    return true
 end
 
 function characterCreator:createTempChar()
-    if not self.selectedJob or self.charName == "" or self.charName == "Enter name here..." then
-        return false
+    -- Get character name
+    self.charName = self.elements.nameInput:getValue()
+    
+    -- Ensure we have the required data before creating character
+    if not self.selectedJob then
+        print("Error: No job selected when creating temp character")
+        return
     end
     
-    -- Format job name for system lookup
+    if not self.charName or self.charName == "" then
+        -- Use a default name if none provided
+        self.charName = "Character " .. self.currentCharacter
+        self.elements.nameInput:setValue(self.charName)
+    end
+    
+    -- Format job name for system lookup (remove spaces)
     local formattedJobName = self.selectedJob:gsub("%s+", "")
     
-    -- Create character
+    -- Create temporary character
     self.tempChar = characterSystem:new(
         self.charName,
         formattedJobName,
         self.tempAttributes,
-        nil,
+        nil, -- Will be replaced with portraitId
         self.portraitId
     )
+    
+    -- Debug info
+    if GAME.debug then
+        if self.tempChar then
+            print("Temporary character created successfully: " .. self.charName)
+            print("Using job: " .. formattedJobName .. " (from " .. self.selectedJob .. ")")
+        else
+            print("ERROR: Failed to create temporary character")
+        end
+    end
+    
+    if not self.tempChar then
+        print("WARNING: Failed to create temporary character. Using default values.")
+        -- Create a basic character as fallback to prevent preview failure
+        self.tempChar = {
+            name = self.charName,
+            job = self.selectedJob,
+            attributes = self.tempAttributes,
+            portraitId = self.portraitId,
+            profileIndex = 1,
+            maxHP = 100,
+            maxMP = 50,
+            skills = {},
+        }
+    end
     
     return self.tempChar ~= nil
 end
 
-function characterCreator:finishCharacterCreation()
-    if self:createTempChar() then
-        -- Add character to party
-        self.characters[self.currentCharacter] = self.tempChar
-        
-        -- Check if we need to create more characters
-        local nextSlot = nil
+function characterCreator:finishCharacter()
+    -- Create final character
+    self:createTempChar()
+    
+    -- Add character to party
+    self.characters[self.currentCharacter] = self.tempChar
+    
+    -- If party is not full, go to next character
+    if #self.characters < 4 then
+        -- Move to next empty slot
+        local nextSlot = 0
         for i = 1, 4 do
             if not self.characters[i] then
                 nextSlot = i
@@ -533,37 +1271,73 @@ function characterCreator:finishCharacterCreation()
             end
         end
         
-        if nextSlot then
-            -- Move to next character
+        if nextSlot > 0 then
+            -- Select next slot and start over
             self.currentCharacter = nextSlot
+            self.currentStep = 1
             self:resetTempChar()
-            self:showJobSelection()
-            self:updateCharacterSlots()
-        else
-            -- All characters created, finish
-            self:finishParty()
+            return
         end
     end
+    
+    -- Party complete or selected slot filled, move to next step
+    self:finishParty()
 end
 
 function characterCreator:finishParty()
     -- Save party to game state
     GAME.party = self.characters
     
-    -- Initialize game state for new game
-    if self.newGame then
+    -- Initialize inventory if needed
+    if not GAME.inventory then
         GAME.inventory = {}
-        GAME.gold = 100
-        
-        -- Initialize other game systems as needed
-        local itemSystem = require("gameplay/item")
-        for _, character in ipairs(self.characters) do
-            if character.equipment then
-                for slot, item in pairs(character.equipment) do
-                    if item then
-                        itemSystem:addToInventory(item)
-                    end
+    end
+    
+    -- Add all equipped items to the inventory
+    local itemSystem = require("gameplay/item")
+    for _, character in ipairs(self.characters) do
+        if character.equipment then
+            for slot, item in pairs(character.equipment) do
+                if item then
+                    -- Add the equipped item to inventory using the new function
+                    itemSystem:addToInventory(item)
                 end
+            end
+        end
+    end
+    
+    -- Initialize gold if needed
+    if not GAME.gold then
+        GAME.gold = 100
+    end
+    
+    -- If new game, create a save file
+    if self.newGame then
+        -- Create profile using first character's name
+        local profileName = self.characters[1].name .. "s_Party"
+        
+        -- Create and save profile
+        local profile = saveLoad:createProfile(profileName)
+        
+        if not profile then
+            -- Save failed, show an error but continue to overworld
+            print("WARNING: Failed to create save profile!")
+            -- Could add a popup message here
+        else
+            -- Set profile data
+            profile.party = self.characters
+            profile.inventory = GAME.inventory
+            profile.gold = GAME.gold
+            profile.quests = {}
+            profile.completedQuests = {}
+            profile.dungeonSeeds = {}
+            profile.gameTime = 0
+            profile.flags = {}
+            
+            -- Save profile
+            if not saveLoad:saveGame(profile) then
+                print("WARNING: Failed to save game data!")
+                -- Could add a popup message here
             end
         end
     end
@@ -571,11 +1345,6 @@ function characterCreator:finishParty()
     -- Move to overworld
     local gameState = require("states/gameState")
     gameState:changeState("overworld")
-end
-
-function characterCreator:backToMainMenu()
-    local gameState = require("states/gameState")
-    gameState:changeState("mainMenu")
 end
 
 function characterCreator:wheelmoved(x, y)
@@ -589,33 +1358,6 @@ function characterCreator:wheelmoved(x, y)
     end
     
     return false
-end
-
-function characterCreator:resetTempChar()
-    self.selectedJob = nil
-    self.charName = ""
-    self.portraitId = nil
-    self.tempChar = nil
-    self.attributePoints = 20
-    
-    -- Reset attributes to base values
-    for _, attr in ipairs(characterSystem.attributes) do
-        self.baseAttributes[attr] = 5
-        self.tempAttributes[attr] = 5
-    end
-    
-    -- Update UI
-    if self.nameInput then
-        self.nameInput.text = ""
-    end
-    if self.jobDescription then
-        self.jobDescription.text = "Select a job to see description"
-    end
-    if self.pointsLabel then
-        self.pointsLabel.text = "Points Remaining: " .. self.attributePoints
-    end
-    
-    self:updateAttributeControls()
 end
 
 return characterCreator

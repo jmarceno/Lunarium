@@ -5,13 +5,6 @@ local assets = require("assets/assetManager")
 local saveLoad = require("utils/saveLoad")
 local debugConsole = require("utils/debugConsole")
 
--- Initialize LUIS properly
-local initLuis = require("luis.init")
-local luis = initLuis("luis/widgets") -- Point to the correct widgets directory
-
--- Make luis globally accessible
-_G.luis = luis
-
 -- Global game configuration
 GAME = {
     width = 1280,
@@ -78,14 +71,6 @@ function love.load()
     math.randomseed(os.time())
     love.graphics.setDefaultFilter('nearest', 'nearest')
     
-    -- LUIS Initialization
-    luis.initJoysticks()
-    luis.baseWidth = GAME.width
-    luis.baseHeight = GAME.height
-    love.window.setMode(luis.baseWidth, luis.baseHeight, { resizable=true })
-    luis.setGridSize(32) -- Default grid size
-    luis.updateScale()
-
     -- Setup loading font before any other initialization
     loadingFont = love.graphics.newFont(24)
     loadingStartTime = love.timer.getTime()
@@ -145,9 +130,6 @@ function love.update(dt)
         return
     end
     
-    luis.update(dt) -- Added LUIS update
-    luis.updateScale() -- Added LUIS scale update
-
     -- Update debug console
     debugConsole:update(dt)
     
@@ -187,8 +169,6 @@ function love.draw()
         GAME.currentState:draw()
     end
     
-    luis.draw() -- Added LUIS draw
-
     -- Draw debug info if enabled
     if GAME.debug then
         love.graphics.setColor(1, 1, 0)
@@ -212,8 +192,6 @@ function love.keypressed(key, scancode, isrepeat)
         return -- Stop processing other input when console is active
     end
     
-    if luis.keypressed(key, scancode, isrepeat) then return end -- Added LUIS keypressed
-
     -- Toggle debug console with tilde key
     if key == "f3" then
         debugConsole:toggle()
@@ -246,8 +224,6 @@ function love.textinput(text)
         return
     end
     
-    if luis.textinput(text) then return end -- Added LUIS textinput
-
     -- Pass text input to current state
     if GAME.currentState and GAME.currentState.textinput then
         GAME.currentState:textinput(text)
@@ -255,8 +231,6 @@ function love.textinput(text)
 end
 
 function love.mousepressed(x, y, button, istouch, presses)
-    if luis.mousepressed(x, y, button, istouch, presses) then return end -- Added LUIS mousepressed
-
     -- Pass mouse press to current state
     if GAME.currentState and GAME.currentState.mousepressed then
         local handled = GAME.currentState:mousepressed(x, y, button, istouch, presses)
@@ -271,8 +245,6 @@ function love.mousepressed(x, y, button, istouch, presses)
 end
 
 function love.mousereleased(x, y, button, istouch, presses)
-    if luis.mousereleased(x, y, button, istouch, presses) then return end -- Added LUIS mousereleased
-
     -- Pass mouse release to current state
     if GAME.currentState and GAME.currentState.mousereleased then
         GAME.currentState:mousereleased(x, y, button, istouch, presses)
@@ -283,15 +255,22 @@ function love.mousereleased(x, y, button, istouch, presses)
     end
 end
 
-function love.wheelmoved(x, y)
-    if luis.wheelmoved(x, y) then return end
+function love.wheelmoved(dx, dy)
+    -- Pass mouse wheel movement to current state
     if GAME.currentState and GAME.currentState.wheelmoved then
-        GAME.currentState:wheelmoved(x, y)
+        local handled = GAME.currentState:wheelmoved(dx, dy)
+        
+        if GAME.debug then
+            if handled then
+                print("Wheel moved: dx=" .. dx .. ", dy=" .. dy .. ", Handled by: " .. gameState:getCurrentStateName())
+            else
+                print("Wheel moved: dx=" .. dx .. ", dy=" .. dy .. ", Not Handled")
+            end
+        end
     end
 end
 
 function love.keyreleased(key)
-    if luis.keyreleased then luis.keyreleased(key) end
     -- Pass key release to current state
     if GAME.currentState and GAME.currentState.keyreleased then
         GAME.currentState:keyreleased(key)
@@ -321,26 +300,4 @@ function love.resize(width, height)
     
     -- Tell the screen manager to handle the resize
     screens:handleResize(width, height)
-end
-
-function love.joystickadded(joystick)
-    luis.initJoysticks()
-end
-
-function love.joystickremoved(joystick)
-    luis.removeJoystick(joystick)
-end
-
-function love.gamepadpressed(joystick, button)
-    luis.gamepadpressed(joystick, button)
-    if GAME.currentState and GAME.currentState.gamepadpressed then
-        GAME.currentState:gamepadpressed(joystick, button)
-    end
-end
-
-function love.gamepadreleased(joystick, button)
-    luis.gamepadreleased(joystick, button)
-    if GAME.currentState and GAME.currentState.gamepadreleased then
-        GAME.currentState:gamepadreleased(joystick, button)
-    end
 end
