@@ -1,0 +1,102 @@
+{% for item_id, item_data in data.items() %}
+<div class="col">
+    <div class="card h-100 shadow-sm" style="font-size: 0.95rem; border-width: 1px; max-height: 120px;">
+        <div class="card-header py-0 px-2 bg-light d-flex justify-content-between align-items-center" style="min-height: 22px;">
+            <span class="text-primary fw-bold small text-truncate me-1" style="max-width: 70%;">{{ item_id }}</span>
+            {% if data_type == 'items' %}
+                {% if item_data.type %}
+                    <span class="badge bg-primary" style="font-size: 0.75rem;">{{ item_data.type }}</span>
+                {% endif %}
+            {% elif data_type == 'skills' %}
+                {% if item_data.type %}
+                    <span class="badge bg-info" style="font-size: 0.75rem;">{{ item_data.type }}</span>
+                {% endif %}
+            {% elif data_type == 'monsters' %}
+                {% if item_data.stats and item_data.stats.level %}
+                    <span class="badge bg-warning" style="font-size: 0.75rem;">Lv {{ item_data.stats.level }}</span>
+                {% endif %}
+            {% elif data_type == 'jobs' %}
+                {% if item_data.category %}
+                    <span class="badge bg-secondary" style="font-size: 0.75rem;">{{ item_data.category }}</span>
+                {% endif %}
+            {% elif data_type == 'quests' %}
+                {% if item_data.type %}
+                    <span class="badge bg-success" style="font-size: 0.75rem;">{{ item_data.type }}</span>
+                {% endif %}
+            {% else %}
+                {% if item_data.type %}
+                    <span class="badge bg-light text-dark" style="font-size: 0.75rem;">{{ item_data.type }}</span>
+                {% endif %}
+            {% endif %}
+        </div>
+        <div class="card-body p-1" style="overflow: hidden;">
+            {% if item_data.name %}
+                <div class="text-muted text-truncate" style="font-size: 0.7rem; line-height: 1.1;">{{ item_data.name }}</div>
+            {% endif %}
+            <div class="text-truncate" style="font-size: 0.7rem; line-height: 1.1; max-height: 1.1em; overflow: hidden;">
+                {{ item_data.description or "No description" }}
+            </div>
+            <div style="font-size: 0.7rem; line-height: 1.1;">
+                {% if data_type == 'items' %}
+                    <div class="d-flex flex-wrap justify-content-between">
+                        {% if item_data.value %}
+                            <span><strong>Value: </strong>{{ item_data.value }}</span>
+                        {% endif %}
+                        {% if item_data.slot %}
+                            <span><strong>Slot: </strong>{{ item_data.slot }}</span>
+                        {% endif %}
+                    </div>
+                {% elif data_type == 'skills' %}
+                    <div class="d-flex flex-wrap justify-content-between">
+                        {% if item_data.mpCost %}
+                            <span><strong>MP:</strong>{{ item_data.mpCost }}</span>
+                        {% endif %}
+                        {% if item_data.target %}
+                            <span><strong>T:</strong>{{ item_data.target }}</span>
+                        {% endif %}
+                    </div>
+                {% elif data_type == 'monsters' %}
+                    <div class="d-flex flex-wrap justify-content-between">
+                        {% if item_data.stats and item_data.stats.hp %}
+                            <span><strong>HP:</strong>{{ item_data.stats.hp }}</span>
+                        {% endif %}
+                        {% if item_data.stats and item_data.stats.attack %}
+                            <span><strong>A:</strong>{{ item_data.stats.attack }}</span>
+                        {% endif %}
+                    </div>
+                {% elif data_type == 'quests' %}
+                    <div class="d-flex flex-wrap justify-content-between">
+                        {% if item_data.level %}
+                            <span><strong>L:</strong>{{ item_data.level }}</span>
+                        {% endif %}
+                        {% if item_data.status %}
+                            <span><strong>S:</strong>{{ item_data.status }}</span>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="card-footer py-0 px-1 bg-white" style="min-height: 22px;">
+            <div class="d-flex justify-content-between">
+                <a href="{{ url_for('edit_item', data_type=data_type, item_id=item_id) }}" 
+                   class="btn btn-sm btn-outline-primary py-0 px-1" style="font-size: 0.7rem;">
+                    <i class="bi bi-pencil"></i>
+                </a>
+                <button class="btn btn-sm btn-outline-danger py-0 px-1" style="font-size: 0.7rem;"
+                        hx-delete="{{ url_for('delete_item', data_type=data_type, item_id=item_id) }}"
+                        hx-confirm="Are you sure you want to delete '{{ item_id }}'?"
+                        hx-target="closest .col"
+                        hx-swap="outerHTML">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+{% if data|length == 0 %}
+<div class="col-12 text-center py-2 text-muted">
+    <i class="bi bi-search"></i> No items found matching your search.
+</div>
+{% endif %} 

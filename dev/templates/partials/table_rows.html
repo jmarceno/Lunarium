@@ -1,0 +1,75 @@
+{% for item_id, item_data in data.items() %}
+<tr>
+    <td>
+        <div class="fw-bold text-primary">{{ item_id }}</div>
+        {% if item_data.name %}
+            <small class="text-muted">{{ item_data.name }}</small>
+        {% endif %}
+    </td>
+    <td>
+        <div class="text-truncate" style="max-width: 300px;">
+            {{ item_data.description or "No description" }}
+        </div>
+    </td>
+    <td>
+        <div class="small">
+            {% if data_type == 'items' %}
+                {% if item_data.type %}
+                    <span class="badge bg-primary">{{ item_data.type }}</span>
+                {% endif %}
+                {% if item_data.value %}
+                    <br><strong>Value:</strong> {{ item_data.value }}
+                {% endif %}
+            {% elif data_type == 'skills' %}
+                {% if item_data.type %}
+                    <span class="badge bg-info">{{ item_data.type }}</span>
+                {% endif %}
+                {% if item_data.mpCost %}
+                    <br><strong>MP:</strong> {{ item_data.mpCost }}
+                {% endif %}
+            {% elif data_type == 'monsters' %}
+                {% if item_data.stats and item_data.stats.level %}
+                    <span class="badge bg-warning">Lv {{ item_data.stats.level }}</span>
+                {% endif %}
+                {% if item_data.stats and item_data.stats.hp %}
+                    <br><strong>HP:</strong> {{ item_data.stats.hp }}
+                {% endif %}
+            {% elif data_type == 'jobs' %}
+                {% if item_data.category %}
+                    <span class="badge bg-secondary">{{ item_data.category }}</span>
+                {% endif %}
+            {% elif data_type == 'quests' %}
+                {% if item_data.type %}
+                    <span class="badge bg-success">{{ item_data.type }}</span>
+                {% endif %}
+            {% else %}
+                {% if item_data.type %}
+                    <span class="badge bg-light text-dark">{{ item_data.type }}</span>
+                {% endif %}
+            {% endif %}
+        </div>
+    </td>
+    <td>
+        <div class="btn-group-vertical btn-group-sm" role="group">
+            <a href="{{ url_for('edit_item', data_type=data_type, item_id=item_id) }}" 
+               class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-pencil"></i> Edit
+            </a>
+            <button class="btn btn-outline-danger btn-sm"
+                    hx-delete="{{ url_for('delete_item', data_type=data_type, item_id=item_id) }}"
+                    hx-confirm="Are you sure you want to delete '{{ item_id }}'?"
+                    hx-target="closest tr"
+                    hx-swap="outerHTML">
+                <i class="bi bi-trash"></i> Delete
+            </button>
+        </div>
+    </td>
+</tr>
+{% endfor %}
+{% if data|length == 0 %}
+<tr>
+    <td colspan="4" class="text-center py-4 text-muted">
+        <i class="bi bi-search"></i> No items found matching your search.
+    </td>
+</tr>
+{% endif %} 
