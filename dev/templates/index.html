@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}Game Content Manager - Dashboard{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="bi bi-house-door"></i> Game Content Manager Dashboard
+        </h1>
+        <p class="lead">Manage all your game content from one central location.</p>
+    </div>
+</div>
+
+<div class="row">
+    {% for key, config in data_files.items() %}
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body d-flex flex-column">
+                <h5 class="card-title">
+                    {% if key == 'items' %}
+                        <i class="bi bi-gem text-primary"></i>
+                    {% elif key == 'skills' %}
+                        <i class="bi bi-lightning text-warning"></i>
+                    {% elif key == 'monsters' %}
+                        <i class="bi bi-bug text-danger"></i>
+                    {% elif key == 'jobs' %}
+                        <i class="bi bi-person-badge text-info"></i>
+                    {% elif key == 'quests' %}
+                        <i class="bi bi-journal-text text-success"></i>
+                    {% elif key == 'monster_abilities' %}
+                        <i class="bi bi-shield-exclamation text-danger"></i>
+                    {% elif key == 'minion_abilities' %}
+                        <i class="bi bi-people text-secondary"></i>
+                    {% elif key == 'smith_recipes' %}
+                        <i class="bi bi-hammer text-dark"></i>
+                    {% elif key == 'unique_items' %}
+                        <i class="bi bi-star text-warning"></i>
+                    {% elif key == 'set_items' %}
+                        <i class="bi bi-collection text-info"></i>
+                    {% elif key == 'set_bonuses' %}
+                        <i class="bi bi-plus-circle text-success"></i>
+                    {% else %}
+                        <i class="bi bi-gear"></i>
+                    {% endif %}
+                    {{ config.display_name }}
+                </h5>
+                <p class="card-text flex-grow-1">
+                    {% if key == 'items' %}
+                        Manage weapons, armor, and consumables with stats and requirements.
+                    {% elif key == 'skills' %}
+                        Define player and monster abilities with effects and damage calculations.
+                    {% elif key == 'monsters' %}
+                        Create enemies with stats, abilities, and behaviors.
+                    {% elif key == 'jobs' %}
+                        Define character classes with unique attributes and skill trees.
+                    {% elif key == 'quests' %}
+                        Create storylines, objectives, and reward systems.
+                    {% elif key == 'monster_abilities' %}
+                        Define special attacks and abilities for monsters.
+                    {% elif key == 'minion_abilities' %}
+                        Manage companion and summon abilities.
+                    {% elif key == 'smith_recipes' %}
+                        Configure crafting recipes and material requirements.
+                    {% elif key == 'unique_items' %}
+                        Manage rare and special items with unique properties.
+                    {% elif key == 'set_items' %}
+                        Define equipment sets with matching themes.
+                    {% elif key == 'set_bonuses' %}
+                        Configure bonuses for wearing complete equipment sets.
+                    {% else %}
+                        Manage game content data.
+                    {% endif %}
+                </p>
+                <div class="mt-auto">
+                    <small class="text-muted d-block mb-2">
+                        <i class="bi bi-file-earmark-code"></i> {{ config.file }}
+                    </small>
+                    <a href="{{ url_for('manage_data', data_type=key) }}" 
+                       class="btn btn-primary btn-sm">
+                        <i class="bi bi-pencil-square"></i> Manage
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="row mt-5">
+    <div class="col-12">
+        <div class="card bg-light">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-info-circle"></i> Getting Started
+                </h5>
+                <div class="row">
+                    <div class="col-md-4">
+                        <h6><i class="bi bi-1-circle text-primary"></i> Choose a Data Type</h6>
+                        <p class="small">Click on any of the cards above to start managing that type of content.</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h6><i class="bi bi-2-circle text-primary"></i> Edit Content</h6>
+                        <p class="small">Use the intuitive forms to add, edit, or remove game content entries.</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h6><i class="bi bi-3-circle text-primary"></i> Save Changes</h6>
+                        <p class="small">All changes are automatically saved back to your Lua data files.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

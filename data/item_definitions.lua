@@ -1,825 +1,917 @@
--- Item Definitions
--- Contains all item, equipment, and consumable definitions
-
 -- Define item rarities
 local RARITY = {
-    COMMON = "common",
     UNCOMMON = "uncommon",
-    RARE = "rare",
     EPIC = "epic",
+    COMMON = "common",
     UNIQUE = "unique",
-    SET = "set"
+    RARE = "rare",
+    SET = "set",
 }
 
 local itemDefinitions = {
-    -- Basic weapons
-    ShortSword = {
-        name = "Short Sword",
-        description = "A simple but reliable blade.",
-        type = "weapon",
-        subType = "sword",
-        slot = "weapon",
-        attack = 10,
-        magicAttack = 0,
-        value = 100,
-        requirements = {
-            STR = 5
-        },
-        jobs = {"Fighter", "Knight", "Paladin", "Rogue"}
-    },
-    
-    Dagger = {
-        name = "Dagger",
-        description = "Quick and easy to handle.",
-        type = "weapon",
-        subType = "dagger",
-        slot = "weapon",
-        attack = 6,
-        magicAttack = 0,
-        value = 80,
-        requirements = {
-            DEX = 5
-        },
-        jobs = {"Rogue", "Assassin"}
-    },
-    
     ApprenticeStaff = {
-        name = "Apprentice Staff",
-        description = "A basic staff for novice mages.",
-        type = "weapon",
-        subType = "staff",
-        slot = "weapon",
-        attack = 4,
-        magicAttack = 12,
         value = 120,
-        requirements = {
-            INT = 5
-        },
-        jobs = {"Mage", "BlackMage", "WhiteMage"}
-    },
-    
-    Mace = {
-        name = "Mace",
-        description = "A blunt weapon favored by clerics.",
-        type = "weapon",
-        subType = "mace",
-        slot = "weapon",
-        attack = 8,
-        magicAttack = 5,
-        value = 110,
-        requirements = {
-            STR = 4,
-            WIS = 4
-        },
-        jobs = {"Cleric", "Paladin"}
-    },
-    
-    -- Basic armors
-    LeatherArmor = {
-        name = "Leather Armor",
-        description = "Basic protection made of hardened leather.",
-        type = "armor",
-        slot = "body",
-        defense = 6,
-        magicDefense = 2,
-        value = 90,
-        requirements = {},
-        jobs = {"Fighter", "Rogue", "Ranger"}
-    },
-    
-    LightLeather = {
-        name = "Light Leather",
-        description = "Flexible leather gear for agile fighters.",
-        type = "armor",
-        slot = "body",
-        defense = 4,
-        magicDefense = 2,
-        value = 85,
-        requirements = {},
-        jobs = {"Rogue", "Assassin", "Ranger"}
-    },
-    
-    ApprenticeRobe = {
-        name = "Apprentice Robe",
-        description = "A simple robe that aids in channeling magic.",
-        type = "armor",
-        slot = "body",
-        defense = 2,
-        magicDefense = 7,
-        value = 95,
-        requirements = {},
-        jobs = {"Mage", "BlackMage", "WhiteMage"}
-    },
-    
-    AcolyteRobe = {
-        name = "Acolyte Robe",
-        description = "A robe worn by followers of the divine.",
-        type = "armor",
-        slot = "body",
-        defense = 3,
-        magicDefense = 6,
-        value = 90,
-        requirements = {},
-        jobs = {"Cleric", "WhiteMage", "Paladin"}
-    },
-    
-    -- Basic shields and offhand items
-    WoodenShield = {
-        name = "Wooden Shield",
-        description = "A basic wooden shield.",
-        type = "armor",
-        slot = "offhand",
-        defense = 5,
-        magicDefense = 1,
-        value = 70,
-        requirements = {
-            STR = 4
-        },
-        jobs = {"Fighter", "Knight", "Paladin"}
-    },
-    
-    HolySymbol = {
-        name = "Holy Symbol",
-        description = "A symbol of divine power.",
-        type = "accessory",
-        slot = "offhand",
-        defense = 0,
-        magicDefense = 4,
-        magicAttack = 6,
-        value = 85,
-        requirements = {
-            WIS = 5
-        },
-        jobs = {"Cleric", "Paladin", "WhiteMage"}
-    },
-    
-    -- Advanced weapons
-    Longsword = {
-        name = "Longsword",
-        description = "A longer blade with better reach.",
-        type = "weapon",
-        subType = "sword",
-        slot = "weapon",
-        attack = 16,
-        magicAttack = 0,
-        value = 220,
-        requirements = {
-            STR = 8
-        },
-        jobs = {"Fighter", "Knight", "Paladin"}
-    },
-    
-    BattleAxe = {
-        name = "Battle Axe",
-        description = "A heavy axe that deals devastating damage.",
-        type = "weapon",
-        subType = "axe",
-        slot = "weapon",
-        attack = 20,
-        magicAttack = 0,
-        value = 250,
-        requirements = {
-            STR = 12
-        },
-        jobs = {"Fighter", "Berserker"}
-    },
-    
-    ElementalRod = {
-        name = "Elemental Rod",
-        description = "A rod infused with elemental power.",
-        type = "weapon",
-        subType = "wand",
         slot = "weapon",
         attack = 4,
-        magicAttack = 18,
-        value = 280,
-        requirements = {
-            INT = 10
-        },
-        jobs = {"Mage", "BlackMage"}
-    },
-    
-    HealingStaff = {
-        name = "Healing Staff",
-        description = "A staff that enhances healing magic.",
-        type = "weapon",
+        description = "A basic staff for novice mages.",
         subType = "staff",
-        slot = "weapon",
-        attack = 6,
-        magicAttack = 15,
-        value = 270,
         requirements = {
-            WIS = 10
+            INT = 5,
         },
-        jobs = {"Cleric", "WhiteMage"}
-    },
-    
-    AssassinDagger = {
-        name = "Assassin Dagger",
-        description = "A lethal blade designed for swift kills.",
+        jobs = {
+            ["1"] = "Mage",
+            ["2"] = "BlackMage",
+            ["3"] = "WhiteMage",
+        },
+        name = "Apprentice Staff",
+        magicAttack = 12,
         type = "weapon",
-        subType = "dagger",
-        slot = "weapon",
-        attack = 14,
-        magicAttack = 0,
-        critRate = 15,
-        value = 260,
-        requirements = {
-            DEX = 12
-        },
-        jobs = {"Rogue", "Assassin"}
     },
-    
-    Bow = {
-        name = "Bow",
-        description = "A reliable ranged weapon.",
-        type = "weapon",
-        subType = "bow",
-        slot = "weapon",
-        attack = 12,
-        magicAttack = 0,
-        value = 230,
-        requirements = {
-            DEX = 10
-        },
-        jobs = {"Ranger"}
-    },
-    
-    Crossbow = {
-        name = "Crossbow",
-        description = "A precise mechanical ranged weapon that's easier to aim than a bow.",
-        type = "weapon",
-        subType = "crossbow",
-        slot = "weapon",
-        attack = 14,
-        magicAttack = 0,
-        accuracy = 5,
-        value = 240,
-        requirements = {
-            DEX = 8
-        },
-        jobs = {"Ranger", "Artificer"}
-    },
-    
-    EngineersCrossbow = {
-        name = "Engineer's Crossbow",
-        description = "An advanced crossbow with mechanical improvements for increased power and accuracy.",
-        type = "weapon",
-        subType = "crossbow",
-        slot = "weapon",
-        attack = 22,
-        magicAttack = 0,
-        accuracy = 10,
-        critRate = 5,
-        value = 480,
-        requirements = {
-            DEX = 14,
-            INT = 10
-        },
-        jobs = {"BallistaMaster"}
-    },
-    
-    -- Advanced armors
-    ChainMail = {
-        name = "Chain Mail",
-        description = "Armor made of interlocking metal rings.",
-        type = "armor",
+    ArchmagerobeOfPower = {
+        defense = 15,
+        value = 5400,
         slot = "body",
-        defense = 12,
-        magicDefense = 3,
-        value = 240,
+        description = "A masterfully crafted robe that enhances all magical abilities.",
         requirements = {
-            STR = 8
+            WIS = 15,
+            INT = 20,
         },
-        jobs = {"Fighter", "Knight", "Paladin"}
-    },
-    
-    TribalArmor = {
-        name = "Tribal Armor",
-        description = "Lightweight armor decorated with tribal symbols.",
+        jobs = {
+            ["1"] = "BlackMage",
+            ["2"] = "WhiteMage",
+            ["3"] = "Archmage",
+        },
+        magicDefense = 30,
+        name = "Archmage Robe of Power",
         type = "armor",
+    },
+    ElementalRod = {
+        value = 280,
+        slot = "weapon",
+        attack = 4,
+        description = "A rod infused with elemental power.",
+        subType = "wand",
+        requirements = {
+            INT = 10,
+        },
+        jobs = {
+            ["1"] = "Mage",
+            ["2"] = "BlackMage",
+        },
+        name = "Elemental Rod",
+        magicAttack = 18,
+        type = "weapon",
+    },
+    LightLeather = {
+        defense = 4,
+        value = 85,
         slot = "body",
-        defense = 8,
-        magicDefense = 5,
-        value = 220,
+        description = "Flexible leather gear for agile fighters.",
         requirements = {},
-        jobs = {"Berserker"}
-    },
-    
-    MageRobe = {
-        name = "Mage Robe",
-        description = "A robe imbued with magical protection.",
+        jobs = {
+            ["1"] = "Rogue",
+            ["2"] = "Assassin",
+            ["3"] = "Ranger",
+        },
+        magicDefense = 2,
+        name = "Light Leather",
         type = "armor",
-        slot = "body",
-        defense = 5,
-        magicDefense = 14,
+    },
+    AmuletOfProtection = {
+        defense = 4,
         value = 250,
+        slot = "amulet",
+        description = "An enchanted amulet that provides substantial defense.",
         requirements = {
-            INT = 10
+            WIS = 8,
         },
-        jobs = {"Mage", "BlackMage"}
-    },
-    
-    WhiteRobe = {
-        name = "White Robe",
-        description = "A pristine robe that enhances healing magic.",
-        type = "armor",
-        slot = "body",
-        defense = 6,
-        magicDefense = 12,
-        value = 240,
-        requirements = {
-            WIS = 10
+        jobs = {
+            ["5"] = "WhiteMage",
+            ["1"] = "Fighter",
+            ["2"] = "Knight",
+            ["3"] = "Cleric",
+            ["4"] = "Paladin",
         },
-        jobs = {"Cleric", "WhiteMage"}
-    },
-    
-    ShadowGarb = {
-        name = "Shadow Garb",
-        description = "Dark clothing that helps conceal the wearer.",
-        type = "armor",
-        slot = "body",
-        defense = 9,
         magicDefense = 6,
-        evasion = 10,
+        name = "Amulet of Protection",
+        type = "accessory",
+    },
+    AssassinDagger = {
         value = 260,
-        requirements = {
-            DEX = 12
+        slot = "weapon",
+        attack = 14,
+        description = "A lethal blade designed for swift kills.",
+        subType = "dagger",
+        critRate = 15,
+        name = "Assassin Dagger",
+        jobs = {
+            ["1"] = "Rogue",
+            ["2"] = "Assassin",
         },
-        jobs = {"Assassin"}
-    },
-    
-    RangerLeathers = {
-        name = "Ranger Leathers",
-        description = "Treated leather armor favored by rangers.",
-        type = "armor",
-        slot = "body",
-        defense = 10,
-        magicDefense = 5,
-        value = 235,
-        requirements = {
-            DEX = 10
-        },
-        jobs = {"Ranger"}
-    },
-    
-    EngineerGarb = {
-        name = "Engineer Garb",
-        description = "Specialized outfit with numerous pockets and protective padding for handling mechanical contraptions.",
-        type = "armor",
-        slot = "body",
-        defense = 14,
-        magicDefense = 8,
-        value = 460,
+        magicAttack = 0,
         requirements = {
             DEX = 12,
-            INT = 14
         },
-        jobs = {"BallistaMaster"}
-    },
-    
-    -- Advanced shields and offhand items
-    KiteShield = {
-        name = "Kite Shield",
-        description = "A large shield that offers excellent protection.",
-        type = "armor",
-        slot = "offhand",
-        defense = 10,
-        magicDefense = 3,
-        value = 200,
-        requirements = {
-            STR = 10
-        },
-        jobs = {"Fighter", "Knight", "Paladin"}
-    },
-    
-    ThrowingKnives = {
-        name = "Throwing Knives",
-        description = "A set of balanced knives for throwing.",
         type = "weapon",
-        subType = "dagger",
-        slot = "offhand",
-        attack = 8,
-        value = 190,
-        requirements = {
-            DEX = 12
-        },
-        jobs = {"Rogue", "Assassin"}
     },
-    
-    QuiverOfArrows = {
-        name = "Quiver of Arrows",
-        description = "A collection of well-crafted arrows.",
+    HolySymbol = {
+        defense = 0,
+        value = 85,
+        slot = "offhand",
+        description = "A symbol of divine power.",
+        magicAttack = 6,
+        requirements = {
+            WIS = 5,
+        },
+        jobs = {
+            ["1"] = "Cleric",
+            ["2"] = "Paladin",
+            ["3"] = "WhiteMage",
+        },
+        magicDefense = 4,
+        name = "Holy Symbol",
         type = "accessory",
+    },
+    QuiverOfArrows = {
+        description = "A collection of well-crafted arrows.",
+        value = 170,
         slot = "offhand",
         attack = 4,
-        value = 170,
-        requirements = {
-            DEX = 10
+        jobs = {
+            ["1"] = "Ranger",
         },
-        jobs = {"Ranger"}
-    },
-    
-    Toolkit = {
-        name = "Toolkit",
-        description = "A collection of tools for creating and maintaining mechanical devices.",
+        name = "Quiver of Arrows",
+        requirements = {
+            DEX = 10,
+        },
         type = "accessory",
-        slot = "offhand",
-        attack = 0,
+    },
+    ArchmageStaff = {
+        value = 5200,
+        slot = "weapon",
+        attack = 10,
+        description = "A staff of immense magical power.",
+        subType = "staff",
+        requirements = {
+            WIS = 15,
+            INT = 20,
+        },
+        jobs = {
+            ["1"] = "BlackMage",
+            ["2"] = "WhiteMage",
+            ["3"] = "Archmage",
+        },
+        name = "Archmage Staff",
+        magicAttack = 35,
+        type = "weapon",
+    },
+    BandOfStrength = {
+        value = 120,
+        attributes = {
+            STR = 2,
+        },
+        attack = 3,
+        description = "A ring that enhances the wearer's physical power.",
+        requirements = {
+            STR = 6,
+        },
+        jobs = {
+            ["1"] = "Fighter",
+            ["2"] = "Knight",
+            ["3"] = "Paladin",
+            ["4"] = "Berserker",
+        },
+        name = "Band of Strength",
+        slot = "ring",
+        type = "accessory",
+    },
+    CopperAmulet = {
         defense = 2,
+        value = 80,
+        slot = "amulet",
+        description = "A simple copper amulet with minor protective properties.",
+        requirements = {},
+        jobs = {
+            ["5"] = "Rogue",
+            ["6"] = "Ranger",
+            ["7"] = "BlackMage",
+            ["8"] = "WhiteMage",
+            ["1"] = "Fighter",
+            ["2"] = "Knight",
+            ["3"] = "Mage",
+            ["4"] = "Cleric",
+            ["10"] = "Assassin",
+            ["9"] = "Paladin",
+            ["11"] = "Berserker",
+        },
+        magicDefense = 3,
+        name = "Copper Amulet",
+        type = "accessory",
+    },
+    Mace = {
+        value = 110,
+        slot = "weapon",
+        attack = 8,
+        description = "A blunt weapon favored by clerics.",
+        subType = "mace",
+        requirements = {
+            WIS = 4,
+            STR = 4,
+        },
+        jobs = {
+            ["1"] = "Cleric",
+            ["2"] = "Paladin",
+        },
+        name = "Mace",
+        magicAttack = 5,
+        type = "weapon",
+    },
+    WoodenShield = {
+        defense = 5,
+        value = 70,
+        slot = "offhand",
+        description = "A basic wooden shield.",
+        requirements = {
+            STR = 4,
+        },
+        jobs = {
+            ["1"] = "Fighter",
+            ["2"] = "Knight",
+            ["3"] = "Paladin",
+        },
+        magicDefense = 1,
+        name = "Wooden Shield",
+        type = "armor",
+    },
+    BattleAxe = {
+        value = 250,
+        slot = "weapon",
+        attack = 20,
+        description = "A heavy axe that deals devastating damage.",
+        subType = "axe",
+        requirements = {
+            STR = 12,
+        },
+        jobs = {
+            ["1"] = "Fighter",
+            ["2"] = "Berserker",
+        },
+        name = "Battle Axe",
+        magicAttack = 0,
+        type = "weapon",
+    },
+    EngineersCrossbow = {
+        value = 480,
+        slot = "weapon",
+        attack = 22,
+        accuracy = 10,
+        description = "An advanced crossbow with mechanical improvements for increased power and accuracy.",
+        subType = "crossbow",
+        critRate = 5,
+        name = "Engineer's Crossbow",
+        jobs = {
+            ["1"] = "BallistaMaster",
+        },
+        magicAttack = 0,
+        requirements = {
+            DEX = 14,
+            INT = 10,
+        },
+        type = "weapon",
+    },
+    ShadowWalkerCloak = {
+        defense = 18,
+        value = 5300,
+        slot = "body",
+        description = "A mysterious cloak that seems to bend light around the wearer.",
+        evasion = 20,
+        requirements = {
+            DEX = 20,
+            INT = 12,
+        },
+        jobs = {
+            ["1"] = "Assassin",
+            ["2"] = "Shadowblade",
+        },
+        magicDefense = 18,
+        name = "Shadow Walker Cloak",
+        type = "armor",
+    },
+    SilverAmulet = {
+        value = 150,
+        slot = "amulet",
+        description = "A silver amulet that enhances the wearer's magic abilities.",
+        magicAttack = 3,
+        requirements = {},
+        jobs = {
+            ["5"] = "Paladin",
+            ["1"] = "Mage",
+            ["2"] = "Cleric",
+            ["3"] = "BlackMage",
+            ["4"] = "WhiteMage",
+        },
+        magicDefense = 5,
+        name = "Silver Amulet",
+        type = "accessory",
+    },
+    Antidote = {
+        value = 20,
+        effect = {
+            target = "single",
+            status = "poison",
+            type = "cure_status",
+        },
+        description = "Cures poison status.",
+        name = "Antidote",
+        type = "consumable",
+    },
+    ShortSword = {
+        value = 100,
+        slot = "weapon",
+        attack = 10,
+        description = "A simple but reliable blade.",
+        subType = "sword",
+        requirements = {
+            STR = 5,
+        },
+        jobs = {
+            ["1"] = "Fighter",
+            ["2"] = "Knight",
+            ["3"] = "Paladin",
+            ["4"] = "Rogue",
+        },
+        name = "Short Sword",
+        magicAttack = 0,
+        type = "weapon",
+    },
+    IronRing = {
+        defense = 1,
+        value = 50,
+        slot = "ring",
+        description = "A simple iron ring that provides minimal protection.",
+        jobs = {
+            ["5"] = "Rogue",
+            ["6"] = "Ranger",
+            ["7"] = "BlackMage",
+            ["8"] = "WhiteMage",
+            ["1"] = "Fighter",
+            ["2"] = "Knight",
+            ["3"] = "Mage",
+            ["4"] = "Cleric",
+            ["10"] = "Assassin",
+            ["9"] = "Paladin",
+            ["11"] = "Berserker",
+        },
+        name = "Iron Ring",
+        requirements = {},
+        type = "accessory",
+    },
+    Bow = {
+        value = 230,
+        slot = "weapon",
+        attack = 12,
+        description = "A reliable ranged weapon.",
+        subType = "bow",
+        requirements = {
+            DEX = 10,
+        },
+        jobs = {
+            ["1"] = "Ranger",
+        },
+        name = "Bow",
+        magicAttack = 0,
+        type = "weapon",
+    },
+    HealthPotion = {
+        value = 30,
+        effect = {
+            amount = 50,
+            target = "single",
+            type = "heal",
+        },
+        description = "Restores 50 HP.",
+        name = "Health Potion",
+        type = "consumable",
+    },
+    ShadowGarb = {
+        defense = 9,
+        description = "Dark clothing that helps conceal the wearer.",
+        evasion = 10,
+        jobs = {
+            [1] = "Assassin",
+        },
+        magicDefense = 6,
+        name = "Shadow Garb",
+        requirements = {
+            DEX = 12,
+        },
+        slot = "body",
+        type = "armor",
+        value = 260,
+    },
+    ApprenticeRobe = {
+        defense = 2,
+        value = 95,
+        slot = "body",
+        description = "A simple robe that aids in channeling magic.",
+        requirements = {},
+        jobs = {
+            ["1"] = "Mage",
+            ["2"] = "BlackMage",
+            ["3"] = "WhiteMage",
+        },
+        magicDefense = 7,
+        name = "Apprentice Robe",
+        type = "armor",
+    },
+    MageRing = {
         value = 180,
         attributes = {
-            INT = 1,
-            DEX = 1
+            INT = 2,
         },
+        description = "A ring infused with arcane energy that enhances spellcasting.",
+        magicAttack = 5,
         requirements = {
-            INT = 8
+            INT = 6,
         },
-        jobs = {"Artificer"}
-    },
-    
-    MasterToolkit = {
-        name = "Master Toolkit",
-        description = "An extensive collection of precision tools for engineering complex mechanical contraptions.",
+        jobs = {
+            ["1"] = "Mage",
+            ["2"] = "BlackMage",
+            ["3"] = "WhiteMage",
+            ["4"] = "Cleric",
+        },
+        name = "Mage Ring",
+        slot = "ring",
         type = "accessory",
-        slot = "offhand",
-        attack = 2,
+    },
+    ChainMail = {
+        defense = 12,
+        value = 240,
+        slot = "body",
+        description = "Armor made of interlocking metal rings.",
+        requirements = {
+            STR = 8,
+        },
+        jobs = {
+            ["1"] = "Fighter",
+            ["2"] = "Knight",
+            ["3"] = "Paladin",
+        },
+        magicDefense = 3,
+        name = "Chain Mail",
+        type = "armor",
+    },
+    WhiteRobe = {
+        defense = 6,
+        value = 240,
+        slot = "body",
+        description = "A pristine robe that enhances healing magic.",
+        requirements = {
+            WIS = 10,
+        },
+        jobs = {
+            ["1"] = "Cleric",
+            ["2"] = "WhiteMage",
+        },
+        magicDefense = 12,
+        name = "White Robe",
+        type = "armor",
+    },
+    LeatherArmor = {
+        defense = 6,
+        value = 90,
+        slot = "body",
+        description = "Basic protection made of hardened leather.",
+        requirements = {},
+        jobs = {
+            ["1"] = "Fighter",
+            ["2"] = "Rogue",
+            ["3"] = "Ranger",
+        },
+        magicDefense = 2,
+        name = "Leather Armor",
+        type = "armor",
+    },
+    HealingStaff = {
+        value = 270,
+        slot = "weapon",
+        attack = 6,
+        description = "A staff that enhances healing magic.",
+        subType = "staff",
+        requirements = {
+            WIS = 10,
+        },
+        jobs = {
+            ["1"] = "Cleric",
+            ["2"] = "WhiteMage",
+        },
+        name = "Healing Staff",
+        magicAttack = 15,
+        type = "weapon",
+    },
+    ShadowbladeDaggers = {
+        value = 5100,
+        slot = "weapon",
+        attack = 25,
+        description = "Twin daggers that seem to be made of shadow itself.",
+        subType = "dagger",
+        critRate = 25,
+        name = "Shadowblade Daggers",
+        jobs = {
+            ["1"] = "Assassin",
+            ["2"] = "Shadowblade",
+        },
+        magicAttack = 15,
+        requirements = {
+            DEX = 20,
+            INT = 12,
+        },
+        type = "weapon",
+    },
+    RingOfDexterity = {
+        value = 200,
+        attributes = {
+            DEX = 2,
+        },
+        description = "A finely crafted ring that improves the wearer's agility.",
+        evasion = 5,
+        requirements = {
+            DEX = 7,
+        },
+        jobs = {
+            ["1"] = "Rogue",
+            ["2"] = "Ranger",
+            ["3"] = "Assassin",
+        },
+        name = "Ring of Dexterity",
+        slot = "ring",
+        type = "accessory",
+    },
+    MasterToolkit = {
         defense = 4,
         value = 350,
         attributes = {
             INT = 3,
-            DEX = 2
+            DEX = 2,
         },
+        attack = 2,
+        description = "An extensive collection of precision tools for engineering complex mechanical contraptions.",
         requirements = {
             INT = 14,
-            DEX = 10
+            DEX = 10,
         },
-        jobs = {"BallistaMaster"}
-    },
-    
-    -- Basic amulets and rings
-    CopperAmulet = {
-        name = "Copper Amulet",
-        description = "A simple copper amulet with minor protective properties.",
-        type = "accessory",
-        slot = "amulet",
-        defense = 2,
-        magicDefense = 3,
-        value = 80,
-        requirements = {},
-        jobs = {"Fighter", "Knight", "Mage", "Cleric", "Rogue", "Ranger", "BlackMage", "WhiteMage", "Paladin", "Assassin", "Berserker"}
-    },
-    
-    SilverAmulet = {
-        name = "Silver Amulet",
-        description = "A silver amulet that enhances the wearer's magic abilities.",
-        type = "accessory",
-        slot = "amulet",
-        magicDefense = 5,
-        magicAttack = 3,
-        value = 150,
-        requirements = {},
-        jobs = {"Mage", "Cleric", "BlackMage", "WhiteMage", "Paladin"}
-    },
-    
-    AmuletOfProtection = {
-        name = "Amulet of Protection",
-        description = "An enchanted amulet that provides substantial defense.",
-        type = "accessory",
-        slot = "amulet",
-        defense = 4,
-        magicDefense = 6,
-        value = 250,
-        requirements = {
-            WIS = 8
+        jobs = {
+            ["1"] = "BallistaMaster",
         },
-        jobs = {"Fighter", "Knight", "Cleric", "Paladin", "WhiteMage"}
-    },
-    
-    IronRing = {
-        name = "Iron Ring",
-        description = "A simple iron ring that provides minimal protection.",
-        type = "accessory",
-        slot = "ring",
-        defense = 1,
-        value = 50,
-        requirements = {},
-        jobs = {"Fighter", "Knight", "Mage", "Cleric", "Rogue", "Ranger", "BlackMage", "WhiteMage", "Paladin", "Assassin", "Berserker"}
-    },
-    
-    BandOfStrength = {
-        name = "Band of Strength",
-        description = "A ring that enhances the wearer's physical power.",
-        type = "accessory",
-        slot = "ring",
-        attack = 3,
-        value = 120,
-        attributes = {
-            STR = 2
-        },
-        requirements = {
-            STR = 6
-        },
-        jobs = {"Fighter", "Knight", "Paladin", "Berserker"}
-    },
-    
-    MageRing = {
-        name = "Mage Ring",
-        description = "A ring infused with arcane energy that enhances spellcasting.",
-        type = "accessory",
-        slot = "ring",
-        magicAttack = 5,
-        value = 180,
-        attributes = {
-            INT = 2
-        },
-        requirements = {
-            INT = 6
-        },
-        jobs = {"Mage", "BlackMage", "WhiteMage", "Cleric"}
-    },
-    
-    RingOfDexterity = {
-        name = "Ring of Dexterity",
-        description = "A finely crafted ring that improves the wearer's agility.",
-        type = "accessory",
-        slot = "ring",
-        evasion = 5,
-        value = 200,
-        attributes = {
-            DEX = 2
-        },
-        requirements = {
-            DEX = 7
-        },
-        jobs = {"Rogue", "Ranger", "Assassin"}
-    },
-    
-    -- Master equipment
-    SacredBlade = {
-        name = "Sacred Blade",
-        description = "A legendary sword imbued with holy power.",
-        type = "weapon",
-        subType = "sword",
-        slot = "weapon",
-        attack = 30,
-        magicAttack = 20,
-        element = "holy",
-        value = 5000,
-        requirements = {
-            STR = 18,
-            WIS = 15
-        },
-        jobs = {"Paladin", "HolyKnight"}
-    },
-    
-    ArchmageStaff = {
-        name = "Archmage Staff",
-        description = "A staff of immense magical power.",
-        type = "weapon",
-        subType = "staff",
-        slot = "weapon",
-        attack = 10,
-        magicAttack = 35,
-        value = 5200,
-        requirements = {
-            INT = 20,
-            WIS = 15
-        },
-        jobs = {"BlackMage", "WhiteMage", "Archmage"}
-    },
-    
-    ShadowbladeDaggers = {
-        name = "Shadowblade Daggers",
-        description = "Twin daggers that seem to be made of shadow itself.",
-        type = "weapon",
-        subType = "dagger",
-        slot = "weapon",
-        attack = 25,
-        magicAttack = 15,
-        critRate = 25,
-        value = 5100,
-        requirements = {
-            DEX = 20,
-            INT = 12
-        },
-        jobs = {"Assassin", "Shadowblade"}
-    },
-    
-    DivineAegis = {
-        name = "Divine Aegis",
-        description = "A shield blessed by the gods.",
-        type = "armor",
+        name = "Master Toolkit",
         slot = "offhand",
-        defense = 18,
-        magicDefense = 18,
-        value = 4800,
-        requirements = {
-            STR = 15,
-            WIS = 15
-        },
-        jobs = {"Paladin", "HolyKnight"}
+        type = "accessory",
     },
-    
-    HolyCrusaderArmor = {
-        name = "Holy Crusader Armor",
-        description = "Magnificent armor worn by the most devoted holy knights.",
-        type = "armor",
-        slot = "body",
-        defense = 25,
-        magicDefense = 20,
-        value = 5500,
-        requirements = {
-            STR = 18,
-            WIS = 15
-        },
-        jobs = {"Paladin", "HolyKnight"}
-    },
-    
-    ArchmagerobeOfPower = {
-        name = "Archmage Robe of Power",
-        description = "A masterfully crafted robe that enhances all magical abilities.",
-        type = "armor",
-        slot = "body",
-        defense = 15,
-        magicDefense = 30,
-        value = 5400,
-        requirements = {
-            INT = 20,
-            WIS = 15
-        },
-        jobs = {"BlackMage", "WhiteMage", "Archmage"}
-    },
-    
-    ShadowWalkerCloak = {
-        name = "Shadow Walker Cloak",
-        description = "A mysterious cloak that seems to bend light around the wearer.",
-        type = "armor",
-        slot = "body",
-        defense = 18,
-        magicDefense = 18,
-        evasion = 20,
-        value = 5300,
-        requirements = {
-            DEX = 20,
-            INT = 12
-        },
-        jobs = {"Assassin", "Shadowblade"}
-    },
-    
-    -- Consumable items
-    HealthPotion = {
-        name = "Health Potion",
-        description = "Restores 50 HP.",
-        type = "consumable",
-        effect = {
-            type = "heal",
-            target = "single",
-            amount = 50
-        },
-        value = 30
-    },
-    
-    ManaPotion = {
-        name = "Mana Potion",
-        description = "Restores 30 MP.",
-        type = "consumable",
-        effect = {
-            type = "restore_mp",
-            target = "single",
-            amount = 30
-        },
-        value = 40
-    },
-    
-    Antidote = {
-        name = "Antidote",
-        description = "Cures poison status.",
-        type = "consumable",
-        effect = {
-            type = "cure_status",
-            target = "single",
-            status = "poison"
-        },
-        value = 20
-    },
-    
     Elixir = {
-        name = "Elixir",
-        description = "Fully restores HP and MP.",
-        type = "consumable",
+        value = 200,
         effect = {
             type = "full_restore",
-            target = "single"
+            target = "single",
         },
-        value = 200
-    }
+        description = "Fully restores HP and MP.",
+        name = "Elixir",
+        type = "consumable",
+    },
+    Toolkit = {
+        defense = 2,
+        value = 180,
+        attributes = {
+            INT = 1,
+            DEX = 1,
+        },
+        attack = 0,
+        description = "A collection of tools for creating and maintaining mechanical devices.",
+        requirements = {
+            INT = 8,
+        },
+        jobs = {
+            ["1"] = "Artificer",
+        },
+        name = "Toolkit",
+        slot = "offhand",
+        type = "accessory",
+    },
+    HolyCrusaderArmor = {
+        defense = 25,
+        value = 5500,
+        slot = "body",
+        description = "Magnificent armor worn by the most devoted holy knights.",
+        requirements = {
+            WIS = 15,
+            STR = 18,
+        },
+        jobs = {
+            ["1"] = "Paladin",
+            ["2"] = "HolyKnight",
+        },
+        magicDefense = 20,
+        name = "Holy Crusader Armor",
+        type = "armor",
+    },
+    Dagger = {
+        value = 80,
+        slot = "weapon",
+        attack = 6,
+        description = "Quick and easy to handle.",
+        subType = "dagger",
+        requirements = {
+            DEX = 5,
+        },
+        jobs = {
+            ["1"] = "Rogue",
+            ["2"] = "Assassin",
+        },
+        name = "Dagger",
+        magicAttack = 0,
+        type = "weapon",
+    },
+    ThrowingKnives = {
+        value = 190,
+        slot = "offhand",
+        attack = 8,
+        description = "A set of balanced knives for throwing.",
+        subType = "dagger",
+        requirements = {
+            DEX = 12,
+        },
+        jobs = {
+            ["1"] = "Rogue",
+            ["2"] = "Assassin",
+        },
+        name = "Throwing Knives",
+        type = "weapon",
+    },
+    DivineAegis = {
+        defense = 18,
+        value = 4800,
+        slot = "offhand",
+        description = "A shield blessed by the gods.",
+        requirements = {
+            WIS = 15,
+            STR = 15,
+        },
+        jobs = {
+            ["1"] = "Paladin",
+            ["2"] = "HolyKnight",
+        },
+        magicDefense = 18,
+        name = "Divine Aegis",
+        type = "armor",
+    },
+    SacredBlade = {
+        value = 5000,
+        slot = "weapon",
+        element = "holy",
+        description = "A legendary sword imbued with holy power.",
+        subType = "sword",
+        requirements = {
+            WIS = 15,
+            STR = 18,
+        },
+        attack = 30,
+        jobs = {
+            ["1"] = "Paladin",
+            ["2"] = "HolyKnight",
+        },
+        name = "Sacred Blade",
+        magicAttack = 20,
+        type = "weapon",
+    },
+    ManaPotion = {
+        value = 40,
+        effect = {
+            amount = 30,
+            target = "single",
+            type = "restore_mp",
+        },
+        description = "Restores 30 MP.",
+        name = "Mana Potion",
+        type = "consumable",
+    },
+    KiteShield = {
+        defense = 10,
+        value = 200,
+        slot = "offhand",
+        description = "A large shield that offers excellent protection.",
+        requirements = {
+            STR = 10,
+        },
+        jobs = {
+            ["1"] = "Fighter",
+            ["2"] = "Knight",
+            ["3"] = "Paladin",
+        },
+        magicDefense = 3,
+        name = "Kite Shield",
+        type = "armor",
+    },
+    EngineerGarb = {
+        defense = 14,
+        value = 460,
+        slot = "body",
+        description = "Specialized outfit with numerous pockets and protective padding for handling mechanical contraptions.",
+        requirements = {
+            DEX = 12,
+            INT = 14,
+        },
+        jobs = {
+            ["1"] = "BallistaMaster",
+        },
+        magicDefense = 8,
+        name = "Engineer Garb",
+        type = "armor",
+    },
+    RangerLeathers = {
+        defense = 10,
+        value = 235,
+        slot = "body",
+        description = "Treated leather armor favored by rangers.",
+        requirements = {
+            DEX = 10,
+        },
+        jobs = {
+            ["1"] = "Ranger",
+        },
+        magicDefense = 5,
+        name = "Ranger Leathers",
+        type = "armor",
+    },
+    Longsword = {
+        value = 220,
+        slot = "weapon",
+        attack = 16,
+        description = "A longer blade with better reach.",
+        subType = "sword",
+        requirements = {
+            STR = 8,
+        },
+        jobs = {
+            ["1"] = "Fighter",
+            ["2"] = "Knight",
+            ["3"] = "Paladin",
+        },
+        name = "Longsword",
+        magicAttack = 0,
+        type = "weapon",
+    },
+    TribalArmor = {
+        defense = 8,
+        value = 220,
+        slot = "body",
+        description = "Lightweight armor decorated with tribal symbols.",
+        requirements = {},
+        jobs = {
+            ["1"] = "Berserker",
+        },
+        magicDefense = 5,
+        name = "Tribal Armor",
+        type = "armor",
+    },
+    MageRobe = {
+        defense = 5,
+        value = 250,
+        slot = "body",
+        description = "A robe imbued with magical protection.",
+        requirements = {
+            INT = 10,
+        },
+        jobs = {
+            ["1"] = "Mage",
+            ["2"] = "BlackMage",
+        },
+        magicDefense = 14,
+        name = "Mage Robe",
+        type = "armor",
+    },
+    AcolyteRobe = {
+        defense = 3,
+        value = 90,
+        slot = "body",
+        description = "A robe worn by followers of the divine.",
+        requirements = {},
+        jobs = {
+            ["1"] = "Cleric",
+            ["2"] = "WhiteMage",
+            ["3"] = "Paladin",
+        },
+        magicDefense = 6,
+        name = "Acolyte Robe",
+        type = "armor",
+    },
+    Crossbow = {
+        value = 240,
+        slot = "weapon",
+        attack = 14,
+        accuracy = 5,
+        description = "A precise mechanical ranged weapon that's easier to aim than a bow.",
+        subType = "crossbow",
+        requirements = {
+            DEX = 8,
+        },
+        jobs = {
+            ["1"] = "Ranger",
+            ["2"] = "Artificer",
+        },
+        name = "Crossbow",
+        magicAttack = 0,
+        type = "weapon",
+    },
 }
 
--- Monster part definitions
 local monsterParts = {
-    -- Small monster parts
-    SlimeCrystal = {
-        name = "Slime Crystal",
-        description = "A crystallized core of a slime monster.",
-        type = "monster_part",
-        rarity = 1,
-        value = 5
-    },
-    
-    GoblinTooth = {
-        name = "Goblin Tooth",
-        description = "A sharp tooth from a goblin.",
-        type = "monster_part",
-        rarity = 1,
-        value = 8
-    },
-    
-    BatWing = {
-        name = "Bat Wing",
-        description = "A wing from a cave bat.",
-        type = "monster_part",
-        rarity = 1,
-        value = 6
-    },
-    
-    SpiderFang = {
-        name = "Spider Fang",
-        description = "A venomous fang from a large spider.",
-        type = "monster_part",
-        rarity = 1,
-        value = 10
-    },
-    
-    -- Medium monster parts
     OgreHide = {
+        value = 25,
         name = "Ogre Hide",
         description = "A tough piece of skin from an ogre.",
-        type = "monster_part",
         rarity = 2,
-        value = 25
+        type = "monster_part",
     },
-    
     WolfPelt = {
+        value = 30,
         name = "Wolf Pelt",
         description = "The pelt of a fierce wolf.",
-        type = "monster_part",
         rarity = 2,
-        value = 30
-    },
-    
-    SkeletonBone = {
-        name = "Skeleton Bone",
-        description = "A bone from a reanimated skeleton.",
         type = "monster_part",
-        rarity = 2,
-        value = 20
     },
-    
-    GhostEssence = {
-        name = "Ghost Essence",
-        description = "The ethereal remnants of a ghost.",
-        type = "monster_part",
-        rarity = 3,
-        value = 45
-    },
-    
-    -- Large monster parts
     DragonScale = {
+        value = 100,
         name = "Dragon Scale",
         description = "A shimmering scale from a dragon.",
-        type = "monster_part",
         rarity = 4,
-        value = 100
-    },
-    
-    DemonHorn = {
-        name = "Demon Horn",
-        description = "A twisted horn from a fearsome demon.",
         type = "monster_part",
-        rarity = 4,
-        value = 90
     },
-    
+    GhostEssence = {
+        value = 45,
+        name = "Ghost Essence",
+        description = "The ethereal remnants of a ghost.",
+        rarity = 3,
+        type = "monster_part",
+    },
+    SlimeCrystal = {
+        value = 5,
+        name = "Slime Crystal",
+        description = "A crystallized core of a slime monster.",
+        rarity = 1,
+        type = "monster_part",
+    },
+    BatWing = {
+        value = 6,
+        name = "Bat Wing",
+        description = "A wing from a cave bat.",
+        rarity = 1,
+        type = "monster_part",
+    },
     PhoenixFeather = {
+        value = 150,
         name = "Phoenix Feather",
         description = "A brilliant feather that radiates warmth.",
-        type = "monster_part",
         rarity = 5,
-        value = 150
+        type = "monster_part",
     },
-    
+    DemonHorn = {
+        value = 90,
+        name = "Demon Horn",
+        description = "A twisted horn from a fearsome demon.",
+        rarity = 4,
+        type = "monster_part",
+    },
     BehemothHeart = {
+        value = 200,
         name = "Behemoth Heart",
         description = "The massive heart of a behemoth.",
-        type = "monster_part",
         rarity = 5,
-        value = 200
-    }
+        type = "monster_part",
+    },
+    SkeletonBone = {
+        value = 20,
+        name = "Skeleton Bone",
+        description = "A bone from a reanimated skeleton.",
+        rarity = 2,
+        type = "monster_part",
+    },
+    GoblinTooth = {
+        value = 8,
+        name = "Goblin Tooth",
+        description = "A sharp tooth from a goblin.",
+        rarity = 1,
+        type = "monster_part",
+    },
+    SpiderFang = {
+        value = 10,
+        name = "Spider Fang",
+        description = "A venomous fang from a large spider.",
+        rarity = 1,
+        type = "monster_part",
+    },
 }
 
 return {
     items = itemDefinitions,
     monsterParts = monsterParts,
-    RARITY = RARITY
-} 
+    RARITY = RARITY,
+}

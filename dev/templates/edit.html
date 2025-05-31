@@ -1,0 +1,1604 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Edit' if not is_new else 'New' }} {{ config.display_name }}{% endblock %}
+
+{% set extra_data = extra_data or {} %}
+
+{% block nav_items %}
+<a class="nav-link" href="{{ url_for('index') }}">
+    <i class="bi bi-house"></i> Dashboard
+</a>
+<a class="nav-link" href="{{ url_for('manage_data', data_type=data_type) }}">
+    <i class="bi bi-arrow-left"></i> Back to {{ config.display_name }}
+</a>
+{% endblock %}
+
+{% block content %}
+<!-- Missing Skills Warning for Jobs -->
+{% if data_type == 'jobs' and extra_data.get('missing_skills') %}
+<div class="row">
+    <div class="col-12">
+        <div class="alert alert-warning alert-dismissible fade show" role="alert">
+            <h6><i class="bi bi-exclamation-triangle"></i> <strong>Missing Skill Definitions</strong></h6>
+            <p class="mb-2">This job references skills that are not defined in <code>skill_definitions.lua</code>:</p>
+            <div class="d-flex flex-wrap gap-1">
+                {% for skill in extra_data.missing_skills %}
+                    <span class="badge bg-warning text-dark">{{ skill }}</span>
+                {% endfor %}
+            </div>
+            <hr class="my-2">
+            <small class="mb-0">
+                <strong>Action Required:</strong> Add these skills to <code>data/skill_definitions.lua</code> or remove them from the job definition to maintain consistency.
+            </small>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="row">
+    <div class="col-12">
+        <h1>
+            <i class="bi bi-{{ 'plus' if is_new else 'pencil' }}"></i>
+            {{ 'New' if is_new else 'Edit' }} {{ config.display_name }}
+        </h1>
+        {% if not is_new %}
+            <p class="text-muted">Editing: <strong>{{ item_id }}</strong></p>
+        {% endif %}
+    </div>
+</div>
+
+<form method="POST" action="{{ url_for('save_item', data_type=data_type) }}">
+    <input type="hidden" name="original_id" value="{{ item_id }}">
+    
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-form"></i> Basic Information</h5>
+                </div>
+                <div class="card-body">
+                    <!-- ID Field (required for all types) -->
+                    <div class="mb-3">
+                        <label for="item_id" class="form-label">
+                            <strong>ID *</strong>
+                            <small class="text-muted">(unique identifier)</small>
+                        </label>
+                        <input type="text" class="form-control" id="item_id" name="item_id" 
+                               value="{{ item_id }}" required>
+                    </div>
+
+                    <!-- Common fields for most types -->
+                    {% if data_type not in ['set_bonuses'] %}
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Display Name</label>
+                        <input type="text" class="form-control" id="name" name="name" 
+                               value="{{ item_data.name or '' }}">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" 
+                                  rows="3">{{ item_data.description or '' }}</textarea>
+                    </div>
+                    {% endif %}
+
+                    <!-- Type-specific fields -->
+                    {% if data_type == 'items' %}
+                        <!-- Item-specific fields -->
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label for="type" class="form-label">Type</label>
+                                <select class="form-select" id="type" name="type">
+                                    <option value="weapon" {{ 'selected' if item_data.type == 'weapon' }}>Weapon</option>
+                                    <option value="armor" {{ 'selected' if item_data.type == 'armor' }}>Armor</option>
+                                    <option value="accessory" {{ 'selected' if item_data.type == 'accessory' }}>Accessory</option>
+                                    <option value="consumable" {{ 'selected' if item_data.type == 'consumable' }}>Consumable</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="slot" class="form-label">Equipment Slot</label>
+                                <select class="form-select" id="slot" name="slot">
+                                    <option value="weapon" {{ 'selected' if item_data.slot == 'weapon' }}>Weapon</option>
+                                    <option value="body" {{ 'selected' if item_data.slot == 'body' }}>Body</option>
+                                    <option value="head" {{ 'selected' if item_data.slot == 'head' }}>Head</option>
+                                    <option value="offhand" {{ 'selected' if item_data.slot == 'offhand' }}>Offhand</option>
+                                    <option value="accessory" {{ 'selected' if item_data.slot == 'accessory' }}>Accessory</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="row mt-3">
+                            <div class="col-md-3">
+                                <label for="attack" class="form-label">Attack</label>
+                                <input type="number" class="form-control" id="attack" name="attack" 
+                                       value="{{ item_data.attack or 0 }}">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="magicAttack" class="form-label">Magic Attack</label>
+                                <input type="number" class="form-control" id="magicAttack" name="magicAttack" 
+                                       value="{{ item_data.magicAttack or 0 }}">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="defense" class="form-label">Defense</label>
+                                <input type="number" class="form-control" id="defense" name="defense" 
+                                       value="{{ item_data.defense or 0 }}">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="value" class="form-label">Value</label>
+                                <input type="number" class="form-control" id="value" name="value" 
+                                       value="{{ item_data.value or 0 }}">
+                            </div>
+                        </div>
+
+                        <!-- Job Restrictions -->
+                        <div class="field-group mt-3">
+                            <h6 class="field-label">Usable by Jobs</h6>
+                            <div id="jobs-container">
+                                {% if item_data.jobs %}
+                                    {% if item_data.jobs is mapping %}
+                                        <!-- Handle dict structure (from Lua arrays) -->
+                                        {% for index, job in item_data.jobs.items() %}
+                                        <div class="row mb-2 job-row">
+                                            <div class="col-md-10">
+                                                <input type="text" class="form-control" name="jobs.{{ loop.index }}" 
+                                                       value="{{ job }}" placeholder="Job name">
+                                            </div>
+                                            <div class="col-md-2">
+                                                <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeJob(this)">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    {% else %}
+                                        <!-- Handle list structure -->
+                                        {% for job in item_data.jobs %}
+                                        <div class="row mb-2 job-row">
+                                            <div class="col-md-10">
+                                                <input type="text" class="form-control" name="jobs.{{ loop.index }}" 
+                                                       value="{{ job }}" placeholder="Job name">
+                                            </div>
+                                            <div class="col-md-2">
+                                                <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeJob(this)">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    {% endif %}
+                                {% else %}
+                                    <div class="row mb-2 job-row">
+                                        <div class="col-md-10">
+                                            <input type="text" class="form-control" name="jobs.1" 
+                                                   placeholder="Job name">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeJob(this)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <button type="button" class="btn btn-outline-primary btn-sm mt-2" onclick="addJob()">
+                                <i class="bi bi-plus"></i> Add Job
+                            </button>
+                            <small class="text-muted d-block mt-1">Common jobs: Fighter, Mage, Rogue, Cleric, etc.</small>
+                        </div>
+
+                    {% elif data_type == 'skills' %}
+                        <!-- Skill-specific fields -->
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label for="type" class="form-label">Type</label>
+                                <select class="form-select" id="type" name="type">
+                                    <option value="physical" {{ 'selected' if item_data.type == 'physical' }}>Physical</option>
+                                    <option value="magical" {{ 'selected' if item_data.type == 'magical' }}>Magical</option>
+                                    <option value="support" {{ 'selected' if item_data.type == 'support' }}>Support</option>
+                                    <option value="utility" {{ 'selected' if item_data.type == 'utility' }}>Utility</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="target" class="form-label">Target</label>
+                                <select class="form-select" id="target" name="target">
+                                    <option value="single_enemy" {{ 'selected' if item_data.target == 'single_enemy' }}>Single Enemy</option>
+                                    <option value="all_enemies" {{ 'selected' if item_data.target == 'all_enemies' }}>All Enemies</option>
+                                    <option value="self" {{ 'selected' if item_data.target == 'self' }}>Self</option>
+                                    <option value="single_ally" {{ 'selected' if item_data.target == 'single_ally' }}>Single Ally</option>
+                                    <option value="all_allies" {{ 'selected' if item_data.target == 'all_allies' }}>All Allies</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="element" class="form-label">Element</label>
+                                <select class="form-select" id="element" name="element">
+                                    <option value="" {{ 'selected' if not item_data.element }}>None</option>
+                                    <option value="fire" {{ 'selected' if item_data.element == 'fire' }}>Fire</option>
+                                    <option value="ice" {{ 'selected' if item_data.element == 'ice' }}>Ice</option>
+                                    <option value="lightning" {{ 'selected' if item_data.element == 'lightning' }}>Lightning</option>
+                                    <option value="earth" {{ 'selected' if item_data.element == 'earth' }}>Earth</option>
+                                    <option value="holy" {{ 'selected' if item_data.element == 'holy' }}>Holy</option>
+                                    <option value="dark" {{ 'selected' if item_data.element == 'dark' }}>Dark</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="row mt-3">
+                            <div class="col-md-3">
+                                <label for="mpCost" class="form-label">MP Cost</label>
+                                <input type="number" class="form-control" id="mpCost" name="mpCost" 
+                                       value="{{ item_data.mpCost or 0 }}">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="basePower" class="form-label">Base Power</label>
+                                <input type="number" class="form-control" id="basePower" name="basePower" 
+                                       value="{{ item_data.basePower or 100 }}">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="castingTime" class="form-label">Casting Time</label>
+                                <input type="number" class="form-control" id="castingTime" name="castingTime" 
+                                       value="{{ item_data.castingTime or 0 }}">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="maxLevel" class="form-label">Max Level</label>
+                                <input type="number" class="form-control" id="maxLevel" name="maxLevel" 
+                                       value="{{ item_data.maxLevel or 5 }}">
+                            </div>
+                        </div>
+
+                    {% elif data_type == 'monsters' %}
+                        <!-- Monster-specific fields -->
+                        <div class="mb-3">
+                            <label for="category" class="form-label">Category</label>
+                            <input type="text" class="form-control" id="category" name="category" 
+                                   value="{{ item_data.category or '' }}" placeholder="e.g., Animals, Demons, Undead">
+                        </div>
+
+                        <div class="field-group">
+                            <h6 class="field-label">Stats</h6>
+                            <div class="row">
+                                <div class="col-md-2">
+                                    <label for="stats.level" class="form-label">Level</label>
+                                    <input type="number" class="form-control" name="stats.level" 
+                                           value="{{ item_data.stats.level if item_data.stats else 1 }}">
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="stats.hp" class="form-label">HP</label>
+                                    <input type="number" class="form-control" name="stats.hp" 
+                                           value="{{ item_data.stats.hp if item_data.stats else 10 }}">
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="stats.attack" class="form-label">Attack</label>
+                                    <input type="number" class="form-control" name="stats.attack" 
+                                           value="{{ item_data.stats.attack if item_data.stats else 5 }}">
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="stats.defense" class="form-label">Defense</label>
+                                    <input type="number" class="form-control" name="stats.defense" 
+                                           value="{{ item_data.stats.defense if item_data.stats else 2 }}">
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="stats.speed" class="form-label">Speed</label>
+                                    <input type="number" class="form-control" name="stats.speed" 
+                                           value="{{ item_data.stats.speed if item_data.stats else 5 }}">
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="stats.magicAttack" class="form-label">Magic Attack</label>
+                                    <input type="number" class="form-control" name="stats.magicAttack" 
+                                           value="{{ item_data.stats.magicAttack if item_data.stats else 0 }}">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Monster Abilities -->
+                        {% if extra_data.get('monster_abilities') %}
+                        <div class="field-group">
+                            <h6 class="field-label">Abilities <small class="text-muted">(chances will be normalized to sum to 1.0)</small></h6>
+                            <div class="row">
+                                {% for ability in extra_data['monster_abilities'] %}
+                                <div class="col-md-6 mb-2">
+                                    <div class="d-flex align-items-center">
+                                        <label for="abilities.{{ ability }}.chance" class="form-label me-2 mb-0" style="min-width: 150px;">{{ ability }}:</label>
+                                        <input type="number" class="form-control" 
+                                               name="abilities.{{ ability }}.chance" 
+                                               value="{% if item_data.get('abilities') %}{% for ab in item_data.abilities %}{% if ab.id == ability %}{{ ab.chanceToUse }}{% endif %}{% endfor %}{% endif %}"
+                                               step="0.1" min="0" max="1" placeholder="0.0">
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <small class="text-muted">Enter decimal values (e.g., 0.5 for 50% chance). Values will be automatically normalized.</small>
+                        </div>
+                        {% endif %}
+
+                        <!-- Immunities -->
+                        {% if extra_data.get('damage_types') %}
+                        <div class="field-group">
+                            <h6 class="field-label">Immunities</h6>
+                            <div class="row">
+                                {% for damage_type in extra_data['damage_types'] %}
+                                <div class="col-md-4 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" 
+                                               name="immunities.{{ damage_type }}" value="{{ damage_type }}"
+                                               id="immunities_{{ damage_type }}"
+                                               {{ 'checked' if item_data.get('immunities') and damage_type in item_data.immunities else '' }}>
+                                        <label class="form-check-label" for="immunities_{{ damage_type }}">
+                                            {{ damage_type.title() }}
+                                        </label>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Resistances -->
+                        {% if extra_data.get('damage_types') %}
+                        <div class="field-group">
+                            <h6 class="field-label">Resistances <small class="text-muted">(negative = resistance, positive = vulnerability)</small></h6>
+                            <div class="row">
+                                {% for damage_type in extra_data['damage_types'] %}
+                                <div class="col-md-4 mb-2">
+                                    <div class="d-flex align-items-center">
+                                        <label for="resistances.{{ damage_type }}" class="form-label me-2 mb-0" style="min-width: 80px;">{{ damage_type.title() }}:</label>
+                                        <input type="number" class="form-control" 
+                                               name="resistances.{{ damage_type }}" 
+                                               value="{{ item_data.resistances[damage_type] if item_data.get('resistances') and item_data.resistances.get(damage_type) else '' }}"
+                                               placeholder="0" min="-100" max="100">
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <small class="text-muted">Example: -50 = 50% resistance, +20 = 20% vulnerability. Only non-zero values will be saved.</small>
+                        </div>
+                        {% endif %}
+
+                    {% elif data_type == 'jobs' %}
+                        <!-- Job-specific fields -->
+                        <div class="row">
+                            <div class="col-md-12">
+                                <label for="tier" class="form-label">Tier</label>
+                                <select class="form-select" id="tier" name="tier">
+                                    <option value="1" {{ 'selected' if item_data.tier == 1 else '' }}>Tier 1 (Basic)</option>
+                                    <option value="2" {{ 'selected' if item_data.tier == 2 else '' }}>Tier 2 (Advanced)</option>
+                                    <option value="3" {{ 'selected' if item_data.tier == 3 else '' }}>Tier 3 (Master)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Attribute Modifiers -->
+                        <div class="field-group mt-3">
+                            <h6 class="field-label">Attribute Modifiers</h6>
+                            <div class="row">
+                                {% for attr in extra_data.get('attributes', []) %}
+                                <div class="col-md-3 mb-2">
+                                    <label for="attributeModifiers.{{ attr }}" class="form-label">{{ attr }}</label>
+                                    <input type="number" class="form-control" name="attributeModifiers.{{ attr }}" 
+                                           value="{{ item_data.attributeModifiers[attr] if item_data.attributeModifiers and item_data.attributeModifiers[attr] else 0 }}"
+                                           min="-10" max="10">
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <small class="text-muted">Only non-zero values will be saved</small>
+                        </div>
+
+                        <!-- Available Skills -->
+                        {% if extra_data.get('skills') %}
+                        <div class="field-group">
+                            <h6 class="field-label">Available Skills</h6>
+                            <div class="row">
+                                {% for skill in extra_data['skills'] %}
+                                <div class="col-md-4 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" 
+                                               name="availableSkills.{{ loop.index }}" value="{{ skill }}"
+                                               id="availableSkills_{{ skill }}"
+                                               {{ 'checked' if item_data.get('availableSkills') and skill in item_data.availableSkills.values() else '' }}>
+                                        <label class="form-check-label" for="availableSkills_{{ skill }}">
+                                            {{ skill }}
+                                        </label>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Starting Skills -->
+                        {% if extra_data.get('skills') %}
+                        <div class="field-group">
+                            <h6 class="field-label">Starting Skills</h6>
+                            <div class="row">
+                                {% for skill in extra_data['skills'] %}
+                                <div class="col-md-4 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" 
+                                               name="startingSkills.{{ loop.index }}" value="{{ skill }}"
+                                               id="startingSkills_{{ skill }}"
+                                               {{ 'checked' if item_data.get('startingSkills') and skill in item_data.startingSkills.values() else '' }}>
+                                        <label class="form-check-label" for="startingSkills_{{ skill }}">
+                                            {{ skill }}
+                                        </label>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Starting Equipment -->
+                        {% if extra_data.get('items') %}
+                        <div class="field-group">
+                            <h6 class="field-label">Starting Equipment</h6>
+                            <div class="row">
+                                {% for slot in extra_data.get('equipment_slots', []) %}
+                                <div class="col-md-4 mb-3">
+                                    <label for="startingEquipment.{{ slot }}" class="form-label">{{ slot.title() }}</label>
+                                    <select class="form-select" name="startingEquipment.{{ slot }}">
+                                        <option value="none">-- None --</option>
+                                        {% for item in extra_data['items'] %}
+                                            <option value="{{ item }}" 
+                                                    {{ 'selected' if item_data.startingEquipment and item_data.startingEquipment[slot] == item else '' }}>
+                                                {{ item }}
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <small class="text-muted">Only non-"none" selections will be saved</small>
+                        </div>
+                        {% endif %}
+
+                        <!-- Requirements -->
+                        {% if extra_data.get('jobs') %}
+                        <div class="field-group">
+                            <h6 class="field-label">Job Requirements</h6>
+                            <div class="row">
+                                {% for job in extra_data['jobs'] %}
+                                <div class="col-md-4 mb-2">
+                                    <label for="requirements.{{ job }}" class="form-label">{{ job }}</label>
+                                    <input type="number" class="form-control" name="requirements.{{ job }}" 
+                                           value="{{ item_data.requirements[job] if item_data.requirements and item_data.requirements[job] else '' }}"
+                                           placeholder="Level required" min="1" max="50">
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <small class="text-muted">Leave empty for jobs that are not required</small>
+                        </div>
+                        {% endif %}
+
+                    {% elif data_type == 'quests' %}
+                        <!-- Quest-specific fields -->
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label for="type" class="form-label">Quest Type</label>
+                                <select class="form-select" id="type" name="type">
+                                    <option value="KILL" {{ 'selected' if item_data.type == 'KILL' }}>Kill</option>
+                                    <option value="COLLECT" {{ 'selected' if item_data.type == 'COLLECT' }}>Collect</option>
+                                    <option value="EXPLORE" {{ 'selected' if item_data.type == 'EXPLORE' }}>Explore</option>
+                                    <option value="ESCORT" {{ 'selected' if item_data.type == 'ESCORT' }}>Escort</option>
+                                    <option value="BOSS" {{ 'selected' if item_data.type == 'BOSS' }}>Boss</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="giver" class="form-label">Quest Giver</label>
+                                <select class="form-select" id="giver" name="giver">
+                                    <option value="Guild" {{ 'selected' if item_data.giver == 'Guild' }}>Guild</option>
+                                    <option value="Tavern" {{ 'selected' if item_data.giver == 'Tavern' }}>Tavern</option>
+                                    <option value="Church" {{ 'selected' if item_data.giver == 'Church' }}>Church</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="status" class="form-label">Status</label>
+                                <select class="form-select" id="status" name="status">
+                                    <option value="available" {{ 'selected' if item_data.status == 'available' }}>Available</option>
+                                    <option value="active" {{ 'selected' if item_data.status == 'active' }}>Active</option>
+                                    <option value="completed" {{ 'selected' if item_data.status == 'completed' }}>Completed</option>
+                                    <option value="failed" {{ 'selected' if item_data.status == 'failed' }}>Failed</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="row mt-3">
+                            <div class="col-md-4">
+                                <label for="level" class="form-label">Level Requirement</label>
+                                <input type="number" class="form-control" id="level" name="level" 
+                                       value="{{ item_data.level or 1 }}" min="1" max="50">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="difficulty" class="form-label">Difficulty</label>
+                                <select class="form-select" id="difficulty" name="difficulty">
+                                    <option value="1" {{ 'selected' if item_data.difficulty == 1 }}>1 - Easy</option>
+                                    <option value="2" {{ 'selected' if item_data.difficulty == 2 }}>2 - Medium</option>
+                                    <option value="3" {{ 'selected' if item_data.difficulty == 3 }}>3 - Hard</option>
+                                    <option value="4" {{ 'selected' if item_data.difficulty == 4 }}>4 - Very Hard</option>
+                                    <option value="5" {{ 'selected' if item_data.difficulty == 5 }}>5 - Legendary</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="seed" class="form-label">Dungeon Seed</label>
+                                <input type="number" class="form-control" id="seed" name="seed" 
+                                       value="{{ item_data.seed or 12345 }}" min="1" max="99999">
+                            </div>
+                        </div>
+
+                        <!-- Quest Objective -->
+                        <div class="field-group mt-3">
+                            <h6 class="field-label">Quest Objective</h6>
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <label for="objective.targetId" class="form-label">Target ID</label>
+                                    <input type="text" class="form-control" name="objective.targetId" 
+                                           value="{{ item_data.objective.targetId if item_data.objective else '' }}"
+                                           placeholder="e.g., giant_rat, iron_ore">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="objective.targetName" class="form-label">Target Name</label>
+                                    <input type="text" class="form-control" name="objective.targetName" 
+                                           value="{{ item_data.objective.targetName if item_data.objective else '' }}"
+                                           placeholder="e.g., Giant Rat, Iron Ore">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="objective.count" class="form-label">Count/Amount</label>
+                                    <input type="number" class="form-control" name="objective.count" 
+                                           value="{{ item_data.objective.count if item_data.objective else 5 }}"
+                                           min="1" max="50">
+                                </div>
+                            </div>
+                            <div class="row mt-2">
+                                <div class="col-md-6">
+                                    <label for="objective.locationId" class="form-label">Location ID</label>
+                                    <input type="number" class="form-control" name="objective.locationId" 
+                                           value="{{ item_data.objective.locationId if item_data.objective else '' }}"
+                                           placeholder="For EXPLORE/ESCORT quests">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="objective.locationName" class="form-label">Location Name</label>
+                                    <input type="text" class="form-control" name="objective.locationName" 
+                                           value="{{ item_data.objective.locationName if item_data.objective else '' }}"
+                                           placeholder="e.g., Foggy Cave, Mountain Pass">
+                                </div>
+                            </div>
+                            <small class="text-muted">
+                                <strong>Kill/Collect:</strong> Use Target ID/Name and Count. 
+                                <strong>Explore/Escort/Boss:</strong> Use Location fields.
+                            </small>
+                        </div>
+
+                        <!-- Quest Rewards -->
+                        <div class="field-group">
+                            <h6 class="field-label">Rewards</h6>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <label for="rewards.gold" class="form-label">Gold Reward</label>
+                                    <input type="number" class="form-control" name="rewards.gold" 
+                                           value="{{ item_data.rewards.gold if item_data.rewards else 50 }}"
+                                           min="0" max="10000">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="rewards.reputation" class="form-label">Reputation Points</label>
+                                    <input type="number" class="form-control" name="rewards.reputation" 
+                                           value="{{ item_data.rewards.reputation if item_data.rewards else 10 }}"
+                                           min="0" max="100">
+                                </div>
+                            </div>
+                            <small class="text-muted">Item rewards can be added via the JSON editor</small>
+                        </div>
+
+                    {% elif data_type == 'smith_recipes' %}
+                        <!-- Smith Recipe-specific fields -->
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label for="result" class="form-label">Crafted Item Result</label>
+                                <input type="text" class="form-control" id="result" name="result" 
+                                       value="{{ item_data.result or '' }}" 
+                                       placeholder="e.g., ShortSword, LeatherArmor">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="category" class="form-label">Recipe Category</label>
+                                <select class="form-select" id="category" name="category">
+                                    <option value="Weapons" {{ 'selected' if item_data.category == 'Weapons' }}>Weapons</option>
+                                    <option value="Armor" {{ 'selected' if item_data.category == 'Armor' }}>Armor</option>
+                                    <option value="Accessories" {{ 'selected' if item_data.category == 'Accessories' }}>Accessories</option>
+                                    <option value="Consumables" {{ 'selected' if item_data.category == 'Consumables' }}>Consumables</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="row mt-3">
+                            <div class="col-md-12">
+                                <label for="goldCost" class="form-label">Gold Cost</label>
+                                <input type="number" class="form-control" id="goldCost" name="goldCost" 
+                                       value="{{ item_data.goldCost or 50 }}" min="0" max="10000">
+                            </div>
+                        </div>
+
+                        <!-- Recipe Materials -->
+                        <div class="field-group mt-3">
+                            <h6 class="field-label">Required Materials</h6>
+                            <div id="materials-container">
+                                {% if item_data.materials %}
+                                    {% for material, count in item_data.materials.items() %}
+                                    <div class="row mb-2 material-row">
+                                        <div class="col-md-6">
+                                            <input type="text" class="form-control" name="materials.{{ loop.index }}.name" 
+                                                   value="{{ material }}" placeholder="Material name">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <input type="number" class="form-control" name="materials.{{ loop.index }}.count" 
+                                                   value="{{ count }}" placeholder="Count" min="1" max="99">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeMaterial(this)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <div class="row mb-2 material-row">
+                                        <div class="col-md-6">
+                                            <input type="text" class="form-control" name="materials.1.name" 
+                                                   placeholder="Material name">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <input type="number" class="form-control" name="materials.1.count" 
+                                                   placeholder="Count" min="1" max="99">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeMaterial(this)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <button type="button" class="btn btn-outline-primary btn-sm mt-2" onclick="addMaterial()">
+                                <i class="bi bi-plus"></i> Add Material
+                            </button>
+                            <small class="text-muted d-block mt-1">
+                                Common materials: Iron Ore, Wood, Coal, Monster Hide, Cloth, Magic Crystal, etc.
+                            </small>
+                        </div>
+
+                    {% elif data_type == 'unique_items' %}
+                        <!-- Unique Item-specific fields -->
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label for="type" class="form-label">Item Type</label>
+                                <select class="form-select" id="type" name="type">
+                                    <option value="weapon" {{ 'selected' if item_data.type == 'weapon' }}>Weapon</option>
+                                    <option value="armor" {{ 'selected' if item_data.type == 'armor' }}>Armor</option>
+                                    <option value="accessory" {{ 'selected' if item_data.type == 'accessory' }}>Accessory</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="slot" class="form-label">Equipment Slot</label>
+                                <select class="form-select" id="slot" name="slot">
+                                    <option value="weapon" {{ 'selected' if item_data.slot == 'weapon' }}>Weapon</option>
+                                    <option value="offhand" {{ 'selected' if item_data.slot == 'offhand' }}>Offhand</option>
+                                    <option value="head" {{ 'selected' if item_data.slot == 'head' }}>Head</option>
+                                    <option value="body" {{ 'selected' if item_data.slot == 'body' }}>Body</option>
+                                    <option value="amulet" {{ 'selected' if item_data.slot == 'amulet' }}>Amulet</option>
+                                    <option value="ring" {{ 'selected' if item_data.slot == 'ring' }}>Ring</option>
+                                    <option value="hands" {{ 'selected' if item_data.slot == 'hands' }}>Hands</option>
+                                    <option value="feet" {{ 'selected' if item_data.slot == 'feet' }}>Feet</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="rarity" class="form-label">Rarity</label>
+                                <select class="form-select" id="rarity" name="rarity">
+                                    <option value="unique" {{ 'selected' if item_data.rarity == 'unique' }}>Unique</option>
+                                    <option value="legendary" {{ 'selected' if item_data.rarity == 'legendary' }}>Legendary</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="row mt-3">
+                            <div class="col-md-3">
+                                <label for="attack" class="form-label">Attack</label>
+                                <input type="number" class="form-control" id="attack" name="attack" 
+                                       value="{{ item_data.attack or 0 }}" min="0" max="200">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="magicAttack" class="form-label">Magic Attack</label>
+                                <input type="number" class="form-control" id="magicAttack" name="magicAttack" 
+                                       value="{{ item_data.magicAttack or 0 }}" min="0" max="200">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="defense" class="form-label">Defense</label>
+                                <input type="number" class="form-control" id="defense" name="defense" 
+                                       value="{{ item_data.defense or 0 }}" min="0" max="200">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="magicDefense" class="form-label">Magic Defense</label>
+                                <input type="number" class="form-control" id="magicDefense" name="magicDefense" 
+                                       value="{{ item_data.magicDefense or 0 }}" min="0" max="200">
+                            </div>
+                        </div>
+
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <label for="value" class="form-label">Value (Gold)</label>
+                                <input type="number" class="form-control" id="value" name="value" 
+                                       value="{{ item_data.value or 0 }}" min="0" max="50000">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="weaponType" class="form-label">Weapon Type (for weapons)</label>
+                                <select class="form-select" id="weaponType" name="weaponType">
+                                    <option value="">-- Select if weapon --</option>
+                                    <option value="sword" {{ 'selected' if item_data.weaponType == 'sword' }}>Sword</option>
+                                    <option value="axe" {{ 'selected' if item_data.weaponType == 'axe' }}>Axe</option>
+                                    <option value="dagger" {{ 'selected' if item_data.weaponType == 'dagger' }}>Dagger</option>
+                                    <option value="mace" {{ 'selected' if item_data.weaponType == 'mace' }}>Mace</option>
+                                    <option value="staff" {{ 'selected' if item_data.weaponType == 'staff' }}>Staff</option>
+                                    <option value="wand" {{ 'selected' if item_data.weaponType == 'wand' }}>Wand</option>
+                                    <option value="bow" {{ 'selected' if item_data.weaponType == 'bow' }}>Bow</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Requirements -->
+                        <div class="field-group mt-3">
+                            <h6 class="field-label">Attribute Requirements</h6>
+                            <div class="row">
+                                {% for attr in ['STR', 'INT', 'CON', 'WIL', 'CHA', 'DEX', 'WIS'] %}
+                                <div class="col-md-3 mb-2">
+                                    <label for="requirements.{{ attr }}" class="form-label">{{ attr }}</label>
+                                    <input type="number" class="form-control" name="requirements.{{ attr }}" 
+                                           value="{{ item_data.requirements[attr] if item_data.requirements and item_data.requirements[attr] else '' }}"
+                                           min="0" max="50" placeholder="0">
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <small class="text-muted">Leave empty for no requirement</small>
+                        </div>
+
+                        <!-- Job Restrictions -->
+                        <div class="field-group">
+                            <h6 class="field-label">Usable by Jobs</h6>
+                            <div id="jobs-container">
+                                {% if item_data.jobs %}
+                                    {% if item_data.jobs is mapping %}
+                                        <!-- Handle dict structure (from Lua arrays) -->
+                                        {% for index, job in item_data.jobs.items() %}
+                                        <div class="row mb-2 job-row">
+                                            <div class="col-md-10">
+                                                <input type="text" class="form-control" name="jobs.{{ loop.index }}" 
+                                                       value="{{ job }}" placeholder="Job name">
+                                            </div>
+                                            <div class="col-md-2">
+                                                <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeJob(this)">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    {% else %}
+                                        <!-- Handle list structure -->
+                                        {% for job in item_data.jobs %}
+                                        <div class="row mb-2 job-row">
+                                            <div class="col-md-10">
+                                                <input type="text" class="form-control" name="jobs.{{ loop.index }}" 
+                                                       value="{{ job }}" placeholder="Job name">
+                                            </div>
+                                            <div class="col-md-2">
+                                                <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeJob(this)">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    {% endif %}
+                                {% else %}
+                                    <div class="row mb-2 job-row">
+                                        <div class="col-md-10">
+                                            <input type="text" class="form-control" name="jobs.1" 
+                                                   placeholder="Job name">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeJob(this)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <button type="button" class="btn btn-outline-primary btn-sm mt-2" onclick="addJob()">
+                                <i class="bi bi-plus"></i> Add Job
+                            </button>
+                            <small class="text-muted d-block mt-1">Common jobs: Fighter, Mage, Rogue, Cleric, etc.</small>
+                        </div>
+
+                        <!-- Unique Effects -->
+                        <div class="field-group">
+                            <h6 class="field-label">Unique Effects</h6>
+                            <div id="effects-container">
+                                {% if item_data.uniqueEffects %}
+                                    {% for effect in item_data.uniqueEffects %}
+                                    <div class="card mb-3 unique-effect">
+                                        <div class="card-header d-flex justify-content-between align-items-center">
+                                            <span>Effect {{ loop.index }}</span>
+                                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeEffect(this)">
+                                                <i class="bi bi-trash"></i> Remove
+                                            </button>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Effect ID</label>
+                                                    <input type="text" class="form-control" name="uniqueEffects.{{ loop.index }}.id" 
+                                                           value="{{ effect.id }}" placeholder="UniqueEffectId">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Effect Type</label>
+                                                    <select class="form-select" name="uniqueEffects.{{ loop.index }}.type">
+                                                        <option value="damage_modifier" {{ 'selected' if effect.type == 'damage_modifier' }}>Damage Modifier</option>
+                                                        <option value="enemy_weakness" {{ 'selected' if effect.type == 'enemy_weakness' }}>Enemy Weakness</option>
+                                                        <option value="elemental_resistance" {{ 'selected' if effect.type == 'elemental_resistance' }}>Elemental Resistance</option>
+                                                        <option value="immunity" {{ 'selected' if effect.type == 'immunity' }}>Immunity</option>
+                                                        <option value="grant_skill" {{ 'selected' if effect.type == 'grant_skill' }}>Grant Skill</option>
+                                                        <option value="minion_buff" {{ 'selected' if effect.type == 'minion_buff' }}>Minion Buff</option>
+                                                        <option value="minion_taunt" {{ 'selected' if effect.type == 'minion_taunt' }}>Minion Taunt</option>
+                                                        <option value="loot_modifier" {{ 'selected' if effect.type == 'loot_modifier' }}>Loot Modifier</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="mt-2">
+                                                <label class="form-label">Effect Data (JSON format)</label>
+                                                <textarea class="form-control" name="uniqueEffects.{{ loop.index }}.effectData" rows="4" 
+                                                          placeholder='{"damage_multiplier": 1.5} or {"element": "fire", "value": 0.3}'>{{ effect.effect|tojson if effect.effect else '' }}</textarea>
+                                                <small class="text-muted">Examples: damage_modifier: {"damage_multiplier": 1.5}, elemental_resistance: {"element": "fire", "value": 0.3}</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <div class="card mb-3 unique-effect">
+                                        <div class="card-header d-flex justify-content-between align-items-center">
+                                            <span>Effect 1</span>
+                                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeEffect(this)">
+                                                <i class="bi bi-trash"></i> Remove
+                                            </button>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Effect ID</label>
+                                                    <input type="text" class="form-control" name="uniqueEffects.1.id" 
+                                                           placeholder="UniqueEffectId">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Effect Type</label>
+                                                    <select class="form-select" name="uniqueEffects.1.type">
+                                                        <option value="damage_modifier">Damage Modifier</option>
+                                                        <option value="enemy_weakness">Enemy Weakness</option>
+                                                        <option value="elemental_resistance">Elemental Resistance</option>
+                                                        <option value="immunity">Immunity</option>
+                                                        <option value="grant_skill">Grant Skill</option>
+                                                        <option value="minion_buff">Minion Buff</option>
+                                                        <option value="minion_taunt">Minion Taunt</option>
+                                                        <option value="loot_modifier">Loot Modifier</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="mt-2">
+                                                <label class="form-label">Effect Data (JSON format)</label>
+                                                <textarea class="form-control" name="uniqueEffects.1.effectData" rows="4" 
+                                                          placeholder='{"damage_multiplier": 1.5} or {"element": "fire", "value": 0.3}'></textarea>
+                                                <small class="text-muted">Examples: damage_modifier: {"damage_multiplier": 1.5}, elemental_resistance: {"element": "fire", "value": 0.3}</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <button type="button" class="btn btn-outline-primary btn-sm mt-2" onclick="addUniqueEffect()">
+                                <i class="bi bi-plus"></i> Add Unique Effect
+                            </button>
+                        </div>
+
+                    {% elif data_type == 'set_items' %}
+                        <!-- Set Item-specific fields -->
+                        <div class="row">
+                            <div class="col-md-3">
+                                <label for="type" class="form-label">Item Type</label>
+                                <select class="form-select" id="type" name="type">
+                                    <option value="weapon" {{ 'selected' if item_data.type == 'weapon' }}>Weapon</option>
+                                    <option value="armor" {{ 'selected' if item_data.type == 'armor' }}>Armor</option>
+                                    <option value="accessory" {{ 'selected' if item_data.type == 'accessory' }}>Accessory</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="slot" class="form-label">Equipment Slot</label>
+                                <select class="form-select" id="slot" name="slot">
+                                    <option value="weapon" {{ 'selected' if item_data.slot == 'weapon' }}>Weapon</option>
+                                    <option value="offhand" {{ 'selected' if item_data.slot == 'offhand' }}>Offhand</option>
+                                    <option value="head" {{ 'selected' if item_data.slot == 'head' }}>Head</option>
+                                    <option value="body" {{ 'selected' if item_data.slot == 'body' }}>Body</option>
+                                    <option value="amulet" {{ 'selected' if item_data.slot == 'amulet' }}>Amulet</option>
+                                    <option value="ring" {{ 'selected' if item_data.slot == 'ring' }}>Ring</option>
+                                    <option value="hands" {{ 'selected' if item_data.slot == 'hands' }}>Hands</option>
+                                    <option value="feet" {{ 'selected' if item_data.slot == 'feet' }}>Feet</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="rarity" class="form-label">Rarity</label>
+                                <select class="form-select" id="rarity" name="rarity">
+                                    <option value="set" {{ 'selected' if item_data.rarity == 'set' }}>Set</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="weaponType" class="form-label">Weapon Type</label>
+                                <select class="form-select" id="weaponType" name="weaponType">
+                                    <option value="">-- Select if weapon --</option>
+                                    <option value="sword" {{ 'selected' if item_data.weaponType == 'sword' }}>Sword</option>
+                                    <option value="axe" {{ 'selected' if item_data.weaponType == 'axe' }}>Axe</option>
+                                    <option value="dagger" {{ 'selected' if item_data.weaponType == 'dagger' }}>Dagger</option>
+                                    <option value="mace" {{ 'selected' if item_data.weaponType == 'mace' }}>Mace</option>
+                                    <option value="staff" {{ 'selected' if item_data.weaponType == 'staff' }}>Staff</option>
+                                    <option value="wand" {{ 'selected' if item_data.weaponType == 'wand' }}>Wand</option>
+                                    <option value="bow" {{ 'selected' if item_data.weaponType == 'bow' }}>Bow</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="row mt-3">
+                            <div class="col-md-3">
+                                <label for="attack" class="form-label">Attack</label>
+                                <input type="number" class="form-control" id="attack" name="attack" 
+                                       value="{{ item_data.attack or 0 }}" min="0" max="200">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="magicAttack" class="form-label">Magic Attack</label>
+                                <input type="number" class="form-control" id="magicAttack" name="magicAttack" 
+                                       value="{{ item_data.magicAttack or 0 }}" min="0" max="200">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="defense" class="form-label">Defense</label>
+                                <input type="number" class="form-control" id="defense" name="defense" 
+                                       value="{{ item_data.defense or 0 }}" min="0" max="200">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="magicDefense" class="form-label">Magic Defense</label>
+                                <input type="number" class="form-control" id="magicDefense" name="magicDefense" 
+                                       value="{{ item_data.magicDefense or 0 }}" min="0" max="200">
+                            </div>
+                        </div>
+
+                        <div class="row mt-3">
+                            <div class="col-md-12">
+                                <label for="value" class="form-label">Value (Gold)</label>
+                                <input type="number" class="form-control" id="value" name="value" 
+                                       value="{{ item_data.value or 0 }}" min="0" max="50000">
+                            </div>
+                        </div>
+
+                        <!-- Set Information -->
+                        <div class="field-group mt-3">
+                            <h6 class="field-label">Set Information</h6>
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <label for="setName" class="form-label">Set Name</label>
+                                    <input type="text" class="form-control" id="setName" name="setName" 
+                                           value="{{ item_data.setName or '' }}" placeholder="e.g., Firewalker">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="setPiece" class="form-label">Set Piece Number</label>
+                                    <input type="number" class="form-control" id="setPiece" name="setPiece" 
+                                           value="{{ item_data.setPiece or 1 }}" min="1" max="10">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="setTotalPieces" class="form-label">Total Set Pieces</label>
+                                    <input type="number" class="form-control" id="setTotalPieces" name="setTotalPieces" 
+                                           value="{{ item_data.setTotalPieces or 3 }}" min="2" max="10">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Requirements -->
+                        <div class="field-group">
+                            <h6 class="field-label">Attribute Requirements</h6>
+                            <div class="row">
+                                {% for attr in ['STR', 'INT', 'CON', 'WIL', 'CHA', 'DEX', 'WIS'] %}
+                                <div class="col-md-3 mb-2">
+                                    <label for="requirements.{{ attr }}" class="form-label">{{ attr }}</label>
+                                    <input type="number" class="form-control" name="requirements.{{ attr }}" 
+                                           value="{{ item_data.requirements[attr] if item_data.requirements and item_data.requirements[attr] else '' }}"
+                                           min="0" max="50" placeholder="0">
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <small class="text-muted">Leave empty for no requirement</small>
+                        </div>
+
+                        <!-- Job Restrictions -->
+                        <div class="field-group">
+                            <h6 class="field-label">Usable by Jobs</h6>
+                            <div id="jobs-container">
+                                {% if item_data.jobs %}
+                                    {% if item_data.jobs is mapping %}
+                                        <!-- Handle dict structure (from Lua arrays) -->
+                                        {% for index, job in item_data.jobs.items() %}
+                                        <div class="row mb-2 job-row">
+                                            <div class="col-md-10">
+                                                <input type="text" class="form-control" name="jobs.{{ loop.index }}" 
+                                                       value="{{ job }}" placeholder="Job name">
+                                            </div>
+                                            <div class="col-md-2">
+                                                <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeJob(this)">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    {% else %}
+                                        <!-- Handle list structure -->
+                                        {% for job in item_data.jobs %}
+                                        <div class="row mb-2 job-row">
+                                            <div class="col-md-10">
+                                                <input type="text" class="form-control" name="jobs.{{ loop.index }}" 
+                                                       value="{{ job }}" placeholder="Job name">
+                                            </div>
+                                            <div class="col-md-2">
+                                                <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeJob(this)">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    {% endif %}
+                                {% else %}
+                                    <div class="row mb-2 job-row">
+                                        <div class="col-md-10">
+                                            <input type="text" class="form-control" name="jobs.1" 
+                                                   placeholder="Job name">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeJob(this)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <button type="button" class="btn btn-outline-primary btn-sm mt-2" onclick="addJob()">
+                                <i class="bi bi-plus"></i> Add Job
+                            </button>
+                        </div>
+
+                    {% elif data_type == 'set_bonuses' %}
+                        <!-- Set Bonuses-specific fields -->
+                        <div class="alert alert-info">
+                            <h6><i class="bi bi-info-circle"></i> Set Bonus Configuration</h6>
+                            <p class="mb-0">Configure bonuses that activate when players equip multiple pieces of a set. Each bonus is tied to a specific number of equipped pieces.</p>
+                        </div>
+
+                        <!-- Set Bonuses -->
+                        <div class="field-group">
+                            <h6 class="field-label">Set Bonuses</h6>
+                            <div id="bonuses-container">
+                                {% if item_data %}
+                                    {% for piece_count, bonus_data in item_data.items() %}
+                                    <div class="card mb-3 set-bonus">
+                                        <div class="card-header d-flex justify-content-between align-items-center">
+                                            <span>{{ piece_count }}-Piece Bonus</span>
+                                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeBonus(this)">
+                                                <i class="bi bi-trash"></i> Remove
+                                            </button>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row">
+                                                <div class="col-md-4">
+                                                    <label class="form-label">Piece Count</label>
+                                                    <input type="number" class="form-control" name="bonuses.{{ piece_count }}.pieces" 
+                                                           value="{{ piece_count }}" min="2" max="10">
+                                                </div>
+                                                <div class="col-md-8">
+                                                    <label class="form-label">Bonus Type</label>
+                                                    <select class="form-select" name="bonuses.{{ piece_count }}.type">
+                                                        <option value="elemental_resistance" {{ 'selected' if bonus_data.type == 'elemental_resistance' }}>Elemental Resistance</option>
+                                                        <option value="immunity" {{ 'selected' if bonus_data.type == 'immunity' }}>Immunity</option>
+                                                        <option value="damage_modifier" {{ 'selected' if bonus_data.type == 'damage_modifier' }}>Damage Modifier</option>
+                                                        <option value="grant_skill" {{ 'selected' if bonus_data.type == 'grant_skill' }}>Grant Skill</option>
+                                                        <option value="stat_boost" {{ 'selected' if bonus_data.type == 'stat_boost' }}>Stat Boost</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="mt-2">
+                                                <label class="form-label">Bonus Data (JSON format)</label>
+                                                <textarea class="form-control" name="bonuses.{{ piece_count }}.bonusData" rows="3" 
+                                                          placeholder='{"element": "fire", "value": 0.5} or {"skillId": "Fireball"}'>{{ bonus_data|tojson if bonus_data else '' }}</textarea>
+                                                <small class="text-muted">Examples: resistance: {"element": "fire", "value": 0.5}, grant_skill: {"skillId": "Fireball"}</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <div class="card mb-3 set-bonus">
+                                        <div class="card-header d-flex justify-content-between align-items-center">
+                                            <span>2-Piece Bonus</span>
+                                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeBonus(this)">
+                                                <i class="bi bi-trash"></i> Remove
+                                            </button>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row">
+                                                <div class="col-md-4">
+                                                    <label class="form-label">Piece Count</label>
+                                                    <input type="number" class="form-control" name="bonuses.2.pieces" 
+                                                           value="2" min="2" max="10">
+                                                </div>
+                                                <div class="col-md-8">
+                                                    <label class="form-label">Bonus Type</label>
+                                                    <select class="form-select" name="bonuses.2.type">
+                                                        <option value="elemental_resistance">Elemental Resistance</option>
+                                                        <option value="immunity">Immunity</option>
+                                                        <option value="damage_modifier">Damage Modifier</option>
+                                                        <option value="grant_skill">Grant Skill</option>
+                                                        <option value="stat_boost">Stat Boost</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="mt-2">
+                                                <label class="form-label">Bonus Data (JSON format)</label>
+                                                <textarea class="form-control" name="bonuses.2.bonusData" rows="3" 
+                                                          placeholder='{"element": "fire", "value": 0.5} or {"skillId": "Fireball"}'></textarea>
+                                                <small class="text-muted">Examples: resistance: {"element": "fire", "value": 0.5}, grant_skill: {"skillId": "Fireball"}</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <button type="button" class="btn btn-outline-primary btn-sm mt-2" onclick="addSetBonus()">
+                                <i class="bi bi-plus"></i> Add Set Bonus
+                            </button>
+                        </div>
+
+                    {% elif data_type == 'monster_abilities' %}
+                        <!-- Monster Ability-specific fields -->
+                        <div class="row">
+                            <div class="col-md-3">
+                                <label for="type" class="form-label">Type</label>
+                                <select class="form-select" id="type" name="type">
+                                    <option value="physical" {{ 'selected' if item_data.type == 'physical' }}>Physical</option>
+                                    <option value="magical" {{ 'selected' if item_data.type == 'magical' }}>Magical</option>
+                                    <option value="support" {{ 'selected' if item_data.type == 'support' }}>Support</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="target" class="form-label">Target</label>
+                                <select class="form-select" id="target" name="target">
+                                    <option value="single_enemy" {{ 'selected' if item_data.target == 'single_enemy' }}>Single Enemy</option>
+                                    <option value="all_enemies" {{ 'selected' if item_data.target == 'all_enemies' }}>All Enemies</option>
+                                    <option value="single_ally" {{ 'selected' if item_data.target == 'single_ally' }}>Single Ally</option>
+                                    <option value="all_allies" {{ 'selected' if item_data.target == 'all_allies' }}>All Allies</option>
+                                    <option value="self" {{ 'selected' if item_data.target == 'self' }}>Self</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="basePower" class="form-label">Base Power</label>
+                                <input type="number" class="form-control" id="basePower" name="basePower" 
+                                       value="{{ item_data.basePower or 100 }}" min="0" max="500">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="damageType" class="form-label">Damage Type</label>
+                                <select class="form-select" id="damageType" name="damageType">
+                                    <option value="">-- Select Damage Type --</option>
+                                    {% if extra_data.get('damage_types') %}
+                                        {% for damage_type in extra_data['damage_types'] %}
+                                            <option value="{{ damage_type }}" {{ 'selected' if item_data.damageType == damage_type }}>
+                                                {{ damage_type.title() }}
+                                            </option>
+                                        {% endfor %}
+                                    {% endif %}
+                                </select>
+                            </div>
+                        </div>
+
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if images and data_type != 'monsters' %}
+            <!-- Image Selection -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-image"></i> Image Selection</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="sprite" class="form-label">Sprite/Icon</label>
+                        <select class="form-select" id="sprite" name="sprite" onchange="previewImage(this)">
+                            <option value="">-- Select Image --</option>
+                            {% for image in images %}
+                                <option value="{{ image }}" {{ 'selected' if item_data.sprite == image }}>
+                                    {{ image }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <img id="sprite_preview" class="preview-image mt-2" style="display: none;">
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="col-lg-4">
+            <!-- JSON Editor -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-code-square"></i> Advanced (JSON)</h5>
+                </div>
+                <div class="card-body">
+                    <p class="small text-muted">
+                        Edit raw JSON data for advanced properties or fields not covered in the form.
+                    </p>
+                    <textarea class="form-control json-editor" id="json_data" name="json_data" rows="20">{{ item_data|tojson(indent=2) }}</textarea>
+                    <div class="mt-2">
+                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="formatJson()">
+                            <i class="bi bi-code"></i> Format JSON
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-warning" onclick="validateJson()">
+                            <i class="bi bi-check-circle"></i> Validate
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Save Actions -->
+            <div class="card mt-4">
+                <div class="card-body">
+                    <h6><i class="bi bi-floppy"></i> Save Actions</h6>
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-success">
+                            <i class="bi bi-check-lg"></i> Save {{ config.display_name }}
+                        </button>
+                        <a href="{{ url_for('manage_data', data_type=data_type) }}" 
+                           class="btn btn-secondary">
+                            <i class="bi bi-x-lg"></i> Cancel
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Help -->
+            <div class="card mt-4 bg-light">
+                <div class="card-body">
+                    <h6><i class="bi bi-question-circle"></i> Help</h6>
+                    <div class="small">
+                        <p><strong>Form vs JSON:</strong> Use the form for common fields, or edit JSON directly for complex structures.</p>
+                        <p><strong>Required fields:</strong> ID is always required. Other requirements depend on the data type.</p>
+                        {% if data_type == 'skills' %}
+                        <p><strong>Skills:</strong> Effect objects and level modifiers can be complex - use JSON editor for these.</p>
+                        {% elif data_type == 'monsters' %}
+                        <p><strong>Monsters:</strong> Use the form fields to set abilities with chances, immunities, and resistances.</p>
+                        <p><strong>Abilities:</strong> Enter decimal chances (0.1-1.0). They'll be normalized to sum to 1.0 automatically.</p>
+                        <p><strong>Resistances:</strong> Negative values = resistance, positive = vulnerability. Example: -50 = 50% resistance.</p>
+                        {% elif data_type == 'monster_abilities' %}
+                        <p><strong>Monster Abilities:</strong> Define abilities used by monsters in combat.</p>
+                        <p><strong>Base Power:</strong> Damage/effect strength (typically 50-200 for most abilities).</p>
+                        <p><strong>Type:</strong> Physical (uses attack), Magical (uses magic attack), or Support (no damage).</p>
+                        <p><strong>Target:</strong> Who the ability affects - single/all enemies or allies, or self.</p>
+                        {% elif data_type == 'items' %}
+                        <p><strong>Items:</strong> Configure basic item properties including stats, type, and equipment slot.</p>
+                        <p><strong>Jobs:</strong> Specify which jobs can use this item. Leave empty for universal items.</p>
+                        <p><strong>Requirements:</strong> Use the JSON editor to set attribute requirements (e.g., {"STR": 10}).</p>
+                        {% elif data_type == 'jobs' %}
+                        <p><strong>Jobs:</strong> Most fields are available in the form. Use JSON for complex properties like passive abilities.</p>
+                        <p><strong>Attribute Modifiers:</strong> Only non-zero values are saved. Negative values reduce attributes.</p>
+                        <p><strong>Requirements:</strong> Only jobs with level requirements need to be specified.</p>
+                        {% elif data_type == 'quests' %}
+                        <p><strong>Quests:</strong> Define the type, giver, status, level, difficulty, and seed for a quest.</p>
+                        <p><strong>Objective:</strong> Set the target ID/name, count, and location for a quest.</p>
+                        <p><strong>Rewards:</strong> Define gold and reputation rewards for a quest.</p>
+                        {% elif data_type == 'smith_recipes' %}
+                        <p><strong>Smith Recipes:</strong> Define the result item, category, gold cost, and materials required for a recipe.</p>
+                        <p><strong>Materials:</strong> Add and manage materials required for a recipe.</p>
+                        {% elif data_type == 'unique_items' %}
+                        <p><strong>Unique Items:</strong> Create powerful items with special effects and restrictions.</p>
+                        <p><strong>Effects:</strong> Add multiple unique effects with different types (damage modifiers, resistances, skill grants, etc.).</p>
+                        <p><strong>Requirements:</strong> Set attribute requirements and job restrictions to control who can use the item.</p>
+                        {% elif data_type == 'set_items' %}
+                        <p><strong>Set Items:</strong> Create items that belong to a set and provide bonuses when worn together.</p>
+                        <p><strong>Set Info:</strong> Specify the set name, piece number, and total pieces in the set.</p>
+                        <p><strong>Bonuses:</strong> Set bonuses are defined separately in the Set Bonuses section.</p>
+                        {% elif data_type == 'set_bonuses' %}
+                        <p><strong>Set Bonuses:</strong> Define bonuses that activate when multiple set pieces are equipped.</p>
+                        <p><strong>Piece Count:</strong> Each bonus specifies how many pieces are needed to activate.</p>
+                        <p><strong>Bonus Types:</strong> Resistance, immunity, damage modifiers, skill grants, and stat boosts.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Initialize image preview
+    document.addEventListener('DOMContentLoaded', function() {
+        const spriteSelect = document.getElementById('sprite');
+        if (spriteSelect && spriteSelect.value) {
+            previewImage(spriteSelect);
+        }
+    });
+
+    function formatJson() {
+        const textarea = document.getElementById('json_data');
+        try {
+            const parsed = JSON.parse(textarea.value);
+            textarea.value = JSON.stringify(parsed, null, 2);
+        } catch (e) {
+            alert('Invalid JSON: ' + e.message);
+        }
+    }
+
+    function validateJson() {
+        const textarea = document.getElementById('json_data');
+        try {
+            JSON.parse(textarea.value);
+            alert('JSON is valid!');
+        } catch (e) {
+            alert('Invalid JSON: ' + e.message);
+        }
+    }
+
+    // Material management functions for smith recipes
+    function addMaterial() {
+        const container = document.getElementById('materials-container');
+        const materialRows = container.querySelectorAll('.material-row');
+        const nextIndex = materialRows.length + 1;
+        
+        const newRow = document.createElement('div');
+        newRow.className = 'row mb-2 material-row';
+        newRow.innerHTML = `
+            <div class="col-md-6">
+                <input type="text" class="form-control" name="materials.${nextIndex}.name" 
+                       placeholder="Material name">
+            </div>
+            <div class="col-md-4">
+                <input type="number" class="form-control" name="materials.${nextIndex}.count" 
+                       placeholder="Count" min="1" max="99">
+            </div>
+            <div class="col-md-2">
+                <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeMaterial(this)">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        `;
+        
+        container.appendChild(newRow);
+    }
+    
+    function removeMaterial(button) {
+        const row = button.closest('.material-row');
+        if (row) {
+            row.remove();
+            // Renumber remaining materials
+            renumberMaterials();
+        }
+    }
+    
+    function renumberMaterials() {
+        const container = document.getElementById('materials-container');
+        const materialRows = container.querySelectorAll('.material-row');
+        
+        materialRows.forEach((row, index) => {
+            const nameInput = row.querySelector('input[name*=".name"]');
+            const countInput = row.querySelector('input[name*=".count"]');
+            
+            if (nameInput) {
+                nameInput.name = `materials.${index + 1}.name`;
+            }
+            if (countInput) {
+                countInput.name = `materials.${index + 1}.count`;
+            }
+        });
+    }
+
+    // Sync form changes to JSON
+    function syncToJson() {
+        // This could be implemented to sync form changes to the JSON editor
+        // For now, we'll rely on server-side processing
+    }
+
+    // Job management functions for unique and set items
+    function addJob() {
+        const container = document.getElementById('jobs-container');
+        const jobRows = container.querySelectorAll('.job-row');
+        const nextIndex = jobRows.length + 1;
+        
+        const newRow = document.createElement('div');
+        newRow.className = 'row mb-2 job-row';
+        newRow.innerHTML = `
+            <div class="col-md-10">
+                <input type="text" class="form-control" name="jobs.${nextIndex}" 
+                       placeholder="Job name">
+            </div>
+            <div class="col-md-2">
+                <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeJob(this)">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        `;
+        
+        container.appendChild(newRow);
+    }
+    
+    function removeJob(button) {
+        const row = button.closest('.job-row');
+        if (row) {
+            row.remove();
+            renumberJobs();
+        }
+    }
+    
+    function renumberJobs() {
+        const container = document.getElementById('jobs-container');
+        const jobRows = container.querySelectorAll('.job-row');
+        
+        jobRows.forEach((row, index) => {
+            const input = row.querySelector('input[name^="jobs."]');
+            if (input) {
+                input.name = `jobs.${index + 1}`;
+            }
+        });
+    }
+
+    // Unique effects management functions
+    function addUniqueEffect() {
+        const container = document.getElementById('effects-container');
+        const effects = container.querySelectorAll('.unique-effect');
+        const nextIndex = effects.length + 1;
+        
+        const newEffect = document.createElement('div');
+        newEffect.className = 'card mb-3 unique-effect';
+        newEffect.innerHTML = `
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Effect ${nextIndex}</span>
+                <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeEffect(this)">
+                    <i class="bi bi-trash"></i> Remove
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <label class="form-label">Effect ID</label>
+                        <input type="text" class="form-control" name="uniqueEffects.${nextIndex}.id" 
+                               placeholder="UniqueEffectId">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Effect Type</label>
+                        <select class="form-select" name="uniqueEffects.${nextIndex}.type">
+                            <option value="damage_modifier">Damage Modifier</option>
+                            <option value="enemy_weakness">Enemy Weakness</option>
+                            <option value="elemental_resistance">Elemental Resistance</option>
+                            <option value="immunity">Immunity</option>
+                            <option value="grant_skill">Grant Skill</option>
+                            <option value="minion_buff">Minion Buff</option>
+                            <option value="minion_taunt">Minion Taunt</option>
+                            <option value="loot_modifier">Loot Modifier</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <label class="form-label">Effect Data (JSON format)</label>
+                    <textarea class="form-control" name="uniqueEffects.${nextIndex}.effectData" rows="4" 
+                              placeholder='{"damage_multiplier": 1.5} or {"element": "fire", "value": 0.3}'></textarea>
+                    <small class="text-muted">Examples: damage_modifier: {"damage_multiplier": 1.5}, elemental_resistance: {"element": "fire", "value": 0.3}</small>
+                </div>
+            </div>
+        `;
+        
+        container.appendChild(newEffect);
+    }
+    
+    function removeEffect(button) {
+        const effect = button.closest('.unique-effect');
+        if (effect) {
+            effect.remove();
+            renumberEffects();
+        }
+    }
+    
+    function renumberEffects() {
+        const container = document.getElementById('effects-container');
+        const effects = container.querySelectorAll('.unique-effect');
+        
+        effects.forEach((effect, index) => {
+            const effectIndex = index + 1;
+            
+            // Update header text
+            const header = effect.querySelector('.card-header span');
+            if (header) {
+                header.textContent = `Effect ${effectIndex}`;
+            }
+            
+            // Update input names
+            const inputs = effect.querySelectorAll('input, select, textarea');
+            inputs.forEach(input => {
+                if (input.name.startsWith('uniqueEffects.')) {
+                    const nameParts = input.name.split('.');
+                    nameParts[1] = effectIndex;
+                    input.name = nameParts.join('.');
+                }
+            });
+        });
+    }
+
+    // Set bonus management functions
+    function addSetBonus() {
+        const container = document.getElementById('bonuses-container');
+        const bonuses = container.querySelectorAll('.set-bonus');
+        const nextPieceCount = Math.max(2, bonuses.length + 1);
+        
+        const newBonus = document.createElement('div');
+        newBonus.className = 'card mb-3 set-bonus';
+        newBonus.innerHTML = `
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>${nextPieceCount}-Piece Bonus</span>
+                <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeBonus(this)">
+                    <i class="bi bi-trash"></i> Remove
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <label class="form-label">Piece Count</label>
+                        <input type="number" class="form-control" name="bonuses.${nextPieceCount}.pieces" 
+                               value="${nextPieceCount}" min="2" max="10" onchange="updateBonusHeader(this)">
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label">Bonus Type</label>
+                        <select class="form-select" name="bonuses.${nextPieceCount}.type">
+                            <option value="elemental_resistance">Elemental Resistance</option>
+                            <option value="immunity">Immunity</option>
+                            <option value="damage_modifier">Damage Modifier</option>
+                            <option value="grant_skill">Grant Skill</option>
+                            <option value="stat_boost">Stat Boost</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <label class="form-label">Bonus Data (JSON format)</label>
+                    <textarea class="form-control" name="bonuses.${nextPieceCount}.bonusData" rows="3" 
+                              placeholder='{"element": "fire", "value": 0.5} or {"skillId": "Fireball"}'></textarea>
+                    <small class="text-muted">Examples: resistance: {"element": "fire", "value": 0.5}, grant_skill: {"skillId": "Fireball"}</small>
+                </div>
+            </div>
+        `;
+        
+        container.appendChild(newBonus);
+    }
+    
+    function removeBonus(button) {
+        const bonus = button.closest('.set-bonus');
+        if (bonus) {
+            bonus.remove();
+        }
+    }
+    
+    function updateBonusHeader(input) {
+        const bonus = input.closest('.set-bonus');
+        const header = bonus.querySelector('.card-header span');
+        if (header) {
+            header.textContent = `${input.value}-Piece Bonus`;
+        }
+        
+        // Update the input names too
+        const pieceCount = input.value;
+        const inputs = bonus.querySelectorAll('input, select, textarea');
+        inputs.forEach(inp => {
+            if (inp.name.startsWith('bonuses.')) {
+                const nameParts = inp.name.split('.');
+                nameParts[1] = pieceCount;
+                inp.name = nameParts.join('.');
+            }
+        });
+    }
+</script>
+{% endblock %} 
