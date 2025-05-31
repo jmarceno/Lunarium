@@ -29,93 +29,46 @@
     <div class="col-12">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0">
-                    <i class="bi bi-table"></i> {{ config.display_name }} ({{ data|length }} items)
-                </h5>
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-table"></i> {{ config.display_name }} (<span id="item-count">{{ data|length }}</span> items)
+                    </h5>
+                    <div class="col-md-4">
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="bi bi-search"></i>
+                            </span>
+                            <input type="text" 
+                                   class="form-control" 
+                                   placeholder="Search {{ config.display_name.lower() }}... (Ctrl+K)" 
+                                   hx-get="{{ url_for('search_data', data_type=data_type) }}"
+                                   hx-trigger="keyup changed delay:300ms"
+                                   hx-target="#data-grid"
+                                   hx-swap="innerHTML"
+                                   hx-indicator="#search-spinner"
+                                   name="search"
+                                   autocomplete="off">
+                            <button class="btn btn-outline-secondary" 
+                                    type="button" 
+                                    onclick="clearSearch()"
+                                    title="Clear search">
+                                <i class="bi bi-x-lg"></i>
+                            </button>
+                            <span class="input-group-text" id="search-spinner" style="display: none;">
+                                <div class="spinner-border spinner-border-sm" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </span>
+                        </div>
+                    </div>
+                </div>
             </div>
             <div class="card-body p-0">
                 {% if data %}
-                <div class="table-responsive">
-                    <table class="table table-striped table-hover mb-0 data-table">
-                        <thead>
-                            <tr>
-                                <th style="width: 200px;">ID/Name</th>
-                                <th>Description</th>
-                                <th style="width: 150px;">Key Properties</th>
-                                <th style="width: 120px;">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for item_id, item_data in data.items() %}
-                            <tr>
-                                <td>
-                                    <div class="fw-bold text-primary">{{ item_id }}</div>
-                                    {% if item_data.name %}
-                                        <small class="text-muted">{{ item_data.name }}</small>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <div class="text-truncate" style="max-width: 300px;">
-                                        {{ item_data.description or "No description" }}
-                                    </div>
-                                </td>
-                                <td>
-                                    <div class="small">
-                                        {% if data_type == 'items' %}
-                                            {% if item_data.type %}
-                                                <span class="badge bg-primary">{{ item_data.type }}</span>
-                                            {% endif %}
-                                            {% if item_data.value %}
-                                                <br><strong>Value:</strong> {{ item_data.value }}
-                                            {% endif %}
-                                        {% elif data_type == 'skills' %}
-                                            {% if item_data.type %}
-                                                <span class="badge bg-info">{{ item_data.type }}</span>
-                                            {% endif %}
-                                            {% if item_data.mpCost %}
-                                                <br><strong>MP:</strong> {{ item_data.mpCost }}
-                                            {% endif %}
-                                        {% elif data_type == 'monsters' %}
-                                            {% if item_data.stats and item_data.stats.level %}
-                                                <span class="badge bg-warning">Lv {{ item_data.stats.level }}</span>
-                                            {% endif %}
-                                            {% if item_data.stats and item_data.stats.hp %}
-                                                <br><strong>HP:</strong> {{ item_data.stats.hp }}
-                                            {% endif %}
-                                        {% elif data_type == 'jobs' %}
-                                            {% if item_data.category %}
-                                                <span class="badge bg-secondary">{{ item_data.category }}</span>
-                                            {% endif %}
-                                        {% elif data_type == 'quests' %}
-                                            {% if item_data.type %}
-                                                <span class="badge bg-success">{{ item_data.type }}</span>
-                                            {% endif %}
-                                        {% else %}
-                                            {% if item_data.type %}
-                                                <span class="badge bg-light text-dark">{{ item_data.type }}</span>
-                                            {% endif %}
-                                        {% endif %}
-                                    </div>
-                                </td>
-                                <td>
-                                    <div class="btn-group-vertical btn-group-sm" role="group">
-                                        <a href="{{ url_for('edit_item', data_type=data_type, item_id=item_id) }}" 
-                                           class="btn btn-outline-primary btn-sm">
-                                            <i class="bi bi-pencil"></i> Edit
-                                        </a>
-                                        <button class="btn btn-outline-danger btn-sm"
-                                                hx-delete="{{ url_for('delete_item', data_type=data_type, item_id=item_id) }}"
-                                                hx-confirm="Are you sure you want to delete '{{ item_id }}'?"
-                                                hx-target="closest tr"
-                                                hx-swap="outerHTML">
-                                            <i class="bi bi-trash"></i> Delete
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+                <div class="p-1">
+                    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-4 g-1" id="data-grid">
+                        {% include 'partials/grid_items.html' %}
+                    </div>
                 </div>
                 {% else %}
                 <div class="text-center py-5">
@@ -142,6 +95,8 @@
                 <ul class="mb-0 small">
                     <li>Click <strong>Edit</strong> to modify existing {{ config.display_name.lower() }}</li>
                     <li>Use <strong>Delete</strong> to remove {{ config.display_name.lower() }} (this cannot be undone)</li>
+                    <li>Use the <strong>search box</strong> above to quickly find items by ID, name, description, type, or other properties</li>
+                    <li>Press <strong>Ctrl+K</strong> (or Cmd+K on Mac) to quickly focus the search box</li>
                     <li>All changes are automatically saved to <code>{{ config.file }}</code></li>
                     {% if data_type in ['items', 'monsters', 'skills'] %}
                     <li>Don't forget to set appropriate images and icons for visual appeal</li>
@@ -174,6 +129,50 @@
                     alertDiv.remove();
                 }
             }, 3000);
+            
+            // Update item count after deletion
+            updateItemCount();
+        }
+    });
+    
+    // Update item count when search results change
+    document.body.addEventListener('htmx:afterSwap', function(event) {
+        if (event.detail.target.id === 'data-table-body') {
+            updateItemCount();
+        }
+    });
+    
+    function updateItemCount() {
+        const grid = document.getElementById('data-grid');
+        // Count all card elements except the "no results" message
+        const items = grid.querySelectorAll('.col:not(.col-12)');
+        document.getElementById('item-count').textContent = items.length;
+    }
+    
+    // Update count on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        updateItemCount();
+    });
+    
+    // Add clear search functionality
+    function clearSearch() {
+        const searchInput = document.querySelector('input[name="search"]');
+        if (searchInput) {
+            searchInput.value = '';
+            // Trigger the search to show all results
+            searchInput.dispatchEvent(new Event('keyup'));
+        }
+    }
+    
+    // Add keyboard shortcut for search focus (Ctrl+K or Cmd+K)
+    document.addEventListener('keydown', function(event) {
+        if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
+            event.preventDefault();
+            const searchInput = document.querySelector('input[name="search"]');
+            if (searchInput) {
+                searchInput.focus();
+                searchInput.select();
+            }
         }
     });
 </script>

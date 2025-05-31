@@ -107,6 +107,8 @@ class LuaTableManager:
     
     def write_lua_file(self, file_path, data, table_name):
         """Write Python data back to a Lua file."""
+        print(f"DEBUG write_lua_file: Writing {table_name} to {file_path}")
+        
         # Check if this is a complex table structure (like item_definitions.lua)
         if isinstance(data, dict) and ('items' in data or 'monsters' in data):
             # This is a complex structure that should be returned directly
@@ -115,8 +117,13 @@ class LuaTableManager:
             # Simple table structure
             lua_content = self._python_to_lua(data, table_name)
         
-        with open(file_path, 'w', encoding='utf-8') as file:
-            file.write(lua_content)
+        try:
+            with open(file_path, 'w', encoding='utf-8') as file:
+                file.write(lua_content)
+            print(f"DEBUG write_lua_file: Successfully wrote to file")
+        except Exception as e:
+            print(f"DEBUG write_lua_file: Error writing to file: {e}")
+            raise
     
     def _python_to_lua_complex(self, data):
         """Convert complex Python data structures to Lua format with return statement."""
@@ -748,14 +755,47 @@ def save_item(data_type):
     original_id = form_data.pop('original_id', '')
     json_data = form_data.pop('json_data', None)
     
+    # DEBUG: Key information for troubleshooting
+    print(f"DEBUG: Saving {data_type}, item_id: {item_id}")
+    
     if not item_id:
         flash('Item ID is required')
         return redirect(url_for('new_item', data_type=data_type))
     
+    print(f"DEBUG: Item ID: {item_id}, Original ID: {original_id}")
+    
     # If we have JSON data, use that; otherwise parse form data
     if json_data:
         try:
-            item_data = json.loads(json_data)
+            # Parse the JSON data to see if it's different from original
+            json_item_data = json.loads(json_data)
+            
+            # Always prefer form data over JSON for regular editing
+            # JSON should only be used if form data is incomplete or for advanced fields
+            if data_type == 'jobs':
+                item_data = parse_job_form_data(form_data)
+            elif data_type == 'monsters':
+                item_data = parse_monster_form_data(form_data)
+            elif data_type == 'quests':
+                item_data = parse_quest_form_data(form_data)
+            elif data_type == 'smith_recipes':
+                item_data = parse_smith_recipe_form_data(form_data)
+            elif data_type == 'unique_items':
+                item_data = parse_unique_item_form_data(form_data)
+            elif data_type == 'set_items':
+                item_data = parse_set_item_form_data(form_data)
+            elif data_type == 'set_bonuses':
+                item_data = parse_set_bonuses_form_data(form_data)
+            elif data_type == 'items':
+                item_data = parse_item_form_data(form_data)
+            else:
+                item_data = parse_form_data(form_data)
+            
+            # Merge any advanced fields from JSON that aren't in form data
+            for key, value in json_item_data.items():
+                if key not in item_data:
+                    item_data[key] = value
+                    
         except json.JSONDecodeError as e:
             flash(f'Invalid JSON data: {e}')
             return redirect(url_for('edit_item', data_type=data_type, item_id=item_id) if not original_id else url_for('new_item', data_type=data_type))
@@ -780,9 +820,13 @@ def save_item(data_type):
         else:
             item_data = parse_form_data(form_data)
     
+    print(f"DEBUG: Parsed item data: {item_data}")
+    
     try:
         # Load existing data
         all_data = lua_manager.read_lua_file(file_path)
+        # DEBUG: Essential info for troubleshooting
+        print(f"DEBUG: Loaded data with keys: {list(all_data.keys()) if isinstance(all_data, dict) else type(all_data)}")
         
         # Ensure we have a valid data structure
         if all_data is None:
@@ -846,13 +890,19 @@ def save_item(data_type):
         
         # Save the item
         data_section[item_id] = item_data
+        print(f"DEBUG: Successfully added/updated {item_id}")
         
         # Convert back to array format for quest and smith recipe data
         if data_type in ['quests', 'smith_recipes']:
             all_data = list(data_section.values())
         elif data_type in ['monsters', 'items', 'minion_abilities', 'monster_abilities']:
-            # Keep nested structure
-            pass
+            # For nested structures, we need to put the modified data_section back into all_data
+            if data_type == 'monsters':
+                all_data['monsters'] = data_section
+            elif data_type == 'items':
+                all_data['items'] = data_section
+            elif data_type in ['minion_abilities', 'monster_abilities']:
+                all_data['definitions'] = data_section
         else:
             # For simple structures, data_section is the complete data
             all_data = data_section
@@ -860,10 +910,15 @@ def save_item(data_type):
         # Write back to file
         lua_manager.write_lua_file(file_path, all_data, config['table_name'])
         
+        print(f"DEBUG: File write completed successfully")
+        
         flash(f'Successfully saved {item_id}')
         return redirect(url_for('manage_data', data_type=data_type))
         
     except Exception as e:
+        print(f"DEBUG: Error during save: {e}")
+        import traceback
+        traceback.print_exc()
         flash(f'Error saving item: {e}')
         return redirect(url_for('edit_item', data_type=data_type, item_id=item_id) if not original_id else url_for('new_item', data_type=data_type))
 
@@ -1162,8 +1217,12 @@ def parse_item_form_data(form_data):
         if job_name:  # Only add non-empty job names
             jobs.append(job_name)
     
+    # Convert jobs array to numeric string key format to match existing structure
     if jobs:
-        result['jobs'] = jobs
+        jobs_dict = {}
+        for i, job_name in enumerate(jobs):
+            jobs_dict[str(i + 1)] = job_name
+        result['jobs'] = jobs_dict
     
     return result
 
@@ -1202,8 +1261,12 @@ def parse_unique_item_form_data(form_data):
         if job_name:  # Only add non-empty job names
             jobs.append(job_name)
     
+    # Convert jobs array to numeric string key format to match existing structure
     if jobs:
-        result['jobs'] = jobs
+        jobs_dict = {}
+        for i, job_name in enumerate(jobs):
+            jobs_dict[str(i + 1)] = job_name
+        result['jobs'] = jobs_dict
     
     # Handle unique effects
     unique_effects = []
@@ -1281,8 +1344,12 @@ def parse_set_item_form_data(form_data):
         if job_name:  # Only add non-empty job names
             jobs.append(job_name)
     
+    # Convert jobs array to numeric string key format to match existing structure
     if jobs:
-        result['jobs'] = jobs
+        jobs_dict = {}
+        for i, job_name in enumerate(jobs):
+            jobs_dict[str(i + 1)] = job_name
+        result['jobs'] = jobs_dict
     
     # Set item properties
     result['setItem'] = True
@@ -1354,6 +1421,162 @@ def convert_value(value):
 def serve_assets(filename):
     """Serve assets files for image previews."""
     return send_from_directory(ASSETS_PATH, filename)
+
+@app.route('/search/<data_type>')
+def search_data(data_type):
+    """Search data and return filtered table rows for HTMX."""
+    if data_type not in DATA_FILES:
+        return '', 404
+    
+    search_query = request.args.get('search', '').strip().lower()
+    
+    # DEBUG: Log search request
+    print(f"DEBUG: Search request for {data_type}, query: '{search_query}'")
+    
+    config = DATA_FILES[data_type]
+    file_path = DATA_PATH / config['file']
+    
+    if not file_path.exists():
+        print(f"DEBUG: File not found: {file_path}")
+        return '', 404
+    
+    try:
+        # Load the data
+        data = lua_manager.read_lua_file(file_path)
+        
+        # Ensure data is never None, always a dict
+        if data is None:
+            data = {}
+        
+        # Handle nested data structures for different file types
+        if data_type == 'monsters' and 'monsters' in data:
+            data = data['monsters']
+        elif data_type == 'items' and 'items' in data:
+            data = data['items']
+        elif data_type == 'minion_abilities' and 'definitions' in data:
+            data = data['definitions']
+        elif data_type == 'monster_abilities' and 'definitions' in data:
+            data = data['definitions']
+        elif data_type in ['quests', 'smith_recipes']:
+            # Handle array-based data structures - convert to dict for easier management
+            if isinstance(data, list):
+                id_field = 'id' if data_type == 'quests' else 'name'
+                data_dict = {}
+                for item in data:
+                    if id_field in item:
+                        data_dict[item[id_field]] = item
+                data = data_dict
+            elif isinstance(data, dict) and len(data) > 0:
+                first_key = next(iter(data.keys()))
+                if isinstance(first_key, (int, str)) and str(first_key).isdigit():
+                    id_field = 'id' if data_type == 'quests' else 'name'
+                    data_dict = {}
+                    for item in data.values():
+                        if isinstance(item, dict) and id_field in item:
+                            data_dict[item[id_field]] = item
+                    data = data_dict
+        
+        # Ensure data is still a dict after nested access
+        if data is None:
+            data = {}
+        
+        print(f"DEBUG: Loaded {len(data)} items for {data_type}")
+        
+        # Filter data based on search query
+        if search_query:
+            filtered_data = {}
+            for item_id, item_data in data.items():
+                # Search in ID/name
+                if search_query in item_id.lower():
+                    filtered_data[item_id] = item_data
+                    continue
+                
+                # Search in display name
+                if isinstance(item_data, dict):
+                    if 'name' in item_data and item_data['name'] and search_query in item_data['name'].lower():
+                        filtered_data[item_id] = item_data
+                        continue
+                    
+                    # Search in description
+                    if 'description' in item_data and item_data['description'] and search_query in item_data['description'].lower():
+                        filtered_data[item_id] = item_data
+                        continue
+                    
+                    # Search in type
+                    if 'type' in item_data and item_data['type'] and search_query in item_data['type'].lower():
+                        filtered_data[item_id] = item_data
+                        continue
+                    
+                    # Data type specific searches
+                    if data_type == 'items':
+                        # Search in slot, subType, jobs
+                        if 'slot' in item_data and item_data['slot'] and search_query in item_data['slot'].lower():
+                            filtered_data[item_id] = item_data
+                            continue
+                        if 'subType' in item_data and item_data['subType'] and search_query in item_data['subType'].lower():
+                            filtered_data[item_id] = item_data
+                            continue
+                        if 'jobs' in item_data and isinstance(item_data['jobs'], dict):
+                            for job in item_data['jobs'].values():
+                                if job and search_query in job.lower():
+                                    filtered_data[item_id] = item_data
+                                    break
+                    
+                    elif data_type == 'monsters':
+                        # Search in abilities, immunities
+                        if 'abilities' in item_data and isinstance(item_data['abilities'], list):
+                            for ability in item_data['abilities']:
+                                if isinstance(ability, dict) and 'id' in ability:
+                                    if search_query in ability['id'].lower():
+                                        filtered_data[item_id] = item_data
+                                        break
+                        if 'immunities' in item_data and isinstance(item_data['immunities'], list):
+                            for immunity in item_data['immunities']:
+                                if search_query in immunity.lower():
+                                    filtered_data[item_id] = item_data
+                                    break
+                    
+                    elif data_type == 'jobs':
+                        # Search in category, availableSkills, startingSkills
+                        if 'category' in item_data and item_data['category'] and search_query in item_data['category'].lower():
+                            filtered_data[item_id] = item_data
+                            continue
+                        if 'availableSkills' in item_data and isinstance(item_data['availableSkills'], list):
+                            for skill in item_data['availableSkills']:
+                                if search_query in skill.lower():
+                                    filtered_data[item_id] = item_data
+                                    break
+                    
+                    elif data_type == 'skills':
+                        # Search in target, mpCost
+                        if 'target' in item_data and item_data['target'] and search_query in item_data['target'].lower():
+                            filtered_data[item_id] = item_data
+                            continue
+                    
+                    elif data_type == 'quests':
+                        # Search in giver, status, objective
+                        if 'giver' in item_data and item_data['giver'] and search_query in item_data['giver'].lower():
+                            filtered_data[item_id] = item_data
+                            continue
+                        if 'status' in item_data and item_data['status'] and search_query in item_data['status'].lower():
+                            filtered_data[item_id] = item_data
+                            continue
+                        if 'objective' in item_data and isinstance(item_data['objective'], dict):
+                            for key, value in item_data['objective'].items():
+                                if isinstance(value, str) and search_query in value.lower():
+                                    filtered_data[item_id] = item_data
+                                    break
+            
+            data = filtered_data
+        
+        # Return grid items
+        return render_template('partials/grid_items.html', 
+                             data=data, 
+                             data_type=data_type, 
+                             config=config)
+    except Exception as e:
+        print(f"DEBUG: Error during search: {e}")
+        return '', 500
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000) 
