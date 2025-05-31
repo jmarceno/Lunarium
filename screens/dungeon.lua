@@ -1415,8 +1415,6 @@ function dungeon:draw()
         love.graphics.setColor(1, 0, 0)
         love.graphics.setFont(screenManager.fonts.medium)
         love.graphics.printf("Error: Map data is missing. Please restart the game.", 0, GAME.height/2 - 50, GAME.width, "center")
-        
-        -- Try to print a restart message
         love.graphics.setColor(1, 1, 1)
         love.graphics.printf("Press ESC to return to main menu", 0, GAME.height/2 + 20, GAME.width, "center")
         return
@@ -1425,56 +1423,42 @@ function dungeon:draw()
     -- Draw based on current state
     if self.state == STATES.EXPLORING then
         -- Draw 3D view (unscaled)
-        self:drawExploringState()
+        self:drawExploringState() -- This handles raycaster for dungeon exploration
 
         -- Draw UI elements that should appear in exploring state (scaled)
         local scaling = require("utils/scaling")
         scaling:push()
         
-        -- Draw status bar if it exists and is visible
-        if self.elements.statusBar and self.statusBarVisible then -- Dungeon's own flag for timer
-            self.elements.statusBar:draw(self) -- Pass dungeon instance
+        if self.elements.statusBar and self.statusBarVisible then
+            self.elements.statusBar:draw(self)
         end
         
-        -- Draw objective reached reminder if applicable
         if self.objective and self.objective.reached and not self.objective.completed and 
            self.currentQuest and self.currentQuest.type == "EXPLORE" then
-            -- Display a message indicating the player should return to entrance
-            love.graphics.setColor(0, 1, 0, 0.7 + math.sin(love.timer.getTime() * 2) * 0.3) -- Pulsing green
+            love.graphics.setColor(0, 1, 0, 0.7 + math.sin(love.timer.getTime() * 2) * 0.3)
             love.graphics.setFont(screenManager.fonts.medium)
-            
             local targetWidth, targetHeight = scaling:getTargetResolution()
-            love.graphics.printf(
-                "Objective reached! Return to the entrance to complete your quest.",
-                0, 100, targetWidth, "center"
-            )
+            love.graphics.printf("Objective reached! Return to the entrance to complete your quest.", 0, 100, targetWidth, "center")
         end
         
-        -- Draw debug info
         if GAME.debug then
             love.graphics.setColor(1, 1, 0)
             love.graphics.setFont(screenManager.fonts.small)
             love.graphics.print("Player Pos: " .. string.format("%.2f, %.2f", self.playerPos.x, self.playerPos.y), 10, 70)
             love.graphics.print("Player Angle: " .. string.format("%.2f", self.playerPos.angle), 10, 90)
             love.graphics.print("Map size: " .. self.map.width .. "x" .. self.map.height, 10, 110)
-
             if self.map and self.map.getHintFactor then
                 local playerCellX = math.floor(self.playerPos.x)
                 local playerCellY = math.floor(self.playerPos.y)
                 local floorHint = self.map:getHintFactor(playerCellX, playerCellY, "floor")
                 love.graphics.print("Floor Hint (Player Tile): " .. string.format("%.2f", floorHint or 0), 10, 130)
-
-                -- For wall hint factor: Cast a short ray to find the wall in front.
                 local rayDirX = math.cos(self.playerPos.angle)
                 local rayDirY = math.sin(self.playerPos.angle)
-                -- Check a short distance in front of the player (e.g., 0.5 units)
                 local wallCheckX = self.playerPos.x + rayDirX * 0.5 
                 local wallCheckY = self.playerPos.y + rayDirY * 0.5
                 local wallCellX = math.floor(wallCheckX)
                 local wallCellY = math.floor(wallCheckY)
                 local wallHintText = "Wall Hint (Front): N/A"
-
-                -- Check if the cell in front is actually a wall before getting its hint factor
                 if self.map:getCell(wallCellX, wallCellY) > 0 then 
                     local wallHint = self.map:getHintFactor(wallCellX, wallCellY, "wall")
                     wallHintText = "Wall Hint (Front): " .. string.format("%.2f", wallHint or 0)
@@ -1484,54 +1468,49 @@ function dungeon:draw()
         end
         
         if self.elements.minimap then
-            self.elements.minimap:draw(self) -- Pass dungeon instance (self)
+            self.elements.minimap:draw(self)
         end
         
-        -- Display party members with basic stats (bottom of screen)
         if self.elements.partyPanel then
             self.elements.partyPanel:draw()
         end
         
-        -- Draw active trap disarm prompt if a trap is detected
         if self.activeTrap and self.activeTrap.isTrapDetected and not self.elements.confirmDialog.visible then
             love.graphics.setFont(screenManager.fonts.medium)
             love.graphics.setColor(1, 0.5, 0.5, 0.9)
-            
             local targetWidth, targetHeight = scaling:getTargetResolution()
-            love.graphics.printf(
-                "Trap Detected! Disarm [T]", 
-                targetWidth / 2 - 150, 
-                targetHeight / 2 + 80,
-                300, "center"
-            )
+            love.graphics.printf("Trap Detected! Disarm [T]", targetWidth / 2 - 150, targetHeight / 2 + 80, 300, "center")
         end
         
-        -- Draw floating texts
         self:drawFloatingTexts()
         
         scaling:pop()
         
     elseif self.state == STATES.COMBAT then
-        -- Draw combat UI (scaled)
         local scaling = require("utils/scaling")
-        scaling:push()
-        
         if self.combat then
-            -- The combat system now handles its own background rendering with raycaster
-            self.combat:draw()
+            -- 1. Draw the 3D combat view (raycaster) WITHOUT scaling
+            self.combat:draw3DView()
+            
+            -- 2. Push scaling transform for UI elements
+            scaling:push()
+            
+            -- 3. Draw the 2D combat UI (scaled)
+            self.combat:drawUI()
+            
+            -- 4. Pop scaling transform
+            scaling:pop()
         else
-            -- Handle case where combat system is missing
+            -- Handle case where combat system is missing (should be scaled if it's an error message)
+            scaling:push()
             love.graphics.setColor(1, 0, 0)
             love.graphics.setFont(screenManager.fonts.medium)
             local targetWidth, targetHeight = scaling:getTargetResolution()
             love.graphics.printf("Error: Combat system not initialized.", 0, targetHeight/2 - 50, targetWidth, "center")
-            
-            -- Reset to EXPLORING if combat is nil
             print("ERROR: Combat state active but combat system is nil. Reverting to EXPLORING.")
-            self.state = STATES.EXPLORING
+            self.state = STATES.EXPLORING -- Revert state to avoid stuck loop
+            scaling:pop()
         end
-        
-        scaling:pop()
         
     elseif self.state == STATES.COMPLETED then
         -- Draw completion message and button (scaled)
@@ -1539,63 +1518,42 @@ function dungeon:draw()
         scaling:push()
         
         local targetWidth, targetHeight = scaling:getTargetResolution()
-        
-        -- Draw completion message and button
         love.graphics.setColor(0, 0, 0, 0.7)
         love.graphics.rectangle("fill", 0, 0, targetWidth, targetHeight)
-        
         love.graphics.setFont(screenManager.fonts.large)
         love.graphics.setColor(1, 1, 1)
-        love.graphics.printf(
-            "Dungeon Completed!",
-            0, targetHeight / 3,
-            targetWidth, "center"
-        )
-        
+        love.graphics.printf("Dungeon Completed!", 0, targetHeight / 3, targetWidth, "center")
         if self.currentQuest then
             love.graphics.setFont(screenManager.fonts.medium)
-            love.graphics.printf(
-                "Quest: " .. self.currentQuest.name .. " - Complete",
-                0, targetHeight / 3 + 50,
-                targetWidth, "center"
-            )
+            love.graphics.printf("Quest: " .. self.currentQuest.name .. " - Complete", 0, targetHeight / 3 + 50, targetWidth, "center")
         end
-        
-        -- Draw return button
         if self.elements.completeButton then
             self.elements.completeButton:draw()
         end
-        
         scaling:pop()
     end
     
-    -- Draw global UI elements (scaled)
+    -- Draw global UI elements (scaled) - These are dungeon-specific UI like inventory/character buttons
+    -- and the confirmation dialog, which should always be on top and scaled.
     local scaling = require("utils/scaling")
     scaling:push()
     
-    -- Draw UI buttons (except in combat)
-    if self.state ~= STATES.COMBAT then
+    if self.state ~= STATES.COMBAT then -- Don't draw these if in combat, combat has its own UI
         if self.elements.characterInfoButton then self.elements.characterInfoButton:draw() end
         if self.elements.inventoryButton then self.elements.inventoryButton:draw() end
         if self.elements.statusButton then self.elements.statusButton:draw() end
     end
     
-    -- Draw confirmation dialog last (if visible)
     if self.elements.confirmDialog and self.elements.confirmDialog.visible then
         self.elements.confirmDialog:draw()
     end
     
-    -- Draw trap throwing UI if active
     if self.trapThrowing and self.trapThrowing.active then
-        -- Draw trap selector
         if self.elements.trapSelector and self.elements.trapSelector.visible then
             self.elements.trapSelector:draw()
         end
-        
-        -- Draw targeting reticle on enemy if one is targeted
         if self.trapThrowing.targetedEnemy then
             local targetWidth, targetHeight = scaling:getTargetResolution()
-            -- This is a simplified indicator. You might want to implement a proper 3D overlay
             love.graphics.setColor(1, 0.3, 0.3, 0.8)
             love.graphics.circle("line", targetWidth/2, targetHeight/2, 30)
             love.graphics.setColor(1, 0.3, 0.3, 0.4)
@@ -1779,17 +1737,74 @@ function dungeon:onResize(width, height)
     -- Update raycaster dimensions
     raycaster:init(width, height)
     
-    -- Update raycaster camera
-    raycaster:setCamera(self.playerPos.x, self.playerPos.y, self.playerPos.angle)
+    -- Update raycaster camera (for exploration mode)
+    if self.playerPos and self.playerPos.x and self.playerPos.y and self.playerPos.angle then
+        raycaster:setCamera(self.playerPos.x, self.playerPos.y, self.playerPos.angle)
+    end
     
-    -- Update UI element positions
-    self.elements.completeButton.x = width / 2 - 100
-    self.elements.completeButton.y = height - 80
+    -- Update UI element positions that are relative to screen/game dimensions
+    -- These should use GAME.width and GAME.height as they are drawn within the scaled context
+    if self.elements.completeButton then
+        self.elements.completeButton.x = GAME.width / 2 - 100
+        self.elements.completeButton.y = GAME.height - 80
+    end
     
-    -- Update minimap position
-    self.elements.minimap.x = width - 220
-    
-    -- You might need to update other position-dependent elements here
+    -- Update minimap panel position (top-right corner of the game's target resolution area)
+    if self.elements.minimap then 
+        self.elements.minimap.x = GAME.width - 220 -- Use GAME.width (target width)
+        self.elements.minimap.y = 10 -- Keep y position fixed or make it relative to GAME.height if needed
+        -- If minimap width/height also need to be dynamic based on GAME.width/height, update them here.
+        -- For now, they are fixed (200x200) as per initialization.
+    end
+
+    -- Update status bar position and width
+    if self.elements.statusBar then
+        self.elements.statusBar.x = 10
+        self.elements.statusBar.y = 10
+        self.elements.statusBar.width = GAME.width - 240 -- Span most of the game width, leaving space for minimap
+        -- statusBar.height is fixed
+        if self.elements.statusBar.onResize then -- if panel has its own onResize method
+            self.elements.statusBar:onResize(GAME.width - 240, self.elements.statusBar.height)
+        end
+    end
+
+    -- Buttons typically positioned relative to bottom-right of GAME area
+    if self.elements.characterInfoButton then
+        self.elements.characterInfoButton.x = GAME.width - 170
+        self.elements.characterInfoButton.y = GAME.height - 233
+    end
+    if self.elements.inventoryButton then
+        self.elements.inventoryButton.x = GAME.width - 170
+        self.elements.inventoryButton.y = GAME.height - 193
+    end
+    if self.elements.statusButton then
+        self.elements.statusButton.x = GAME.width - 170
+        self.elements.statusButton.y = GAME.height - 153
+    end
+
+    -- Confirmation dialog position (example: centered, or relative to GAME.height)
+    if self.elements.confirmDialog then
+        self.elements.confirmDialog.x = 20 
+        self.elements.confirmDialog.y = GAME.height - 280 
+        -- If confirmDialog has its own onResize method for internal elements:
+        if self.elements.confirmDialog.onResize then
+            self.elements.confirmDialog:onResize(self.elements.confirmDialog.width, self.elements.confirmDialog.height)
+        end
+    end
+
+    -- If partyPanel has a resize method, call it
+    if self.elements.partyPanel and self.elements.partyPanel.onResize then
+        self.elements.partyPanel:onResize()
+    end
+
+    -- If trap selector UI has resize method or needs repositioning
+    if self.elements.trapSelector then
+        self.elements.trapSelector.x = 20
+        self.elements.trapSelector.y = GAME.height - 120
+        if self.elements.trapSelector.onResize then
+             self.elements.trapSelector:onResize(self.elements.trapSelector.width, self.elements.trapSelector.height)
+        end
+    end
 end
 
 -- Open Inventory Screen

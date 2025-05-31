@@ -604,17 +604,15 @@ function combatSystem:createCombat(party, enemy, isAmbush)
         end
     end
     
-    -- Override draw function to use 3D background
-    combat.draw = function(self)
-        -- Use raycaster to render 3D background (unscaled)
-        local scaling = require("utils/scaling")
-        
-        -- The 3D background needs to be rendered WITHOUT scaling
-        love.graphics.setColor(1, 1, 1)
+    -- NEW: Function to draw only the 3D background (raycaster view)
+    combat.draw3DView = function(self)
         self:renderCombatBackground()
-        
-        -- Draw UI elements and combat status WITH scaling
-        scaling:push()
+    end
+
+    -- NEW: Function to draw only the 2D UI elements
+    combat.drawUI = function(self)
+        -- This function will contain all UI drawing logic previously in combat.draw,
+        -- EXCLUDING the renderCombatBackground call and any scaling push/pop.
         
         local state = self.state
         
@@ -624,58 +622,76 @@ function combatSystem:createCombat(party, enemy, isAmbush)
             self:drawEnemyTurnUI()
         elseif state == combatSystem.STATE.VICTORY then
             self:drawVictoryUI()
+            -- The continue button for victory is often part of drawVictoryUI or handled by it
+            if self.elements.continueButton and self.elements.continueButton.visible then
+                self.elements.continueButton:draw()
+            end
         elseif state == combatSystem.STATE.DEFEAT then
             self:drawDefeatUI()
+            -- The continue button for defeat is often part of drawDefeatUI or handled by it
+            if self.elements.continueButton and self.elements.continueButton.visible then
+                self.elements.continueButton:draw()
+            end
         end
         
         -- Draw enemy info UI (health bars, status, etc.) - only UI elements, NOT the sprites
-        self:drawEnemy()
+        if state ~= combatSystem.STATE.VICTORY and state ~= combatSystem.STATE.DEFEAT then
+            self:drawEnemy()
+        end
         
         -- Draw party
-        self:drawParty()
+        if state ~= combatSystem.STATE.VICTORY and state ~= combatSystem.STATE.DEFEAT then
+            self:drawParty()
+        end
         
         -- Draw minions
-        if self.state ~= combatSystem.STATE.VICTORY and self.state ~= combatSystem.STATE.DEFEAT then
+        if state ~= combatSystem.STATE.VICTORY and state ~= combatSystem.STATE.DEFEAT then
             self:drawMinions()
         end
         
-        -- Draw select lists if visible
-        for _, element in pairs(self.elements) do
-            if element.visible and element.draw then
-                element:draw()
+        -- Draw select lists if visible (buttons, skill/item lists etc.)
+        if state ~= combatSystem.STATE.VICTORY and state ~= combatSystem.STATE.DEFEAT then
+            for _, element in pairs(self.elements) do
+                if element.visible and element.draw then
+                    element:draw()
+                end
             end
         end
         
         -- Draw status effect tooltips for any hovered effect icons
-        self:drawStatusEffectTooltips()
+        if state ~= combatSystem.STATE.VICTORY and state ~= combatSystem.STATE.DEFEAT then
+            self:drawStatusEffectTooltips()
+        end
         
         -- Draw combat log
-        self:drawCombatLog()
+        if state ~= combatSystem.STATE.VICTORY and state ~= combatSystem.STATE.DEFEAT then
+            self:drawCombatLog()
+        end
         
         -- Draw action meter bars
-        if self.drawActionMeterBars then
+        if state ~= combatSystem.STATE.VICTORY and state ~= combatSystem.STATE.DEFEAT and self.drawActionMeterBars then
             self:drawActionMeterBars()
         end
         
         -- Draw spell queue
-        if self.drawSpellQueue then
+        if state ~= combatSystem.STATE.VICTORY and state ~= combatSystem.STATE.DEFEAT and self.drawSpellQueue then
             self:drawSpellQueue()
         end
         
         -- Draw floating combat text
-        if self.floatingTexts then
+        if self.floatingTexts and #self.floatingTexts > 0 then
             for i = #self.floatingTexts, 1, -1 do
                 local floatingText = self.floatingTexts[i]
-                floatingText:draw()
+                if floatingText.draw then -- Ensure it has a draw method
+                     floatingText:draw()
+                end
             end
         end
         
-        -- Draw victory prompt if needed
+        -- Draw victory prompt if needed (this is a specific UI element)
         if self.showVictoryPrompt then
             self:drawVictoryPrompt()
         end
-        
-        scaling:pop()
     end
     
     -- Initialize combat
