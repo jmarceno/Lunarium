@@ -670,179 +670,109 @@ function raycaster:renderEntities(entities)
     love.graphics.setDepthMode("lequal", true)
     love.graphics.setShader(self.spriteShader)
     
-
     self.spriteShader:send("lightDir", self.lightDirection)
-    
-    -- Send shader uniforms for torch effect
     self.spriteShader:send("torchTime", self.torchTime)
     self.spriteShader:send("torchIntensity", self.torchIntensity)
     self.spriteShader:send("torchRange", self.torchRange)
     self.spriteShader:send("torchRedTint", self.torchRedTint)
     self.spriteShader:send("globalDarkness", self.globalDarkness)
     self.spriteShader:send("torchEnabled", self.torchEnabled)
-    
-    -- Send enemy-specific normal map blur settings
     self.spriteShader:send("enemyNormalMapBlurEnabled", self.enemyNormalMapBlurEnabled)
     self.spriteShader:send("enemyNormalMapBlur", self.enemyNormalMapBlur)
     
-    -- Helper function to convert snake_case to camelCase
-    local function toCamelCase(str)
-        -- Special case: if the string is already camelCase, return it as is
-        if not str:find("_") then
-            return str
-        end
-        
-        -- Convert snake_case to camelCase
-        return str:gsub("_(%l)", function(c) return c:upper() end)
-    end
-    
-    -- Sort entities by distance (farthest to closest for correct drawing order)
     table.sort(entities, function(a, b)
         local distA = (a.x - self.camera.x)^2 + (a.y - self.camera.y)^2
         local distB = (b.x - self.camera.x)^2 + (b.y - self.camera.y)^2
         return distA > distB
     end)
     
-    -- Draw each entity
     for _, entity in ipairs(entities) do
-        -- Calculate sprite position relative to camera
         local spriteX = entity.x - self.camera.x
         local spriteY = entity.y - self.camera.y
-        
-        -- Calculate sprite angle relative to camera direction
         local objAngle = math.atan2(spriteY, spriteX) - self.camera.angle
         
-        -- Normalize angle to [-PI, PI]
         if objAngle < -math.pi then objAngle = objAngle + 2 * math.pi end
         if objAngle > math.pi then objAngle = objAngle - 2 * math.pi end
         
-        -- Check if sprite is visible (in front of camera within FOV)
-        local visible = math.abs(objAngle) < self.fov / 1.5
-        
-        if visible then
-            -- Get sprite texture
+        if math.abs(objAngle) < self.fov / 1.5 then
             local texture = nil
             local normalTexture = nil
-            
-            if entity.type == "monster" and entity.id then
-                local monsterDefinition = monsterData:getMonsterData(entity.id)
-                if monsterDefinition and monsterDefinition.sprite then
-                    local spriteKey = monsterDefinition.sprite -- This is "GiantRat" or "EnragedPanther_BOSS"
-                    texture = assetManager:getImage("monster", spriteKey)
+
+            -- Prioritize entity.sprite if it exists (set by combatSystem)
+            if entity.sprite and type(entity.sprite) == "string" then
+                if entity.type == "monster" then
+                    texture = assetManager:getImage("monster", entity.sprite)
                     if texture then
-                        normalTexture = assetManager:getNormalMap("monster", spriteKey)
-                    else
-                        if GAME.debug then
-                            print("Raycaster: Monster sprite not found for key: " .. spriteKey .. " (from entity.id: " .. entity.id .. ")")
-                        end
+                       normalTexture = assetManager:getNormalMap("monster", entity.sprite)
+                    elseif GAME.debug then
+                        print("Raycaster: Monster sprite (from entity.sprite) not found: " .. entity.sprite)
                     end
-                else
-                    if GAME.debug then
-                        print("Raycaster: Monster definition or sprite field missing for entity.id: " .. entity.id)
+                elseif entity.type == "decoration" then -- Handle decorations
+                    texture = assetManager:getImage("decoration", entity.sprite)
+                    if texture then
+                        normalTexture = assetManager:getNormalMap("decoration", entity.sprite)
+                    elseif GAME.debug then
+                        print("Raycaster: Decoration sprite (from entity.sprite) not found: " .. entity.sprite)
                     end
                 end
-            elseif entity.texture then
-                texture = assetManager.images.entities[entity.texture]
+            elseif entity.texture then -- Fallback for older/other entity types
+                 texture = assetManager.images.entities[entity.texture]
+                 -- Note: Normal maps for entity.texture might not be set up in assetManager
             end
             
-            -- Calculate perpendicular distance for correct scaling and depth
             local dist = math.sqrt(spriteX*spriteX + spriteY*spriteY)
             local perpDistance = dist * math.cos(objAngle)
             
             if perpDistance > 0 and perpDistance < self.maxDistance then
                 if texture then
-                    -- Apply proper depth for z-testing
                     love.graphics.setDepthMode("lequal", true)
-                    
-                    -- Calculate sprite dimensions
                     local fullHeight = self.viewWidth / perpDistance
                     local aspectRatio = texture:getHeight() / texture:getWidth()
                     local spriteHeight = fullHeight 
                     local spriteWidth = spriteHeight / aspectRatio
-                    
-                    -- Calculate screen position
                     local spriteScreenX = math.floor((self.viewWidth / 2) * (1 + (objAngle / (self.fov/2))))
                     local drawStartY = math.floor(self.halfHeight - spriteHeight / 2 + (self.camera.height / perpDistance) + self.camera.tilt + (spriteHeight * self.spriteVerticalOffset))
                     local drawStartX = math.floor(spriteScreenX - spriteWidth / 2)
+                    local shade = math.max(0.0, 1.0 - (perpDistance / self.shadeDepth))
                     
-                    -- Calculate shade based on distance
-                    local shade = 1.0 - (perpDistance / self.shadeDepth)
-                    shade = math.max(0.0, shade) -- Allow complete darkness at max distance
-                    
-                    -- Apply special coloring and transparency for hidden monsters in debug mode
                     if entity.hidden and GAME.debug and entity.type == "monster" then
-                        -- Magenta tint for hidden monsters with 50% transparency in debug mode
-                        love.graphics.setColor(1, 0, 1, 0.5)  -- Magenta with 50% opacity
+                        love.graphics.setColor(1, 0, 1, 0.5)
                     else
                         love.graphics.setColor(shade, shade, shade)
                     end
                     
-                    -- Send normal map for this sprite if available
                     if normalTexture then
                         self.spriteShader:send("normalMap", normalTexture)
                         self.spriteShader:send("hasNormalMap", true)
                     else
                         self.spriteShader:send("hasNormalMap", false)
                     end
-                    
-                    -- Set depth value for this sprite
                     self.spriteShader:send("depth", perpDistance / self.maxDistance)
-                    
-                    -- Draw the sprite with depth information
-                    love.graphics.draw(
-                        texture,
-                        drawStartX, drawStartY,
-                        0,
-                        spriteWidth / texture:getWidth(),
-                        spriteHeight / texture:getHeight()
-                    )
+                    love.graphics.draw(texture, drawStartX, drawStartY, 0, spriteWidth / texture:getWidth(), spriteHeight / texture:getHeight())
                 elseif entity.color then
-                    -- Use a colored rectangle if no texture is available
-                    -- Calculate sprite dimensions
                     local spriteHeight = math.floor(self.viewHeight / perpDistance)
                     local spriteWidth = spriteHeight
-                    
-                    -- Calculate screen position
                     local spriteScreenX = math.floor((self.viewWidth / 2) * (1 + (objAngle / (self.fov/2))))
                     local drawStartY = math.floor(self.halfHeight - spriteHeight / 2 + (self.camera.height / perpDistance) + self.camera.tilt + (spriteHeight * self.spriteVerticalOffset))
                     local drawStartX = math.floor(spriteScreenX - spriteWidth / 2)
-                    
-                    -- Clamp to screen bounds
                     local drawHeight = math.min(spriteHeight, self.viewHeight - drawStartY)
                     local drawWidth = math.min(spriteWidth, self.viewWidth - drawStartX)
+                    local shade = math.max(0.0, 1.0 - (perpDistance / self.shadeDepth))
                     
-                    -- Calculate shade based on distance
-                    local shade = 1.0 - (perpDistance / self.shadeDepth)
-                    shade = math.max(0.0, shade) -- Allow complete darkness at max distance
-                    
-                    -- Apply special coloring and transparency for hidden monsters in debug mode
                     if entity.hidden and GAME.debug and entity.type == "monster" then
-                        -- Magenta color with 50% transparency for hidden monsters in debug mode
-                        love.graphics.setColor(1, 0, 1, 0.5) -- Magenta with 50% opacity
+                        love.graphics.setColor(1, 0, 1, 0.5)
                     else
-                        -- Set color with correct shading
-                        love.graphics.setColor(
-                            entity.color[1] * shade,
-                            entity.color[2] * shade,
-                            entity.color[3] * shade,
-                            entity.color[4] or 1
-                        )
+                        love.graphics.setColor(entity.color[1] * shade, entity.color[2] * shade, entity.color[3] * shade, entity.color[4] or 1)
                     end
-                    
-                    -- Set depth value for this sprite
                     self.spriteShader:send("depth", perpDistance / self.maxDistance)
-                    
-                    -- Draw a rectangle for the sprite
                     love.graphics.rectangle("fill", drawStartX, drawStartY, drawWidth, drawHeight)
                 end
             end
         end
     end
     
-    -- Reset shader and depth mode
     love.graphics.setShader()
     love.graphics.setDepthMode("always", false)
-    
     self.stats.spritesRenderTime = love.timer.getTime() - start
 end
 

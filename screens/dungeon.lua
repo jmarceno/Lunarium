@@ -1127,6 +1127,70 @@ function dungeon:checkEntityInteraction()
                     end
                 end
                 
+                -- Save dungeon state before starting combat
+                self:saveDungeonState()
+                
+                -- Determine dungeon theme to pass to combat
+                local dungeonTheme = "dungeon" -- Default theme
+                
+                -- Try to infer theme from current quest or dungeon textures
+                if self.currentQuest then
+                    -- Check if quest has location hints
+                    if self.currentQuest.location then
+                        local location = self.currentQuest.location:lower()
+                        if location:find("cave") or location:find("cavern") then
+                            dungeonTheme = "cave"
+                        elseif location:find("crypt") or location:find("tomb") or location:find("catacomb") then
+                            dungeonTheme = "crypt"
+                        elseif location:find("forest") or location:find("wood") then
+                            dungeonTheme = "forest"
+                        end
+                    end
+                end
+                
+                -- Get the most common wall texture in the dungeon as a fallback
+                if dungeonTheme == "dungeon" and self.map and self.map.getWallTexture then
+                    local textureCount = {}
+                    local maxCount = 0
+                    local mostCommonTexture = nil
+                    
+                    -- Sample a subset of the map to find common textures
+                    for y = 1, math.min(20, self.map.height) do
+                        for x = 1, math.min(20, self.map.width) do
+                            if self.map:getCell(x, y) > 0 then -- If it's a wall
+                                local texture = self.map:getWallTexture(x, y)
+                                if texture then
+                                    textureCount[texture] = (textureCount[texture] or 0) + 1
+                                    if textureCount[texture] > maxCount then
+                                        maxCount = textureCount[texture]
+                                        mostCommonTexture = texture
+                                    end
+                                end
+                            end
+                        end
+                    end
+                    
+                    -- Map texture to theme if possible
+                    if mostCommonTexture then
+                        if mostCommonTexture:find("cave") then
+                            dungeonTheme = "cave"
+                        elseif mostCommonTexture:find("crypt") then
+                            dungeonTheme = "crypt"
+                        elseif mostCommonTexture:find("wood") then
+                            dungeonTheme = "forest"
+                        end
+                    end
+                end
+                
+                -- Store theme in the current quest for combat system to access
+                if GAME.currentQuest then
+                    GAME.currentQuest.dungeonTheme = dungeonTheme
+                end
+                
+                if GAME.debug then
+                    print("Starting combat with dungeon theme: " .. dungeonTheme)
+                end
+                
                 -- For boss monsters, always use single-enemy combat
                 if entity.isBoss then
                     self.combat = combatSystem:createCombat(GAME.party, entity, isAmbush)
@@ -1453,6 +1517,7 @@ function dungeon:draw()
         scaling:push()
         
         if self.combat then
+            -- The combat system now handles its own background rendering with raycaster
             self.combat:draw()
         else
             -- Handle case where combat system is missing
@@ -2287,6 +2352,9 @@ function dungeon:handleCombatVictory()
     self.combat = nil
     self.state = STATES.EXPLORING -- Ensure state is exploring
     
+    -- Restore dungeon state after combat
+    self:restoreDungeonState()
+    
     -- Reset music and other combat-related state
     assetManager:playMusic("dungeon")
     self.killQuestNotificationShown = false
@@ -2586,6 +2654,59 @@ function dungeon:throwTrap()
     self.elements.trapSelector.visible = false
     
     return true
+end
+
+-- Save the dungeon state before entering combat
+function dungeon:saveDungeonState()
+    self.savedState = {
+        -- Save raycaster state
+        raycaster = {
+            camera = {
+                x = raycaster.camera.x,
+                y = raycaster.camera.y,
+                angle = raycaster.camera.angle
+            },
+            texturesEnabled = raycaster.texturesEnabled,
+            floorTexturesEnabled = raycaster.floorTexturesEnabled
+        },
+        -- Save player position
+        playerPos = {
+            x = self.playerPos.x,
+            y = self.playerPos.y,
+            angle = self.playerPos.angle
+        },
+        -- Save minimap visibility
+        minimapVisible = self.elements.minimap and self.elements.minimap.visible
+    }
+    
+    print("Dungeon state saved before combat")
+end
+
+-- Restore the dungeon state after combat
+function dungeon:restoreDungeonState()
+    if not self.savedState then return end
+    
+    -- Restore player position
+    self.playerPos.x = self.savedState.playerPos.x
+    self.playerPos.y = self.savedState.playerPos.y
+    self.playerPos.angle = self.savedState.playerPos.angle
+    
+    -- Update raycaster camera
+    raycaster:setCamera(self.playerPos.x, self.playerPos.y, self.playerPos.angle)
+    
+    -- Restore raycaster settings
+    raycaster.texturesEnabled = self.savedState.raycaster.texturesEnabled
+    raycaster.floorTexturesEnabled = self.savedState.raycaster.floorTexturesEnabled
+    
+    -- Restore minimap visibility
+    if self.elements.minimap and self.savedState.minimapVisible ~= nil then
+        self.elements.minimap.visible = self.savedState.minimapVisible
+    end
+    
+    print("Dungeon state restored after combat")
+    
+    -- Clear saved state to free memory
+    self.savedState = nil
 end
 
 return dungeon

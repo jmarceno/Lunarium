@@ -1,5 +1,4 @@
 # TODOs
-- Move all definitions to the data folder
 - How to deal with damage out of combat in the dungeon?
   - Deaths
 - Add on-screen messages when a item is acquired from a chest
@@ -30,6 +29,7 @@
 
 
 # Bugs
+- Mini map is disapeating when scaling the game
 
 
 ## Ideias and Experimentation

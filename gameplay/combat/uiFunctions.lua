@@ -765,9 +765,8 @@ local function drawVictoryPrompt(self)
  end
 
 local function draw(self)
-    -- Draw background
-    love.graphics.setColor(0.2, 0.2, 0.3)
-    love.graphics.rectangle("fill", 0, 0, GAME.width, GAME.height)
+    -- We no longer draw the background here as it's handled by the raycaster in combatSystem
+    -- DO NOT draw: love.graphics.setColor(0.2, 0.2, 0.3); love.graphics.rectangle("fill", 0, 0, GAME.width, GAME.height)
     
     -- Draw based on current state
     if self.state == combatSystem.STATE.VICTORY then
@@ -787,14 +786,17 @@ local function draw(self)
     else
         -- Draw regular combat UI
     
-        -- Draw enemy
+        -- Draw UI elements for enemy info (health bars, status, etc.)
+        -- Note: Actual enemy sprites are now rendered by the raycaster
         self:drawEnemy()
         
         -- Draw party
         self:drawParty()
         
         -- Draw victory prompt if all enemies defeated
-        self:drawVictoryPrompt()
+        if self.showVictoryPrompt then
+            self:drawVictoryPrompt()
+        end
         
         -- Draw UI based on current turn state
         if self.state == combatSystem.STATE.PLAYER_TURN then
@@ -837,7 +839,7 @@ local function draw(self)
     end
 end
 
--- Draw enemy information
+-- Draw enemy information (health bars, status effects, etc.)
 local function drawEnemy(self)
     -- For multiple enemies, arrange them in a grid
     if #self.enemies > 1 then
@@ -848,7 +850,7 @@ local function drawEnemy(self)
     end
 end
 
--- Draw multiple enemies in a grid layout
+-- Draw multiple enemies' UI elements (not the sprites)
 local function drawMultipleEnemies(self)
     -- Calculate grid layout based on number of enemies
     local maxRows = 2 -- Maximum number of rows
@@ -859,7 +861,7 @@ local function drawMultipleEnemies(self)
     
     -- Calculate dimensions for each enemy display area
     local enemyWidth = 240 -- Increased from 200 to add more space between enemies
-    local enemyHeight = 300 -- Fixed height for enemy section
+    local enemyHeight = 150 -- Reduced from 300 to save space, we don't draw the sprites
     
     -- Draw enemies in first row (up to 3)
     for i = 1, firstRowCount do
@@ -882,7 +884,7 @@ local function drawMultipleEnemies(self)
             love.graphics.rectangle("fill", x - 10, y - 10, 220, enemyHeight - 20, 5, 5)
         end
         
-        -- Draw individual enemy
+        -- Draw individual enemy UI
         self:drawSingleEnemy(enemy, x, y)
     end
     
@@ -896,7 +898,7 @@ local function drawMultipleEnemies(self)
             local enemy = self.enemies[enemyIndex]
             
             local x = startX + (i-1) * enemyWidth + (enemyWidth/2) - 100 -- Center in space
-            local y = 200 -- Second row position (below first row)
+            local y = 110 -- Second row position (adjusted from 200 to be closer to first row)
             
             -- Highlight currently active enemy 
             if self.state == combatSystem.STATE.ENEMY_TURN and enemyIndex == self.activeEnemyIndex then
@@ -910,101 +912,78 @@ local function drawMultipleEnemies(self)
                 love.graphics.rectangle("fill", x - 10, y - 10, 220, enemyHeight - 20, 5, 5)
             end
             
-            -- Draw individual enemy
+            -- Draw individual enemy UI
             self:drawSingleEnemy(enemy, x, y)
         end
     end
 end
 
--- Draw a single enemy at specified position
+-- Draw a single enemy's UI elements (health bar, status, etc.)
 local function drawSingleEnemy(self, enemy, x, y)
+    -- Draw background for enemy info for better readability
+    love.graphics.setColor(0, 0, 0, 0.6)
+    love.graphics.rectangle("fill", x - 5, y - 5, 210, 100, 5, 5)
+    
     -- Draw enemy name
-    love.graphics.setFont(safeGetFont("large"))
+    love.graphics.setFont(safeGetFont("medium")) -- Changed from large to medium
     love.graphics.setColor(1, 0.5, 0.5)
     love.graphics.print(enemy.name, x, y)
     
     -- Draw enemy health bar
     local healthWidth = 200 * (enemy.currentHP / enemy.maxHP)
     love.graphics.setColor(0.2, 0.2, 0.2)
-    love.graphics.rectangle("fill", x, y + 40, 200, 20)
+    love.graphics.rectangle("fill", x, y + 30, 200, 20) -- Moved up from y+40
     love.graphics.setColor(0.8, 0.2, 0.2)
-    love.graphics.rectangle("fill", x, y + 40, healthWidth, 20)
+    love.graphics.rectangle("fill", x, y + 30, healthWidth, 20) -- Moved up from y+40
     
-    -- Draw HP text - moved 20px to the right
+    -- Draw HP text
     love.graphics.setFont(safeGetFont("small"))
     love.graphics.setColor(1, 1, 1)
     
     -- Display HP values directly - should never be nil
     love.graphics.print(
         enemy.currentHP .. " / " .. enemy.maxHP,
-        x + 90, y + 42 -- Moved from x + 70 to x + 90
+        x + 90, y + 32 -- Adjusted from y+42
     )
     
-    -- Draw enemy sprite below the health bar
-    love.graphics.setColor(1, 1, 1)
-    
-    -- Try to load and draw the enemy sprite
-    local sprite = nil
-    if enemy.sprite then -- Use enemy.sprite which should be the correct PascalCase key
-        sprite = assetManager:getImage("monster", enemy.sprite)
-    end
-    
-    if sprite then
-        -- Calculate size for sprite (max 150px width/height for multiple enemies)
-        local maxSize = #self.enemies > 1 and 120 or 200
-        local width = sprite:getWidth()
-        local height = sprite:getHeight()
-        local scale = math.min(maxSize / width, maxSize / height)
-        
-        -- Draw centered below the health bar
-        love.graphics.draw(
-            sprite, 
-            x + 100 - (width * scale / 2), 
-            y + 70, -- Position below the health bar
-            0, -- rotation
-            scale, -- scale x
-            scale  -- scale y
-        )
-    else
-        -- Draw placeholder if sprite not found
-        love.graphics.setColor(0.6, 0.6, 0.6)
-        love.graphics.rectangle("fill", x + 40, y + 70, 120, 120)
-        love.graphics.setColor(0.8, 0.4, 0.4)
-        love.graphics.setFont(safeGetFont("medium"))
-        love.graphics.printf(enemy.name or "Monster", x + 40, y + 120, 120, "center")
-        
-        -- Debug info for sprite loading failure
-        if GAME.debug and enemy.id then
-            love.graphics.setColor(1, 1, 0)
-            love.graphics.setFont(safeGetFont("small"))
-            love.graphics.printf("ID: " .. enemy.id .. "\nSpriteKey: " .. (enemy.sprite or "N/A"), x + 40, y + 150, 120, "center")
-        end
+    -- Draw small target indicator if selected
+    if self.selectedTarget == enemy then
+        love.graphics.setColor(0.1, 0.8, 0.1, 0.7)
+        love.graphics.circle("fill", x + 100, y + 65, 10)
+        love.graphics.setColor(0.2, 1, 0.2, 1)
+        love.graphics.circle("line", x + 100, y + 65, 10)
     end
     
     -- Draw status effects using the helper function
     if enemy and enemy.status and next(enemy.status) then
         local uiHelpers = require("gameplay/combat/uiHelpers")
-        uiHelpers.drawStatusEffects(enemy, x, y + 195, 28, 5)
+        uiHelpers.drawStatusEffects(enemy, x, y + 65, 22, 5) -- Moved up from y+195
     end
     
     -- Draw resistances/vulnerabilities if this is the selected target
     if enemy and self.selectedTarget == enemy and enemy.resistances then
+        -- Create a small panel for resistances to make them readable
+        love.graphics.setColor(0, 0, 0, 0.7)
+        love.graphics.rectangle("fill", x + 210, y, 120, 100, 5, 5)
+        
         love.graphics.setFont(safeGetFont("small"))
         love.graphics.setColor(1, 1, 1, 0.8)
         
-        local resistY = y + 230
-        love.graphics.print("Resistances:", x, resistY)
-        resistY = resistY + 20
+        local resistY = y + 5 -- Start at top of resistance panel
+        love.graphics.print("Resistances:", x + 215, resistY)
+        resistY = resistY + 15
         
         -- Get notable resistances/vulnerabilities (those with significant values)
+        local count = 0
         for damageType, value in pairs(enemy.resistances) do
-            if math.abs(value) >= 20 then -- Only show significant resistances/vulnerabilities
+            if math.abs(value) >= 20 and count < 4 then -- Only show significant resistances/vulnerabilities, limit to 4
+                count = count + 1
                 if value < 0 then
                     love.graphics.setColor(0.4, 0.8, 0.4) -- Green for resistance
-                    love.graphics.print(damageType .. " " .. value .. "%", x + 10, resistY)
+                    love.graphics.print(damageType .. " " .. value .. "%", x + 215, resistY)
                 else
                     love.graphics.setColor(0.8, 0.4, 0.4) -- Red for vulnerability
-                    love.graphics.print(damageType .. " +" .. value .. "%", x + 10, resistY)
+                    love.graphics.print(damageType .. " +" .. value .. "%", x + 215, resistY)
                 end
                 resistY = resistY + 15
             end
@@ -1014,11 +993,11 @@ local function drawSingleEnemy(self, enemy, x, y)
         if enemy.immunities and #enemy.immunities > 0 then
             resistY = resistY + 5
             love.graphics.setColor(0.8, 0.8, 0.2)
-            love.graphics.print("Immune to:", x, resistY)
+            love.graphics.print("Immune:", x + 215, resistY)
             resistY = resistY + 15
             
-            for _, immunity in ipairs(enemy.immunities) do
-                love.graphics.print("- " .. immunity, x + 10, resistY)
+            for i = 1, math.min(2, #enemy.immunities) do -- Limit to 2 immunities
+                love.graphics.print("- " .. enemy.immunities[i], x + 215, resistY)
                 resistY = resistY + 15
             end
         end
