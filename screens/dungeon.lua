@@ -358,7 +358,7 @@ function dungeon:populateDungeon(difficulty)
         local fetchedMonsterData = monsterDataModule:getMonsterData(objective.targetId)
         if not fetchedMonsterData then print("Error: Cannot find monster data for KILL quest target: " .. objective.targetId); return end
         for i = 1, objective.count do
-            local x, y = self:findValidSpawnPosition()
+            local x, y = self:findValidSpawnPosition(false, true, 5, 4, "monster")
             if x then 
                 table.insert(self.entities, {
                     x = x + 0.5,
@@ -384,7 +384,7 @@ function dungeon:populateDungeon(difficulty)
              fetchedItemData = { name = objective.itemName or objective.itemId, type = "quest_item", questItemId = objective.itemId, color = {1, 1, 0} }
         end
         for i = 1, objective.count do
-            local x, y = self:findValidSpawnPosition()
+            local x, y = self:findValidSpawnPosition(false, true, 4, 3, "quest_item")
              if x then 
                 table.insert(self.entities, {
                     x = x + 0.5,
@@ -430,7 +430,13 @@ function dungeon:populateDungeon(difficulty)
         local exitX, exitY = self.map.end_.x, self.map.end_.y
         
         -- Place monsters near entrance (but not too close)
-        for i = 1, math.min(3, difficulty) do
+        local entranceMonsters = 0
+        local entranceMonsterAttempts = math.min(3, difficulty) * 2
+        
+        while entranceMonsters < math.min(3, difficulty) and entranceMonsterAttempts > 0 do
+            entranceMonsterAttempts = entranceMonsterAttempts - 1
+            
+            -- Find a position near entrance but not too close
             local x = entranceX + math.random(-5, 5)
             local y = entranceY + math.random(-5, 5)
             
@@ -439,29 +445,48 @@ function dungeon:populateDungeon(difficulty)
                self.map:getCell(x, y) == 0 and
                (math.abs(x - entranceX) > 2 or math.abs(y - entranceY) > 2) then
                 
-                -- Get a slightly tougher monster for escorts
-                local scaledDifficulty = math.min(5, difficulty + 1) -- Scale up difficulty by 1
-                local randomMonsterId = monsterDataModule:getRandomMonsterId(scaledDifficulty)
-                local fetchedMonsterData = monsterDataModule:getMonsterData(randomMonsterId)
+                -- Check distance to other entities
+                local tooClose = false
+                for _, entity in ipairs(self.entities) do
+                    local dist = math.sqrt((x - entity.x)^2 + (y - entity.y)^2)
+                    if dist < 4 then -- Keep monsters spaced out
+                        tooClose = true
+                        break
+                    end
+                end
                 
-                if fetchedMonsterData then
-                    table.insert(self.entities, {
-                        x = x + 0.5,
-                        y = y + 0.5,
-                        type = "monster",
-                        id = randomMonsterId,
-                        name = fetchedMonsterData.name,
-                        color = fetchedMonsterData.color,
-                        stats = fetchedMonsterData.stats,
-                        sprite = fetchedMonsterData.sprite,
-                        category = fetchedMonsterData.category
-                    })
+                if not tooClose then
+                    -- Get a slightly tougher monster for escorts
+                    local scaledDifficulty = math.min(5, difficulty + 1) -- Scale up difficulty by 1
+                    local randomMonsterId = monsterDataModule:getRandomMonsterId(scaledDifficulty)
+                    local fetchedMonsterData = monsterDataModule:getMonsterData(randomMonsterId)
+                    
+                    if fetchedMonsterData then
+                        table.insert(self.entities, {
+                            x = x + 0.5,
+                            y = y + 0.5,
+                            type = "monster",
+                            id = randomMonsterId,
+                            name = fetchedMonsterData.name,
+                            color = fetchedMonsterData.color,
+                            stats = fetchedMonsterData.stats,
+                            sprite = fetchedMonsterData.sprite,
+                            category = fetchedMonsterData.category
+                        })
+                        entranceMonsters = entranceMonsters + 1
+                    end
                 end
             end
         end
         
         -- Place monsters near exit (but not too close)
-        for i = 1, math.min(3, difficulty) do
+        local exitMonsters = 0
+        local exitMonsterAttempts = math.min(3, difficulty) * 2
+        
+        while exitMonsters < math.min(3, difficulty) and exitMonsterAttempts > 0 do
+            exitMonsterAttempts = exitMonsterAttempts - 1
+            
+            -- Find a position near exit but not too close
             local x = exitX + math.random(-5, 5)
             local y = exitY + math.random(-5, 5)
             
@@ -470,23 +495,36 @@ function dungeon:populateDungeon(difficulty)
                self.map:getCell(x, y) == 0 and
                (math.abs(x - exitX) > 2 or math.abs(y - exitY) > 2) then
                 
-                -- Get a tougher monster for exit area
-                local scaledDifficulty = math.min(5, difficulty + 2) -- Scale up difficulty by 2
-                local randomMonsterId = monsterDataModule:getRandomMonsterId(scaledDifficulty)
-                local fetchedMonsterData = monsterDataModule:getMonsterData(randomMonsterId)
+                -- Check distance to other entities
+                local tooClose = false
+                for _, entity in ipairs(self.entities) do
+                    local dist = math.sqrt((x - entity.x)^2 + (y - entity.y)^2)
+                    if dist < 4 then -- Keep monsters spaced out
+                        tooClose = true
+                        break
+                    end
+                end
                 
-                if fetchedMonsterData then
-                    table.insert(self.entities, {
-                        x = x + 0.5,
-                        y = y + 0.5,
-                        type = "monster",
-                        id = randomMonsterId,
-                        name = fetchedMonsterData.name,
-                        color = fetchedMonsterData.color,
-                        stats = fetchedMonsterData.stats,
-                        sprite = fetchedMonsterData.sprite,
-                        category = fetchedMonsterData.category
-                    })
+                if not tooClose then
+                    -- Get a tougher monster for exit area
+                    local scaledDifficulty = math.min(5, difficulty + 2) -- Scale up difficulty by 2
+                    local randomMonsterId = monsterDataModule:getRandomMonsterId(scaledDifficulty)
+                    local fetchedMonsterData = monsterDataModule:getMonsterData(randomMonsterId)
+                    
+                    if fetchedMonsterData then
+                        table.insert(self.entities, {
+                            x = x + 0.5,
+                            y = y + 0.5,
+                            type = "monster",
+                            id = randomMonsterId,
+                            name = fetchedMonsterData.name,
+                            color = fetchedMonsterData.color,
+                            stats = fetchedMonsterData.stats,
+                            sprite = fetchedMonsterData.sprite,
+                            category = fetchedMonsterData.category
+                        })
+                        exitMonsters = exitMonsters + 1
+                    end
                 end
             end
         end
@@ -507,7 +545,7 @@ function dungeon:populateDungeon(difficulty)
 end
 
 -- Helper to find a valid spawn position away from start/end
-function dungeon:findValidSpawnPosition(avoidEnd, avoidStartRoom)
+function dungeon:findValidSpawnPosition(avoidEnd, avoidStartRoom, minDistFromPlayer, minDistFromEntities, entityType)
     local attempts = 0
     -- Scale max attempts with map size
     local dungeonArea = self.map.width * self.map.height
@@ -520,6 +558,17 @@ function dungeon:findValidSpawnPosition(avoidEnd, avoidStartRoom)
     if avoidStartRoom and self.map.rooms and #self.map.rooms > 0 then
         startRoom = self.map.rooms[1]
     end
+    
+    -- Default minimum distances if not specified
+    minDistFromPlayer = minDistFromPlayer or 3
+    minDistFromEntities = minDistFromEntities or 1
+    
+    -- Specific entity type distance maps
+    local typeDistances = {
+        monster = 4,  -- Monsters should be further apart from each other
+        chest = 3,    -- Chests should not be too close to each other
+        trap = 3      -- Traps should be spaced out
+    }
     
     while attempts < maxAttempts do
         attempts = attempts + 1
@@ -534,23 +583,41 @@ function dungeon:findValidSpawnPosition(avoidEnd, avoidStartRoom)
                              y >= startRoom.y and y < startRoom.y + startRoom.height)
         end
         
+        -- Calculate distance from player spawn point
+        local distFromPlayer = math.sqrt((x - self.map.start.x)^2 + (y - self.map.start.y)^2)
+        
         if self.map:getCell(x, y) == 0 and
-           (math.abs(x - self.map.start.x) > 2 or math.abs(y - self.map.start.y) > 2) and
+           distFromPlayer > minDistFromPlayer and
            (not avoidEnd or not isEndPos) and
            (not avoidStartRoom or not isInStartRoom) then
-             -- Check proximity to other entities to avoid stacking
+            
+            -- Check proximity to other entities to avoid stacking
             local tooClose = false
             for _, entity in ipairs(self.entities) do
-                if math.abs(x - entity.x) < 1 and math.abs(y - entity.y) < 1 then
+                -- Calculate distance to this entity
+                local dist = math.sqrt((x - entity.x)^2 + (y - entity.y)^2)
+                
+                -- Default minimum distance
+                local minDist = minDistFromEntities
+                
+                -- If this is an entity of the same type, use type-specific distance
+                if entityType and entity.type == entityType and typeDistances[entityType] then
+                    minDist = typeDistances[entityType]
+                end
+                
+                -- Check distance against minimum
+                if dist < minDist then
                     tooClose = true
                     break
                 end
             end
+            
             if not tooClose then
                 return x, y
             end
         end
     end
+    
     print("Warning: Could not find valid spawn position after " .. maxAttempts .. " attempts.")
     return nil, nil -- Indicate failure
 end
@@ -575,10 +642,16 @@ function dungeon:addFillerEntities(difficulty, count, avoidEnd)
     -- Keep track of monsters added and hidden monsters added
     local monstersAdded = 0
     local hiddenMonstersAdded = 0
+    local entitiesDiscarded = 0
 
     -- Add filler monsters
-    for i = 1, monsterCount do
-        local x, y = self:findValidSpawnPosition(avoidEnd)
+    local monsterAttempts = monsterCount * 2 -- Allow for some failures
+    while monstersAdded < monsterCount and monsterAttempts > 0 do
+        monsterAttempts = monsterAttempts - 1
+        
+        -- Find a valid position with increased distance requirements
+        local x, y = self:findValidSpawnPosition(avoidEnd, true, 5, 4, "monster")
+        
         if x then
             -- Choose a random non-quest monster type
             local randomMonsterId = usedMonsterData:getRandomMonsterId(difficulty) 
@@ -609,12 +682,21 @@ function dungeon:addFillerEntities(difficulty, count, avoidEnd)
             else
                 print("Warning: Could not get data for random filler monster ID: " .. tostring(randomMonsterId))
             end
+        else
+            entitiesDiscarded = entitiesDiscarded + 1
         end
     end
 
     -- Add filler chests
-    for i = 1, itemCount do
-        local x, y = self:findValidSpawnPosition(avoidEnd)
+    local chestAttempts = itemCount * 2 -- Allow for some failures
+    local chestsAdded = 0
+    
+    while chestsAdded < itemCount and chestAttempts > 0 do
+        chestAttempts = chestAttempts - 1
+        
+        -- Find a valid position with appropriate spacing for chests
+        local x, y = self:findValidSpawnPosition(avoidEnd, true, 4, 3, "chest")
+        
         if x then
             -- Get a random chest sprite name
             local assetManager = require("assets/assetManager")
@@ -649,7 +731,14 @@ function dungeon:addFillerEntities(difficulty, count, avoidEnd)
             
             -- Add chest to entities
             table.insert(self.entities, item)
+            chestsAdded = chestsAdded + 1
+        else
+            entitiesDiscarded = entitiesDiscarded + 1
         end
+    end
+    
+    if entitiesDiscarded > 0 then
+        print("Discarded " .. entitiesDiscarded .. " filler entities due to placement constraints")
     end
     
     -- Add traps and secret passages
@@ -687,110 +776,131 @@ function dungeon:addTrapsAndSecretPassages(difficulty)
     
     -- Add floor traps
     local placedTraps = {}
+    local trapsDiscarded = 0
+    local trapsAdded = 0
     
-    for i = 1, numTraps do
-        local attempts = 0
-        local maxAttempts = 50
-        local validPosition = false
-        local x, y
+    -- Allow for some placement failures
+    local trapAttempts = numTraps * 2
+    
+    while trapsAdded < numTraps and trapAttempts > 0 do
+        trapAttempts = trapAttempts - 1
         
-        while attempts < maxAttempts and not validPosition do
-            attempts = attempts + 1
-            
-            -- Find a valid spawn position (avoid end and starting room)
-            x, y = self:findValidSpawnPosition(false, true)
-            
-            if x then
-                -- Check distance from all other traps
-                validPosition = true
-                for _, trap in ipairs(placedTraps) do
-                    local distance = math.sqrt((trap.x - x)^2 + (trap.y - y)^2)
-                    if distance < minTrapDistance then
-                        validPosition = false
-                        break
-                    end
+        -- Find a valid position for a trap
+        -- We use findValidSpawnPosition with trap-specific parameters
+        local x, y = self:findValidSpawnPosition(false, true, 6, 3, "trap")
+        
+        if x then
+            -- Additional check for minimum distance from other traps
+            local validPosition = true
+            for _, trap in ipairs(placedTraps) do
+                local distance = math.sqrt((trap.x - x)^2 + (trap.y - y)^2)
+                if distance < minTrapDistance then
+                    validPosition = false
+                    break
                 end
             end
-        end
-        
-        if validPosition and x then
-            -- Select a random trap type
-            local trapTypes = {"spike", "gas", "dart"}
-            local trapType = trapTypes[math.random(1, #trapTypes)]
             
-            -- Add trap to the map
-            local newTrap = trapSystem:addTrap(self.map, x, y, {
-                trapType = trapType,
-                hintFactor = 0 -- Initially not visible
-            })
-            
-            -- Add to our placed traps list for distance checking
-            table.insert(placedTraps, {x = x, y = y})
-            
-            print("Added " .. trapType .. " trap at " .. x .. "," .. y)
+            if validPosition then
+                -- Select a random trap type
+                local trapTypes = {"spike", "gas", "dart"}
+                local trapType = trapTypes[math.random(1, #trapTypes)]
+                
+                -- Add trap to the map
+                local newTrap = trapSystem:addTrap(self.map, x, y, {
+                    trapType = trapType,
+                    hintFactor = 0 -- Initially not visible
+                })
+                
+                -- Add to our placed traps list for distance checking
+                table.insert(placedTraps, {x = x, y = y})
+                trapsAdded = trapsAdded + 1
+                
+                print("Added " .. trapType .. " trap at " .. x .. "," .. y)
+            else
+                trapsDiscarded = trapsDiscarded + 1
+            end
         else
-            print("Could not place trap #" .. i .. " after " .. maxAttempts .. " attempts")
+            trapsDiscarded = trapsDiscarded + 1
         end
     end
     
+    if trapsDiscarded > 0 then
+        print("Discarded " .. trapsDiscarded .. " traps due to placement constraints")
+    end
+    
     -- Create some interactable walls that reveal secret passages
-    for i = 1, numSecretPassages do
-        -- Find a wall tile that isn't on the edge of the map
-        local attempts = 0
-        local maxAttempts = 50
-        local wallX, wallY, passageX, passageY
+    local passagesDiscarded = 0
+    local passagesAdded = 0
+    local passageAttempts = numSecretPassages * 3 -- Allow more attempts for passages
+    
+    while passagesAdded < numSecretPassages and passageAttempts > 0 do
+        passageAttempts = passageAttempts - 1
         
-        while attempts < maxAttempts do
-            attempts = attempts + 1
+        -- Find a wall tile that isn't on the edge of the map and away from player start
+        local wallX = math.random(2, self.map.width - 3)
+        local wallY = math.random(2, self.map.height - 3)
+        
+        -- Check distance from start room
+        local distFromStart = math.sqrt(
+            (wallX - startRoom.x - startRoom.width/2)^2 + 
+            (wallY - startRoom.y - startRoom.height/2)^2
+        )
+        
+        -- Only use wall tiles that are not close to player start
+        if distFromStart > 8 and self.map:getCell(wallX, wallY) > 0 then
+            -- Look for an adjacent wall to turn into a passage
+            -- Try all 4 directions
+            local dirs = {{1,0}, {0,1}, {-1,0}, {0,-1}}
+            local shuffled = {}
+            for j, dir in ipairs(dirs) do shuffled[j] = dir end
             
-            -- Get a random wall tile
-            wallX = math.random(2, self.map.width - 3)
-            wallY = math.random(2, self.map.height - 3)
+            -- Shuffle directions
+            for j = #shuffled, 2, -1 do
+                local k = math.random(1, j)
+                shuffled[j], shuffled[k] = shuffled[k], shuffled[j]
+            end
             
-            -- Only use wall tiles
-            if self.map:getCell(wallX, wallY) > 0 then
-                -- Look for an adjacent wall to turn into a passage
-                -- Try all 4 directions
-                local dirs = {{1,0}, {0,1}, {-1,0}, {0,-1}}
-                local shuffled = {}
-                for j, dir in ipairs(dirs) do shuffled[j] = dir end
+            -- Check each direction
+            local passageCreated = false
+            for _, dir in ipairs(shuffled) do
+                local passageX = wallX + dir[1]
+                local passageY = wallY + dir[2]
                 
-                -- Shuffle directions
-                for j = #shuffled, 2, -1 do
-                    local k = math.random(1, j)
-                    shuffled[j], shuffled[k] = shuffled[k], shuffled[j]
-                end
-                
-                -- Check each direction
-                for _, dir in ipairs(shuffled) do
-                    passageX = wallX + dir[1]
-                    passageY = wallY + dir[2]
+                -- Make sure the passage is a wall
+                if self.map:getCell(passageX, passageY) > 0 then
+                    -- Check if there's open space beyond the passage
+                    local beyondX = passageX + dir[1]
+                    local beyondY = passageY + dir[2]
                     
-                    -- Make sure the passage is a wall
-                    if self.map:getCell(passageX, passageY) > 0 then
-                        -- Check if there's open space beyond the passage
-                        local beyondX = passageX + dir[1]
-                        local beyondY = passageY + dir[2]
+                    if beyondX > 0 and beyondX < self.map.width and
+                       beyondY > 0 and beyondY < self.map.height and
+                       self.map:getCell(beyondX, beyondY) == 0 then
+                        -- We found a suitable place for a secret passage
                         
-                        if beyondX > 0 and beyondX < self.map.width and
-                           beyondY > 0 and beyondY < self.map.height and
-                           self.map:getCell(beyondX, beyondY) == 0 then
-                            -- We found a suitable place for a secret passage
-                            
-                            -- Create an interactable wall
-                            interactables:addInteractableWall(self.map, wallX, wallY, {
-                                interactionPrompt = "Examine Wall [E]",
-                                revealsPassageAt = {x = passageX, y = passageY}
-                            })
-                            
-                            -- Create a secret passage
-                            interactables:addSecretPassage(self.map, passageX, passageY, {
-                                secretPassageType = "slide"
-                            })
-                            
-                            print("Added secret passage at " .. passageX .. "," .. passageY .. " revealed by wall at " .. wallX .. "," .. wallY)
-                            
-                            -- Add some treasure beyond the passage
+                        -- Create an interactable wall
+                        interactables:addInteractableWall(self.map, wallX, wallY, {
+                            interactionPrompt = "Examine Wall [E]",
+                            revealsPassageAt = {x = passageX, y = passageY}
+                        })
+                        
+                        -- Create a secret passage
+                        interactables:addSecretPassage(self.map, passageX, passageY, {
+                            secretPassageType = "slide"
+                        })
+                        
+                        print("Added secret passage at " .. passageX .. "," .. passageY .. " revealed by wall at " .. wallX .. "," .. wallY)
+                        
+                        -- Add some treasure beyond the passage, only if it's not too close to other entities
+                        local entityNearby = false
+                        for _, entity in ipairs(self.entities) do
+                            local dist = math.sqrt((beyondX - entity.x)^2 + (beyondY - entity.y)^2)
+                            if dist < 3 then
+                                entityNearby = true
+                                break
+                            end
+                        end
+                        
+                        if not entityNearby then
                             local treasureItem = {
                                 x = beyondX + 0.5,
                                 y = beyondY + 0.5,
@@ -805,15 +915,25 @@ function dungeon:addTrapsAndSecretPassages(difficulty)
                             
                             -- Add chest to entities
                             table.insert(self.entities, treasureItem)
-                            
-                            -- Break out of both loops
-                            attempts = maxAttempts
-                            break
                         end
+                        
+                        passageCreated = true
+                        passagesAdded = passagesAdded + 1
+                        break
                     end
                 end
             end
+            
+            if not passageCreated then
+                passagesDiscarded = passagesDiscarded + 1
+            end
+        else
+            passagesDiscarded = passagesDiscarded + 1
         end
+    end
+    
+    if passagesDiscarded > 0 then
+        print("Discarded " .. passagesDiscarded .. " secret passages due to placement constraints")
     end
 end
 
@@ -2752,3 +2872,4 @@ function dungeon:restoreDungeonState()
 end
 
 return dungeon
+
