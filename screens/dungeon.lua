@@ -342,6 +342,17 @@ function dungeon:populateDungeon(difficulty)
     local questType = self.currentQuest.type
     local objective = self.currentQuest.objective
 
+    -- Calculate base entity count - scales with difficulty AND dungeon size
+    local dungeonArea = self.map.width * self.map.height
+    local baseDungeonArea = 20 * 20 -- The area of difficulty 1 dungeon
+    local areaSizeFactor = math.sqrt(dungeonArea / baseDungeonArea) -- Square root to avoid excessive scaling
+    
+    -- Now scale the base count by both difficulty and area factor
+    local baseEntityCount = math.floor(10 * difficulty * areaSizeFactor)
+    
+    print("Dungeon size factor: " .. string.format("%.2f", areaSizeFactor) .. 
+          ", Base entity count: " .. baseEntityCount)
+
     -- Add quest-specific entities
     if questType == "KILL" then
         local fetchedMonsterData = monsterDataModule:getMonsterData(objective.targetId)
@@ -362,8 +373,8 @@ function dungeon:populateDungeon(difficulty)
                 })
             end
         end
-        -- Optionally add some unrelated filler monsters/items
-        self:addFillerEntities(difficulty, 3, false) -- Add 3 filler monsters/items
+        -- Add filler monsters/items - more for larger/harder dungeons
+        self:addFillerEntities(difficulty, baseEntityCount, false)
 
     elseif questType == "COLLECT" then
         local fetchedItemData = itemSystem:getItemData(objective.itemId)
@@ -385,8 +396,8 @@ function dungeon:populateDungeon(difficulty)
                 })
             end
         end
-         -- Optionally add filler monsters/items
-        self:addFillerEntities(difficulty, 5, false) -- avoidEnd is false here
+         -- Add filler monsters/items - more for larger/harder dungeons
+        self:addFillerEntities(difficulty, baseEntityCount, false)
 
     elseif questType == "BOSS" then
         -- Place boss at the end location
@@ -404,14 +415,14 @@ function dungeon:populateDungeon(difficulty)
             sprite = fetchedBossData.sprite, -- Add sprite path
             category = fetchedBossData.category -- Add category
         })
-         -- Optionally add filler monsters/items, avoiding the end room
-        self:addFillerEntities(difficulty, 5, true) 
+         -- Add filler monsters/items - more for larger/harder dungeons
+        self:addFillerEntities(difficulty, baseEntityCount, true)
 
     elseif questType == "ESCORT" then
         -- TODO: Add NPC entity to follow player
         print("ESCORT quest population not fully implemented.")
-        -- Scale monster count based on difficulty
-        local monsterCount = 5 + (difficulty * 3) -- 8 for medium, 11 for hard, 14 for very hard
+        -- Calculate monster count based on dungeon size and difficulty
+        local monsterCount = math.floor(baseEntityCount * 0.8) -- 80% of base entity count for monsters
         
         -- For ESCORT quests, place some monsters near the entrance and exit
         -- This ensures the player encounters monsters at critical points
@@ -486,13 +497,11 @@ function dungeon:populateDungeon(difficulty)
     elseif questType == "EXPLORE" then
         -- No specific entities needed, objective is reaching the end
         -- Add filler monsters/items
-        local monsterCount = 5 + (difficulty * 3)
-        self:addFillerEntities(difficulty, monsterCount)
+        self:addFillerEntities(difficulty, baseEntityCount)
         
     else 
         -- Fallback for unknown quest types
-        local monsterCount = 5 + (difficulty * 3)
-        self:addFillerEntities(difficulty, monsterCount)
+        self:addFillerEntities(difficulty, baseEntityCount)
     end
 
 end
@@ -500,7 +509,11 @@ end
 -- Helper to find a valid spawn position away from start/end
 function dungeon:findValidSpawnPosition(avoidEnd, avoidStartRoom)
     local attempts = 0
-    local maxAttempts = 50
+    -- Scale max attempts with map size
+    local dungeonArea = self.map.width * self.map.height
+    local baseArea = 20 * 20
+    local areaSizeFactor = math.sqrt(dungeonArea / baseArea)
+    local maxAttempts = math.ceil(50 * areaSizeFactor) -- Scale up for larger dungeons
     
     -- Get starting room if needed
     local startRoom = nil
@@ -644,9 +657,14 @@ function dungeon:addTrapsAndSecretPassages(difficulty)
     self.map = interactables:initializeMap(self.map)
     self.map = trapSystem:initializeMap(self.map)
     
-    -- Calculate number of traps and secret passages based on difficulty
-    local numTraps = math.floor(3 + (difficulty * 2))
-    local numSecretPassages = math.floor(1 + (difficulty * 0.5))
+    -- Calculate number of traps and secret passages based on difficulty AND dungeon size
+    local dungeonArea = self.map.width * self.map.height
+    local baseDungeonArea = 20 * 20
+    local areaSizeFactor = math.sqrt(dungeonArea / baseDungeonArea)
+    
+    -- Scale trap count with both difficulty and dungeon size
+    local numTraps = math.floor((3 + (difficulty * 2)) * areaSizeFactor)
+    local numSecretPassages = math.floor((1 + (difficulty * 0.5)) * areaSizeFactor)
     
     print("Adding " .. numTraps .. " traps and " .. numSecretPassages .. " secret passages")
     

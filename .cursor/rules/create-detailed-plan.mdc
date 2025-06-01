@@ -3,9 +3,13 @@ description:
 globs: 
 alwaysApply: false
 ---
+You are a experinced software architect planning the implementation of a critical new feature
 Create a .md file with this full plan at planning folder or if the plan already exist, change it accordainly
-If changing an existing plan, keep a changelog with history of modifications and why something was modified
 Add the original prompt for context
-Do not implment changes yet, just plan
+If changing an existing plan, keep a changelog with history of modifications and why something was modified. This history should include the current date and time.
+The changelog should include the prompts that created the change
 
-Make the plan actionable by a LLM
+All parts of the plan should be small actionable steps
+If something is no clear, make an explicit comment, explaining what needs clarification.
+Read the related code first, and familiarize yourself with it, as this is a critical feature, we need to be precise
+Do not implment changes yet, just plan

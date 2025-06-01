@@ -343,10 +343,10 @@ function combatSystem:createCombat(party, enemy, isAmbush)
         
         -- Calculate positions based on number of enemies
         local numEnemies = #self.enemies
-        local centerX = 5.5 -- Center of the 10-wide room's floor (2-9)
+        local centerX = 6.5 -- OLD: 6 -- Center of the 10-wide room's floor (2-9), adjusted left
         local frontZ = 7.5 -- Distance from camera (closer to player)
         local backZ = 8.5  -- Distance from camera for back row (further from player)
-        local spreadX = 2.0 -- Horizontal spread between enemies
+        local spreadX = 2 -- OLD: 2.0 -- Horizontal spread between enemies, slightly reduced
 
         -- Special layout for single enemy - position in center
         if numEnemies == 1 then
@@ -368,7 +368,7 @@ function combatSystem:createCombat(party, enemy, isAmbush)
             })
         else
             -- Multiple enemies - arrange in formation
-            local useDoubleRow = numEnemies >= 4
+            local useDoubleRow = numEnemies >= 3
             local frontRowCount = numEnemies
             local backRowCount = 0
             if useDoubleRow then
@@ -402,7 +402,7 @@ function combatSystem:createCombat(party, enemy, isAmbush)
                 local posX = centerX
                 if backRowCount > 1 then
                      local totalWidth = (backRowCount - 1) * spreadX
-                     local startX = centerX - (totalWidth / 2)
+                     local startX = centerX - (totalWidth / 2) - (spreadX / 2) -- Shift back row to the left
                      posX = startX + (i-1) * spreadX
                      -- Stagger back row slightly if not perfectly symmetrical with front
                      if backRowCount < frontRowCount and backRowCount > 1 then
