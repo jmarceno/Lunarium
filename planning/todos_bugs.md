@@ -1,4 +1,6 @@
 ### TODOs
+- Add Textures for chests and other ground loot (maybe just a small bag)
+- Add quests and other things tied to the lore documents
 - How to deal with damage out of combat in the dungeon?
   - Deaths
 
@@ -16,7 +18,6 @@
 - Check Message - ESCORT quest population not fully implemented. This is a console message that is being displayed
 - Add full keyboard navigation to the combat UI
 - Add "Decals" textures over walls and floor textures to make them look older or broken
-- Add Textures for chests and other ground loot (maybe just a small bag)
 - Add a place to revive characters - This is problematic as we will need some kind o church on overworld map (need to be redraw)
 - Internacionalization
 - Add more quests
