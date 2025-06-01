@@ -616,11 +616,16 @@ function dungeon:addFillerEntities(difficulty, count, avoidEnd)
     for i = 1, itemCount do
         local x, y = self:findValidSpawnPosition(avoidEnd)
         if x then
+            -- Get a random chest sprite name
+            local assetManager = require("assets/assetManager")
+            local chestSprite = assetManager:getRandomChestSpriteName()
+            
             local item = {
                 x = x + 0.5,
                 y = y + 0.5,
                 type = "chest",
-                color = {1, 0.8, 0},
+                color = {1, 0.8, 0}, -- Keep color as fallback
+                sprite = chestSprite, -- Add random chest sprite
                 contents = {}
             }
             
@@ -656,6 +661,9 @@ function dungeon:addTrapsAndSecretPassages(difficulty)
     -- Initialize interactables and trap systems for the map
     self.map = interactables:initializeMap(self.map)
     self.map = trapSystem:initializeMap(self.map)
+    
+    -- Make sure assetManager is available
+    local assetManager = require("assets/assetManager")
     
     -- Calculate number of traps and secret passages based on difficulty AND dungeon size
     local dungeonArea = self.map.width * self.map.height
@@ -787,7 +795,8 @@ function dungeon:addTrapsAndSecretPassages(difficulty)
                                 x = beyondX + 0.5,
                                 y = beyondY + 0.5,
                                 type = "chest",
-                                color = {1, 0.8, 0},
+                                color = {1, 0.8, 0}, -- Keep color as fallback
+                                sprite = assetManager:getRandomChestSpriteName(), -- Add random chest sprite
                                 contents = {}
                             }
                             

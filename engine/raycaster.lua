@@ -40,6 +40,10 @@ local raycaster = {
     floorTexturesEnabled = true,
     entitiesEnabled = true,
     spriteVerticalOffset = 0.2, -- Vertical offset for sprites (higher values = lower position)
+    monsterSpriteScale = 1.0, -- Scale factor for monster sprites
+    chestSpriteScale = 0.7, -- Scale factor for chest sprites (make them smaller)
+    monsterVerticalOffset = 0.2, -- Vertical offset for monster sprites
+    chestVerticalOffset = 0.6, -- Vertical offset for chest sprites (higher value makes them appear lower)
     
     -- CRT effect parameters
     crtEnabled = true,         -- CRT effect enabled by default
@@ -714,6 +718,13 @@ function raycaster:renderEntities(entities)
                     elseif GAME.debug then
                         print("Raycaster: Decoration sprite (from entity.sprite) not found: " .. entity.sprite)
                     end
+                elseif entity.type == "chest" then -- Handle chest sprites
+                    texture = assetManager:getImage("decoration", entity.sprite)
+                    if texture then
+                        normalTexture = assetManager:getNormalMap("decoration", entity.sprite)
+                    elseif GAME.debug then
+                        print("Raycaster: Chest sprite (from entity.sprite) not found: " .. entity.sprite)
+                    end
                 end
             elseif entity.texture then -- Fallback for older/other entity types
                  texture = assetManager.images.entities[entity.texture]
@@ -728,10 +739,29 @@ function raycaster:renderEntities(entities)
                     love.graphics.setDepthMode("lequal", true)
                     local fullHeight = self.viewWidth / perpDistance
                     local aspectRatio = texture:getHeight() / texture:getWidth()
-                    local spriteHeight = fullHeight 
+                    
+                    -- Apply different scaling and positioning based on entity type
+                    local spriteHeight, spriteScale, vertOffset
+                    
+                    if entity.type == "monster" then
+                        -- Monster sprites
+                        spriteScale = self.monsterSpriteScale
+                        vertOffset = self.monsterVerticalOffset
+                    elseif entity.type == "chest" then
+                        -- Chest sprites
+                        spriteScale = self.chestSpriteScale
+                        vertOffset = self.chestVerticalOffset
+                    else
+                        -- Default for other entity types
+                        spriteScale = 1.0
+                        vertOffset = self.spriteVerticalOffset
+                    end
+                    
+                    -- Apply the scale factor to the sprite height
+                    spriteHeight = fullHeight * spriteScale 
                     local spriteWidth = spriteHeight / aspectRatio
                     local spriteScreenX = math.floor((self.viewWidth / 2) * (1 + (objAngle / (self.fov/2))))
-                    local drawStartY = math.floor(self.halfHeight - spriteHeight / 2 + (self.camera.height / perpDistance) + self.camera.tilt + (spriteHeight * self.spriteVerticalOffset))
+                    local drawStartY = math.floor(self.halfHeight - spriteHeight / 2 + (self.camera.height / perpDistance) + self.camera.tilt + (spriteHeight * vertOffset))
                     local drawStartX = math.floor(spriteScreenX - spriteWidth / 2)
                     local shade = math.max(0.0, 1.0 - (perpDistance / self.shadeDepth))
                     
@@ -750,10 +780,27 @@ function raycaster:renderEntities(entities)
                     self.spriteShader:send("depth", perpDistance / self.maxDistance)
                     love.graphics.draw(texture, drawStartX, drawStartY, 0, spriteWidth / texture:getWidth(), spriteHeight / texture:getHeight())
                 elseif entity.color then
-                    local spriteHeight = math.floor(self.viewHeight / perpDistance)
+                    -- Apply different scaling and positioning based on entity type, similar to textured sprites
+                    local spriteScale, vertOffset
+                    
+                    if entity.type == "monster" then
+                        -- Monster sprites
+                        spriteScale = self.monsterSpriteScale
+                        vertOffset = self.monsterVerticalOffset
+                    elseif entity.type == "chest" then
+                        -- Chest sprites
+                        spriteScale = self.chestSpriteScale
+                        vertOffset = self.chestVerticalOffset
+                    else
+                        -- Default for other entity types
+                        spriteScale = 1.0
+                        vertOffset = self.spriteVerticalOffset
+                    end
+                    
+                    local spriteHeight = math.floor((self.viewHeight / perpDistance) * spriteScale)
                     local spriteWidth = spriteHeight
                     local spriteScreenX = math.floor((self.viewWidth / 2) * (1 + (objAngle / (self.fov/2))))
-                    local drawStartY = math.floor(self.halfHeight - spriteHeight / 2 + (self.camera.height / perpDistance) + self.camera.tilt + (spriteHeight * self.spriteVerticalOffset))
+                    local drawStartY = math.floor(self.halfHeight - spriteHeight / 2 + (self.camera.height / perpDistance) + self.camera.tilt + (spriteHeight * vertOffset))
                     local drawStartX = math.floor(spriteScreenX - spriteWidth / 2)
                     local drawHeight = math.min(spriteHeight, self.viewHeight - drawStartY)
                     local drawWidth = math.min(spriteWidth, self.viewWidth - drawStartX)

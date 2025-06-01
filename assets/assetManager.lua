@@ -37,6 +37,9 @@ function assetManager:init()
     -- Load monster sprites
     self:loadMonsterSprites()
     
+    -- Load chest sprites
+    self:loadChestSprites()
+    
     -- Create placeholder images for future textures
     self:createPlaceholders()
     
@@ -92,6 +95,48 @@ function assetManager:loadPortraits()
     end
     
     print("Loaded " .. count .. " portraits")
+end
+
+-- Load chest sprites from assets/Sprites/Objects directory
+function assetManager:loadChestSprites()
+    self.images.chests = {}
+    
+    -- Check if Objects directory exists
+    local info = love.filesystem.getInfo("assets/Sprites/Objects")
+    if not info or info.type ~= "directory" then
+        print("Warning: Objects directory not found")
+        return
+    end
+    
+    -- Get list of chest sprites
+    local files = love.filesystem.getDirectoryItems("assets/Sprites/Objects")
+    local chestCount = 0
+    
+    for _, file in ipairs(files) do
+        -- Match chest sprite files (chestXX.png)
+        if file:match("^chest%d+%.png$") then
+            local path = "assets/Sprites/Objects/" .. file
+            
+            -- Load image
+            local success, chestSprite = pcall(function()
+                return love.graphics.newImage(path)
+            end)
+            
+            if success and chestSprite then
+                -- Extract sprite name without extension
+                local spriteName = file:gsub("%.png$", "")
+                
+                -- Store chest sprite
+                self.images.chests[spriteName] = chestSprite
+                chestCount = chestCount + 1
+                print("  - Loaded chest sprite: " .. spriteName)
+            else
+                print("  - Failed to load chest sprite: " .. file)
+            end
+        end
+    end
+    
+    print("Loaded " .. chestCount .. " chest sprites")
 end
 
 -- Load wall and floor textures from the assets/Walls and assets/Floor directories
@@ -1146,6 +1191,20 @@ function assetManager:loadMonsterSprites()
     return self.images.monsterSprites
 end
 
+-- Get a random chest sprite name
+function assetManager:getRandomChestSpriteName()
+    if not self.images.chests or next(self.images.chests) == nil then
+        return nil
+    end
+    
+    local chestSprites = {}
+    for name, _ in pairs(self.images.chests) do
+        table.insert(chestSprites, name)
+    end
+    
+    return chestSprites[math.random(1, #chestSprites)]
+end
+
 -- Get an image by type and id
 -- Types: "portrait", "monster", "item", "wall", "floor", "townMap"
 -- Returns the image if found, nil otherwise
@@ -1191,6 +1250,11 @@ function assetManager:getImage(type, id)
     elseif type == "townMap" then
         -- Return town map image
         return self.images.townMap
+    elseif type == "decoration" then
+        -- First check for chest sprites
+        if id and id:match("^chest") and self.images.chests and self.images.chests[id] then
+            return self.images.chests[id]
+        end
     end
     
     -- Image not found
