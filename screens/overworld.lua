@@ -9,7 +9,7 @@ local overworld = screenManager:createScreen("Overworld")
 
 function overworld:init()
     -- Load continent map image
-    self.continentMapImage = assetManager:getImage("continentMap") or love.graphics.newImage("assets/temp_continent.jpg")
+    self.continentMapImage = assetManager:getImage("continentMap") or love.graphics.newImage("assets/overworld.png")
     
     -- Track if hover sound has been played to avoid repetition
     self.hoverSoundPlayed = false
