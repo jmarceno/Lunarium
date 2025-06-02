@@ -12,7 +12,8 @@ local smithRecipes = {
             ["Wood"] = 1
         },
         goldCost = 50,
-        category = "Weapons"
+        category = "Weapons",
+        locations = {"Delzor", "Kael"}
     },
     {
         name = "Steel Dagger",
@@ -24,7 +25,8 @@ local smithRecipes = {
             ["Wood"] = 1
         },
         goldCost = 40,
-        category = "Weapons"
+        category = "Weapons",
+        locations = {"Delzor", "Kael"}
     },
     {
         name = "Enchanted Staff",
@@ -35,7 +37,8 @@ local smithRecipes = {
             ["Magic Crystal"] = 1
         },
         goldCost = 60,
-        category = "Weapons"
+        category = "Weapons",
+        locations = {"Delzor", "Kael"}
     },
     {
         name = "Battle Axe",
@@ -47,7 +50,8 @@ local smithRecipes = {
             ["Monster Bone"] = 1
         },
         goldCost = 80,
-        category = "Weapons"
+        category = "Weapons",
+        locations = {"Delzor", "Kael"}
     },
     
     -- Armor recipes
@@ -60,7 +64,8 @@ local smithRecipes = {
             ["Cloth"] = 1
         },
         goldCost = 45,
-        category = "Armor"
+        category = "Armor",
+        locations = {"Delzor", "Kael"}
     },
     {
         name = "Chain Mail",
@@ -71,7 +76,8 @@ local smithRecipes = {
             ["Coal"] = 2
         },
         goldCost = 120,
-        category = "Armor"
+        category = "Armor",
+        locations = {"Delzor", "Kael"}
     },
     {
         name = "Mage Robe",
@@ -83,7 +89,8 @@ local smithRecipes = {
             ["Spider Silk"] = 1
         },
         goldCost = 100,
-        category = "Armor"
+        category = "Armor",
+        locations = {"Delzor", "Kael"}
     },
     
     -- Accessory recipes
@@ -96,7 +103,8 @@ local smithRecipes = {
             ["Iron Ore"] = 1
         },
         goldCost = 35,
-        category = "Accessories"
+        category = "Accessories",
+        locations = {"Delzor", "Kael"}
     },
     {
         name = "Holy Symbol",
@@ -107,7 +115,8 @@ local smithRecipes = {
             ["Magic Crystal"] = 1
         },
         goldCost = 70,
-        category = "Accessories"
+        category = "Accessories",
+        locations = {"Delzor", "Kael"}
     },
     {
         name = "Kite Shield",
@@ -119,7 +128,8 @@ local smithRecipes = {
             ["Monster Hide"] = 1
         },
         goldCost = 100,
-        category = "Accessories"
+        category = "Accessories",
+        locations = {"Delzor", "Kael"}
     }
 }
 

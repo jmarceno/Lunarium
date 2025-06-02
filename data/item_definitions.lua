@@ -31,6 +31,7 @@ local itemDefinitions = {
             ["2"] = "Knight",
         },
         description = "A simple copper amulet with minor protective properties.",
+        locations = {"Delzor", "Kael"}
     },
     Crossbow = {
         accuracy = 5,
@@ -49,6 +50,7 @@ local itemDefinitions = {
         },
         description = "A precise mechanical ranged weapon that's easier to aim than a bow.",
         magicAttack = 0,
+        locations = {"Delzor", "Kael"}
     },
     ApprenticeStaff = {
         name = "Apprentice Staff",
@@ -67,6 +69,7 @@ local itemDefinitions = {
         },
         description = "A basic staff for novice mages.",
         magicAttack = 12,
+        locations = {"Delzor", "Kael"}
     },
     HealingStaff = {
         name = "Healing Staff",
@@ -84,6 +87,7 @@ local itemDefinitions = {
         },
         description = "A staff that enhances healing magic.",
         magicAttack = 15,
+        locations = {"Delzor", "Kael"}
     },
     Antidote = {
         value = 20,
@@ -95,6 +99,7 @@ local itemDefinitions = {
             type = "cure_status",
         },
         type = "consumable",
+        locations = {"Delzor", "Kael"}
     },
     SacredBlade = {
         name = "Sacred Blade",
@@ -114,6 +119,7 @@ local itemDefinitions = {
         },
         description = "A legendary sword imbued with holy power.",
         magicAttack = 20,
+        locations = {"Delzor", "Kael"}
     },
     BattleAxe = {
         name = "Battle Axe",
@@ -131,6 +137,7 @@ local itemDefinitions = {
         },
         description = "A heavy axe that deals devastating damage.",
         magicAttack = 0,
+        locations = {"Delzor", "Kael"}
     },
     TribalArmor = {
         name = "Tribal Armor",
@@ -144,6 +151,7 @@ local itemDefinitions = {
             ["1"] = "Berserker",
         },
         description = "Lightweight armor decorated with tribal symbols.",
+        locations = {"Delzor", "Kael"}
     },
     ElementalRod = {
         name = "Elemental Rod",
@@ -161,6 +169,7 @@ local itemDefinitions = {
         },
         description = "A rod infused with elemental power.",
         magicAttack = 18,
+        locations = {"Delzor", "Kael"}
     },
     ShadowGarb = {
         name = "Shadow Garb",
@@ -177,6 +186,7 @@ local itemDefinitions = {
             ["1"] = "Assassin",
         },
         description = "Dark clothing that helps conceal the wearer.",
+        locations = {"Delzor", "Kael"}
     },
     HolyCrusaderArmor = {
         name = "Holy Crusader Armor",
@@ -194,6 +204,7 @@ local itemDefinitions = {
             ["2"] = "HolyKnight",
         },
         description = "Magnificent armor worn by the most devoted holy knights.",
+        locations = {"Delzor", "Kael"}
     },
     AssassinDagger = {
         name = "Assassin Dagger",
@@ -212,6 +223,7 @@ local itemDefinitions = {
         description = "A lethal blade designed for swift kills.",
         critRate = 15,
         magicAttack = 0,
+        locations = {"Delzor", "Kael"}
     },
     MageRobe = {
         name = "Mage Robe",
@@ -228,6 +240,7 @@ local itemDefinitions = {
             ["2"] = "BlackMage",
         },
         description = "A robe imbued with magical protection.",
+        locations = {"Delzor", "Kael"}
     },
     ArchmageStaff = {
         name = "Archmage Staff",
@@ -247,6 +260,7 @@ local itemDefinitions = {
         },
         description = "A staff of immense magical power.",
         magicAttack = 35,
+        locations = {"Delzor", "Kael"}
     },
     ApprenticeRobe = {
         name = "Apprentice Robe",
@@ -262,6 +276,7 @@ local itemDefinitions = {
             ["1"] = "Mage",
         },
         description = "A simple robe that aids in channeling magic.",
+        locations = {"Delzor", "Kael"}
     },
     Dagger = {
         name = "Dagger",
@@ -279,6 +294,7 @@ local itemDefinitions = {
         },
         description = "Quick and easy to handle.",
         magicAttack = 0,
+        locations = {"Delzor", "Kael"}
     },
     LightLeather = {
         name = "Light Leather",
@@ -294,6 +310,7 @@ local itemDefinitions = {
             ["1"] = "Rogue",
         },
         description = "Flexible leather gear for agile fighters.",
+        locations = {"Delzor", "Kael"}
     },
     ShadowbladeDaggers = {
         name = "Shadowblade Daggers",
@@ -313,6 +330,7 @@ local itemDefinitions = {
         description = "Twin daggers that seem to be made of shadow itself.",
         critRate = 25,
         magicAttack = 15,
+        locations = {"Delzor", "Kael"}
     },
     LeatherArmor = {
         name = "Leather Armor",
@@ -328,6 +346,7 @@ local itemDefinitions = {
             ["1"] = "Fighter",
         },
         description = "Basic protection made of hardened leather.",
+        locations = {"Delzor", "Kael"}
     },
     IronRing = {
         value = 50,
@@ -350,6 +369,7 @@ local itemDefinitions = {
         slot = "ring",
         name = "Iron Ring",
         type = "accessory",
+        locations = {"Delzor", "Kael"}
     },
     Toolkit = {
         name = "Toolkit",
@@ -369,6 +389,7 @@ local itemDefinitions = {
         jobs = {
             ["1"] = "Artificer",
         },
+        locations = {"Delzor", "Kael"}
     },
     RingOfDexterity = {
         name = "Ring of Dexterity",
@@ -388,6 +409,7 @@ local itemDefinitions = {
             ["1"] = "Rogue",
         },
         description = "A finely crafted ring that improves the wearer's agility.",
+        locations = {"Delzor", "Kael"}
     },
     HealthPotion = {
         value = 30,
@@ -399,6 +421,7 @@ local itemDefinitions = {
             type = "heal",
         },
         type = "consumable",
+        locations = {"Delzor", "Kael"}
     },
     Mace = {
         name = "Mace",
@@ -417,6 +440,7 @@ local itemDefinitions = {
         },
         description = "A blunt weapon favored by clerics.",
         magicAttack = 5,
+        locations = {"Delzor", "Kael"}
     },
     Bow = {
         name = "Bow",
@@ -433,6 +457,7 @@ local itemDefinitions = {
         },
         description = "A reliable ranged weapon.",
         magicAttack = 0,
+        locations = {"Delzor", "Kael"}
     },
     DivineAegis = {
         name = "Divine Aegis",
@@ -450,6 +475,7 @@ local itemDefinitions = {
             ["2"] = "HolyKnight",
         },
         description = "A shield blessed by the gods.",
+        locations = {"Delzor", "Kael"}
     },
     QuiverOfArrows = {
         attack = 4,
@@ -464,6 +490,7 @@ local itemDefinitions = {
         slot = "offhand",
         name = "Quiver of Arrows",
         type = "accessory",
+        locations = {"Delzor", "Kael"}
     },
     EngineersCrossbow = {
         accuracy = 10,
@@ -483,6 +510,7 @@ local itemDefinitions = {
         description = "An advanced crossbow with mechanical improvements for increased power and accuracy.",
         critRate = 5,
         magicAttack = 0,
+        locations = {"Delzor", "Kael"}
     },
     Longsword = {
         name = "Longsword",
@@ -501,6 +529,7 @@ local itemDefinitions = {
         },
         description = "A longer blade with better reach.",
         magicAttack = 0,
+        locations = {"Delzor", "Kael"}
     },
     HolySymbol = {
         name = "Holy Symbol",
@@ -522,6 +551,7 @@ local itemDefinitions = {
         requirements = {
             WIS = 5,
         },
+        locations = {"Delzor", "Kael"}
     },
     SilverAmulet = {
         name = "Silver Amulet",
@@ -539,6 +569,7 @@ local itemDefinitions = {
             ["1"] = "Mage",
         },
         magicAttack = 3,
+        locations = {"Delzor", "Kael"}
     },
     MasterToolkit = {
         name = "Master Toolkit",
@@ -559,6 +590,7 @@ local itemDefinitions = {
         jobs = {
             ["1"] = "BallistaMaster",
         },
+        locations = {"Delzor", "Kael"}
     },
     WoodenShield = {
         name = "Wooden Shield",
@@ -576,6 +608,7 @@ local itemDefinitions = {
             ["1"] = "Fighter",
         },
         description = "A basic wooden shield.",
+        locations = {"Delzor", "Kael"}
     },
     KiteShield = {
         name = "Kite Shield",
@@ -593,6 +626,7 @@ local itemDefinitions = {
             ["1"] = "Fighter",
         },
         description = "A large shield that offers excellent protection.",
+        locations = {"Delzor", "Kael"}
     },
     ShortSword = {
         name = "Short Sword",
@@ -612,6 +646,7 @@ local itemDefinitions = {
         },
         description = "A simple but reliable blade.",
         magicAttack = 0,
+        locations = {"Delzor", "Kael"}
     },
     Elixir = {
         value = 200,
@@ -622,6 +657,7 @@ local itemDefinitions = {
             target = "single",
         },
         type = "consumable",
+        locations = {"Delzor", "Kael"}
     },
     BandOfStrength = {
         name = "Band of Strength",
@@ -642,6 +678,7 @@ local itemDefinitions = {
         },
         value = 120,
         description = "A ring that enhances the wearer's physical power.",
+        locations = {"Delzor", "Kael"}
     },
     ManaPotion = {
         value = 40,
@@ -653,6 +690,7 @@ local itemDefinitions = {
             type = "restore_mp",
         },
         type = "consumable",
+        locations = {"Delzor", "Kael"}
     },
     EngineerGarb = {
         name = "Engineer Garb",
@@ -669,6 +707,7 @@ local itemDefinitions = {
             ["1"] = "BallistaMaster",
         },
         description = "Specialized outfit with numerous pockets and protective padding for handling mechanical contraptions.",
+        locations = {"Delzor", "Kael"}
     },
     ArchmagerobeOfPower = {
         name = "Archmage Robe of Power",
@@ -687,6 +726,7 @@ local itemDefinitions = {
             ["1"] = "BlackMage",
         },
         description = "A masterfully crafted robe that enhances all magical abilities.",
+        locations = {"Delzor", "Kael"}
     },
     ChainMail = {
         name = "Chain Mail",
@@ -704,6 +744,7 @@ local itemDefinitions = {
             ["1"] = "Fighter",
         },
         description = "Armor made of interlocking metal rings.",
+        locations = {"Delzor", "Kael"}
     },
     AmuletOfProtection = {
         name = "Amulet of Protection",
@@ -723,6 +764,7 @@ local itemDefinitions = {
             ["1"] = "Fighter",
         },
         description = "An enchanted amulet that provides substantial defense.",
+        locations = {"Delzor", "Kael"}
     },
     RangerLeathers = {
         name = "Ranger Leathers",
@@ -738,6 +780,7 @@ local itemDefinitions = {
             ["1"] = "Ranger",
         },
         description = "Treated leather armor favored by rangers.",
+        locations = {"Delzor", "Kael"}
     },
     AcolyteRobe = {
         name = "Acolyte Robe",
@@ -753,6 +796,7 @@ local itemDefinitions = {
             ["1"] = "Cleric",
         },
         description = "A robe worn by followers of the divine.",
+        locations = {"Delzor", "Kael"}
     },
     ShadowWalkerCloak = {
         name = "Shadow Walker Cloak",
@@ -771,6 +815,7 @@ local itemDefinitions = {
             ["2"] = "Shadowblade",
         },
         description = "A mysterious cloak that seems to bend light around the wearer.",
+        locations = {"Delzor", "Kael"}
     },
     ThrowingKnives = {
         name = "Throwing Knives",
@@ -787,6 +832,7 @@ local itemDefinitions = {
             ["2"] = "Assassin",
         },
         description = "A set of balanced knives for throwing.",
+        locations = {"Delzor", "Kael"}
     },
     WhiteRobe = {
         name = "White Robe",
@@ -803,6 +849,7 @@ local itemDefinitions = {
             ["2"] = "WhiteMage",
         },
         description = "A pristine robe that enhances healing magic.",
+        locations = {"Delzor", "Kael"}
     },
     MageRing = {
         name = "Mage Ring",
@@ -823,6 +870,7 @@ local itemDefinitions = {
             ["4"] = "Cleric",
         },
         magicAttack = 5,
+        locations = {"Delzor", "Kael"}
     },
 }
 
@@ -833,6 +881,7 @@ local monsterParts = {
         description = "A bone from a reanimated skeleton.",
         rarity = 2,
         type = "monster_part",
+        locations = {"Delzor", "Kael"}
     },
     OgreHide = {
         value = 25,
@@ -840,6 +889,7 @@ local monsterParts = {
         description = "A tough piece of skin from an ogre.",
         rarity = 2,
         type = "monster_part",
+        locations = {"Delzor", "Kael"}
     },
     SpiderFang = {
         value = 10,
@@ -847,6 +897,7 @@ local monsterParts = {
         description = "A venomous fang from a large spider.",
         rarity = 1,
         type = "monster_part",
+        locations = {"Delzor", "Kael"}
     },
     GoblinTooth = {
         value = 8,
@@ -854,6 +905,7 @@ local monsterParts = {
         description = "A sharp tooth from a goblin.",
         rarity = 1,
         type = "monster_part",
+        locations = {"Delzor", "Kael"}
     },
     BatWing = {
         value = 6,
@@ -861,6 +913,7 @@ local monsterParts = {
         description = "A wing from a cave bat.",
         rarity = 1,
         type = "monster_part",
+        locations = {"Delzor", "Kael"}
     },
     DemonHorn = {
         value = 90,
@@ -868,6 +921,7 @@ local monsterParts = {
         description = "A twisted horn from a fearsome demon.",
         rarity = 4,
         type = "monster_part",
+        locations = {"Delzor", "Kael"}
     },
     PhoenixFeather = {
         value = 150,
@@ -875,6 +929,7 @@ local monsterParts = {
         description = "A brilliant feather that radiates warmth.",
         rarity = 5,
         type = "monster_part",
+        locations = {"Delzor", "Kael"}
     },
     GhostEssence = {
         value = 45,
@@ -882,6 +937,7 @@ local monsterParts = {
         description = "The ethereal remnants of a ghost.",
         rarity = 3,
         type = "monster_part",
+        locations = {"Delzor", "Kael"}
     },
     BehemothHeart = {
         value = 200,
@@ -889,6 +945,7 @@ local monsterParts = {
         description = "The massive heart of a behemoth.",
         rarity = 5,
         type = "monster_part",
+        locations = {"Delzor", "Kael"}
     },
     SlimeCrystal = {
         value = 5,
@@ -896,6 +953,7 @@ local monsterParts = {
         description = "A crystallized core of a slime monster.",
         rarity = 1,
         type = "monster_part",
+        locations = {"Delzor", "Kael"}
     },
     WolfPelt = {
         value = 30,
@@ -903,6 +961,7 @@ local monsterParts = {
         description = "The pelt of a fierce wolf.",
         rarity = 2,
         type = "monster_part",
+        locations = {"Delzor", "Kael"}
     },
     DragonScale = {
         value = 100,
@@ -910,6 +969,7 @@ local monsterParts = {
         description = "A shimmering scale from a dragon.",
         rarity = 4,
         type = "monster_part",
+        locations = {"Delzor", "Kael"}
     },
 }
 
