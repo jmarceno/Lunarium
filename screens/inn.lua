@@ -497,9 +497,8 @@ function inn:createUI()
                 self.currentSection = "main"
                 self:updatePanelVisibility()
             else
-                -- Return to overworld
-                local gameState = require("states/gameState")
-                gameState:changeState("overworld")
+                -- Use centralized helper function
+                screenManager:returnToCurrentCity()
             end
         end
     )
@@ -822,9 +821,8 @@ function inn:keypressed(key)
             self.currentSection = "main"
             self:updatePanelVisibility()
         else
-            -- Return to overworld
-            local gameState = require("states/gameState")
-            gameState:changeState("overworld")
+            -- Use centralized helper function
+            screenManager:returnToCurrentCity()
         end
     elseif key == "w" or key == "s" then
         -- Handle option navigation with WASD keys

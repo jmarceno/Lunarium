@@ -16,6 +16,8 @@ GAME = {
     showFPS = false,
     currentState = nil,
     prevState = nil,
+    lastCity = "Delzor",
+    currentCityData = nil,
     
     -- Set game volume settings
     setVolume = function(musicVolume, soundVolume, masterVolume)

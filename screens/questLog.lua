@@ -581,7 +581,14 @@ function questLog:updateElementVisibility()
     end
 end
 
-function questLog:enter()
+function questLog:enter(params)
+    -- Store from parameter for proper navigation back
+    if params and params.from then
+        self.fromState = params.from
+    else
+        self.fromState = nil
+    end
+    
     -- Reset state
     self.category = "active"
     self.selectedQuest = nil
@@ -944,9 +951,8 @@ function questLog:cancelAbandon()
 end
 
 function questLog:returnToGame()
-    -- Return to game
-    local gameState = require("states/gameState")
-    gameState:changeState("overworld")
+    -- Use centralized helper function
+    screenManager:returnToCurrentCity(self.fromState)
 end
 
 return questLog 

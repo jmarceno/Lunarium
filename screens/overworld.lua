@@ -1,154 +1,39 @@
--- Overworld Screen
--- The main navigation hub between different game locations
+-- Overworld Screen - Continent Map
+-- The main navigation hub between different cities
 local screenManager = require("screens/screenManager")
 local assetManager = require("assets/assetManager")
 local saveLoad = require("utils/saveLoad")
-local partyPanel = require("screens/ui_slices/partyPanel")
+local cities_definitions = require("data/cities_definitions")
 
 local overworld = screenManager:createScreen("Overworld")
 
 function overworld:init()
-    -- Load town map image
-    self.townMapImage = assetManager:getImage("townMap") or love.graphics.newImage("assets/TownMap.png")
+    -- Load continent map image
+    self.continentMapImage = assetManager:getImage("continentMap") or love.graphics.newImage("assets/temp_continent.jpg")
     
     -- Track if hover sound has been played to avoid repetition
     self.hoverSoundPlayed = false
     
-    -- Initialize locations
-    self.locations = {
-        {
-            name = "Tavern",
-            description = "Visit the tavern to find quests, rumors and refreshment.",
-            x = 600,
-            y = 255,
-            width = 120,
+    -- Initialize cities from definitions
+    self.cities = {}
+    for _, cityData in ipairs(cities_definitions) do
+        -- Position cities on the map (we'll place them manually for now)
+        local cityButton = {
+            name = cityData.name,
+            description = cityData.description,
+            data = cityData,
+            -- Position on continent map - customize these coordinates
+            x = cityData.name == "Delzor" and 200 or 600,
+            y = cityData.name == "Delzor" and 300 or 200,
+            width = 150,
             height = 100,
-            state = "tavern"
-        },
-        {
-            name = "Guild",
-            description = "The adventurers' guild offers official quests and services.",
-            x = 900,
-            y = 450,
-            width = 120,
-            height = 100,
-            state = "guild"
-        },
-        {
-            name = "Shop",
-            description = "Purchase equipment, items and supplies.",
-            x = 850,
-            y = 250,
-            width = 120,
-            height = 100,
-            state = "shop"
-        },
-        {
-            name = "Smith",
-            description = "Craft weapons and armor from monster parts.",
-            x = 320,
-            y = 460,
-            width = 120,
-            height = 100,
-            state = "smith"
-        },
-        {
-            name = "Dungeon",
-            description = "Enter the dungeon to complete quests and find treasure.",
-            x = 20,
-            y = 170,
-            width = 120,
-            height = 100,
-            state = "dungeon"
-        },
-        {
-            name = "Inn",
-            description = "Rest, recover, and enjoy special services at the adventurer's inn.",
-            x = 300,
-            y = 250,
-            width = 120,
-            height = 100,
-            state = "inn"
+            locked = false
         }
-    }
+        table.insert(self.cities, cityButton)
+    end
     
     -- Initialize hover state
-    self.hoverLocation = nil
-    
-    -- Popup message element
-    self.elements.popupMessage = {
-        visible = false,
-        message = "",
-        title = "Notice",
-        x = GAME.width / 2 - 200,
-        y = GAME.height / 2 - 100,
-        width = 400,
-        height = 200,
-        okButton = nil,
-        
-        init = function(self)
-            self.okButton = screenManager.UI.Button(
-                self.x + self.width/2 - 50, self.y + self.height - 60, 
-                100, 40, "OK", function() self.visible = false end
-            )
-            self.okButton.hovered = false
-        end,
-        
-        show = function(self, message, title)
-            if not self.okButton then self:init() end
-            self.message = message
-            if title then self.title = title end
-            self.visible = true
-        end,
-        
-        update = function(self, dt)
-            if not self.visible then return end
-            if self.okButton and self.okButton.update then
-                self.okButton:update(dt)
-            end
-        end,
-        
-        draw = function(self)
-            if not self.visible then return end
-            
-            -- Draw panel background with fancy styling
-            love.graphics.setColor(0.15, 0.15, 0.2, 0.95)
-            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 12, 12)
-            
-            -- Draw fancy border
-            love.graphics.setColor(0.8, 0.7, 0.4, 0.9)
-            love.graphics.rectangle("line", self.x, self.y, self.width, self.height, 12, 12)
-            love.graphics.rectangle("line", self.x+2, self.y+2, self.width-4, self.height-4, 10, 10)
-            
-            -- Draw title
-            love.graphics.setFont(screenManager.fonts.medium)
-            love.graphics.setColor(1, 0.9, 0.6)
-            local titleWidth = screenManager.fonts.medium:getWidth(self.title)
-            love.graphics.print(
-                self.title,
-                self.x + (self.width - titleWidth) / 2,
-                self.y + 20
-            )
-            
-            -- Draw message text
-            love.graphics.setFont(screenManager.fonts.medium)
-            love.graphics.setColor(1, 1, 1, 0.9)
-            love.graphics.printf(self.message, self.x + 30, self.y + 50, self.width - 60, "center")
-            
-            -- Draw OK button
-            self.okButton:draw()
-        end,
-        
-        clicked = function(self, x, y, button)
-            if not self.visible then return false end
-            if self.okButton:clicked(x, y, button) then return true end
-            -- Consume clicks inside the panel even if not on button
-            if x >= self.x and x <= self.x + self.width and y >= self.y and y <= self.y + self.height then
-               return true
-            end
-            return false
-        end
-    }
+    self.hoverCity = nil
     
     -- Create UI elements
     self:createUI()
@@ -171,7 +56,7 @@ function overworld:createUI()
     self.elements.saveButton.visible = true
     self.elements.saveButton.hovered = false
     
-    -- Create inventory button (in top bar)
+    -- Create inventory button
     self.elements.inventoryButton = screenManager.UI.Button(
         GAME.width - 170, 120, 150, 40, "Inventory (I)", 
         function() self:openInventory() end
@@ -179,7 +64,7 @@ function overworld:createUI()
     self.elements.inventoryButton.visible = true
     self.elements.inventoryButton.hovered = false
     
-    -- Create character info button (in top bar)
+    -- Create character info button
     self.elements.characterInfoButton = screenManager.UI.Button(
         GAME.width - 170, 170, 150, 40, "Party Info", 
         function() 
@@ -190,7 +75,7 @@ function overworld:createUI()
     self.elements.characterInfoButton.visible = true
     self.elements.characterInfoButton.hovered = false
     
-    -- Create quest log button (in top bar)
+    -- Create quest log button
     self.elements.questLogButton = screenManager.UI.Button(
         GAME.width - 170, 220, 150, 40, "Quest Log", 
         function() 
@@ -204,407 +89,155 @@ function overworld:createUI()
     -- Create menu panel
     self.elements.menuPanel = {
         visible = false,
-        x = GAME.width / 2 - 150,
-        y = GAME.height / 2 - 200,
-        width = 300,
-        height = 300,
-        
-        draw = function(self)
-            if not self.visible then return end
-            
-            -- Draw panel background
-            screenManager:drawPanel("Menu", self.x, self.y, self.width, self.height)
-            
-            -- Draw buttons
-            for _, button in ipairs(self.buttons) do
-                button:draw()
-            end
-        end,
-        
-        update = function(self, dt)
-            if not self.visible then return end
-            
-            -- Update all buttons
-            for _, button in ipairs(self.buttons) do
-                if button.update then
-                    button:update(dt)
-                end
-            end
-        end,
-        
-        clicked = function(self, x, y, button)
-            if not self.visible then return false end
-            
-            -- Check if click is within panel
-            if x >= self.x and x <= self.x + self.width and
-               y >= self.y and y <= self.y + self.height then
-                
-                -- Check button clicks
-                for _, btn in ipairs(self.buttons) do
-                    if btn:clicked(x, y, button) then
-                        -- Play click sound
-                        assetManager:playSound("button_click")
-                        return true
-                    end
-                end
-                
-                return true
-            else
-                -- Close panel if clicked outside
-                self.visible = false
-                return true
-            end
-        end,
-        
-        mousereleased = function(self, x, y, button)
-            if not self.visible then return false end
-            
-            -- Handle button releases
-            for _, btn in ipairs(self.buttons) do
-                if btn.released then
-                    btn:released(x, y, button)
-                end
-            end
-            
-            return true
-        end,
-        
-        init = function(self)
-            -- Create menu buttons
-            self.buttons = {
-                screenManager.UI.Button(
-                    self.x + 50, self.y + 80, 
-                    200, 40, "Resume Game", 
-                    function() self.visible = false end
-                ),
-                
-                screenManager.UI.Button(
-                    self.x + 50, self.y + 130, 
-                    200, 40, "Inventory", 
-                    function() 
-                        overworld:openInventory()
-                        self.visible = false
-                    end
-                ),
-                
-                screenManager.UI.Button(
-                    self.x + 50, self.y + 180, 
-                    200, 40, "Save Game", 
-                    function() 
-                        overworld:saveGame()
-                        self.visible = false
-                    end
-                ),
-                
-                screenManager.UI.Button(
-                    self.x + 50, self.y + 230, 
-                    200, 40, "Options", 
-                    function() 
-                        -- TODO: Implement options screen
-                        self.visible = false
-                    end
-                ),
-                
-                screenManager.UI.Button(
-                    self.x + 50, self.y + 280, 
-                    200, 40, "Return to Title", 
-                    function() 
-                        local gameState = require("states/gameState")
-                        gameState:changeState("mainMenu")
-                    end
-                )
-            }
-            
-            -- Initialize button visibility and hover state
-            for _, btn in ipairs(self.buttons) do
-                btn.visible = true
-                btn.hovered = false
-            end
-        end
-    }
-    
-    -- Initialize menu panel
-    self.elements.menuPanel:init()
-    
-    -- Create quest notification panel
-    self.elements.questPanel = {
-        visible = false,
         x = GAME.width / 2 - 200,
         y = GAME.height / 2 - 150,
         width = 400,
         height = 300,
-        quest = nil,
+        buttons = {
+            {
+                text = "Settings",
+                x = GAME.width / 2 - 100,
+                y = GAME.height / 2 - 100,
+                width = 200,
+                height = 40,
+                action = function() print("Settings not implemented yet") end
+            },
+            {
+                text = "Main Menu",
+                x = GAME.width / 2 - 100,
+                y = GAME.height / 2 - 50,
+                width = 200,
+                height = 40,
+                action = function() 
+                    local gameState = require("states/gameState")
+                    gameState:changeState("mainMenu")
+                end
+            },
+            {
+                text = "Close",
+                x = GAME.width / 2 - 100,
+                y = GAME.width / 2 - 0,
+                width = 200,
+                height = 40,
+                action = function() self.elements.menuPanel.visible = false end
+            }
+        },
         
         draw = function(self)
-            if not self.visible or not self.quest then return end
+            if not self.visible then return end
             
             -- Draw panel background
-            screenManager:drawPanel("Quest Complete!", self.x, self.y, self.width, self.height)
-            
-            -- Draw quest info
-            love.graphics.setFont(screenManager.fonts.medium)
-            love.graphics.setColor(1, 1, 1)
-            
-            love.graphics.printf(
-                self.quest.name,
-                self.x + 20, self.y + 60,
-                self.width - 40, "center"
-            )
-            
-            love.graphics.setFont(screenManager.fonts.small)
+            love.graphics.setColor(0.1, 0.1, 0.1, 0.8)
+            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height)
             love.graphics.setColor(0.8, 0.8, 0.8)
+            love.graphics.rectangle("line", self.x, self.y, self.width, self.height)
             
-            love.graphics.printf(
-                self.quest.description,
-                self.x + 20, self.y + 100,
-                self.width - 40, "center"
-            )
-            
-            -- Draw rewards
+            -- Draw title
             love.graphics.setFont(screenManager.fonts.medium)
-            love.graphics.setColor(1, 1, 0.5)
-            
-            love.graphics.print(
-                "Rewards:",
-                self.x + 20, self.y + 150
-            )
-            
-            love.graphics.setFont(screenManager.fonts.small)
             love.graphics.setColor(1, 1, 1)
+            love.graphics.print("Menu", self.x + 20, self.y + 20)
             
-            love.graphics.print(
-                "Gold: " .. self.quest.goldReward,
-                self.x + 20, self.y + 180
-            )
-            
-            if self.quest.itemRewards and #self.quest.itemRewards > 0 then
-                love.graphics.print(
-                    "Items:",
-                    self.x + 20, self.y + 200
-                )
-                
-                for i, item in ipairs(self.quest.itemRewards) do
-                    love.graphics.print(
-                        "- " .. item.name,
-                        self.x + 40, self.y + 200 + i * 20
-                    )
-                end
+            -- Draw buttons
+            for _, button in ipairs(self.buttons) do
+                love.graphics.setColor(0.3, 0.3, 0.3)
+                love.graphics.rectangle("fill", button.x, button.y, button.width, button.height)
+                love.graphics.setColor(0.8, 0.8, 0.8)
+                love.graphics.rectangle("line", button.x, button.y, button.width, button.height)
+                love.graphics.setColor(1, 1, 1)
+                love.graphics.printf(button.text, button.x, button.y + 10, button.width, "center")
             end
-            
-            -- Draw close button
-            self.closeButton:draw()
         end,
         
         clicked = function(self, x, y, button)
             if not self.visible then return false end
             
-            -- Check if click is within panel
-            if x >= self.x and x <= self.x + self.width and
-               y >= self.y and y <= self.y + self.height then
-                
-                -- Check close button
-                if self.closeButton:clicked(x, y, button) then
+            for _, btn in ipairs(self.buttons) do
+                if x >= btn.x and x <= btn.x + btn.width and y >= btn.y and y <= btn.y + btn.height then
+                    btn.action()
                     return true
                 end
-                
-                return true
-            else
-                -- Close panel if clicked outside
-                self.visible = false
-                return true
             end
-        end,
-        
-        init = function(self)
-            -- Create close button
-            self.closeButton = screenManager.UI.Button(
-                self.x + self.width / 2 - 50, self.y + self.height - 60, 
-                100, 40, "Close", 
-                function() self.visible = false end
-            )
-            self.closeButton.hovered = false
-        end,
-        
-        update = function(self, dt)
-            if not self.visible then return end
             
-            -- Update close button
-            if self.closeButton and self.closeButton.update then
-                self.closeButton:update(dt)
+            -- Consume click inside panel
+            if x >= self.x and x <= self.x + self.width and y >= self.y and y <= self.y + self.height then
+                return true
             end
-        end,
-        
-        showQuest = function(self, quest)
-            self.quest = quest
-            self.visible = true
+            
+            return false
         end
     }
-    
-    -- Initialize quest panel
-    self.elements.questPanel:init()
-    
-    -- Initialize party panel
-    self.elements.partyPanel = partyPanel
-
 end
 
 function overworld:enter(params)
-    -- Start playing town music
-    assetManager:playMusic("town")
-    
-    -- Check for completed quest notification
-    if params and params.completedQuest then
-        self.elements.questPanel:showQuest(params.completedQuest)
+    -- Initialize current city data if not set
+    if not GAME.currentCityData then
+        for _, city in ipairs(cities_definitions) do
+            if city.name == GAME.lastCity then
+                GAME.currentCityData = city
+                break
+            end
+        end
+        
+        -- Fallback to Delzor
+        if not GAME.currentCityData then
+            GAME.lastCity = "Delzor"
+            for _, city in ipairs(cities_definitions) do
+                if city.name == "Delzor" then
+                    GAME.currentCityData = city
+                    break
+                end
+            end
+        end
     end
 end
 
 function overworld:update(dt)
-    -- Get current mouse position
-    local mx, my = love.mouse.getPosition()
-    
     -- Update UI elements
-    for _, element in pairs(self.elements) do
-        if element.update then
+    for name, element in pairs(self.elements) do
+        if element.update and element.visible ~= false then
             element:update(dt)
-        end
-        
-        -- Check for button hover (buttons have x, y, width, height, and clicked method)
-        if element.clicked and element.visible ~= false and
-           element.x and element.y and element.width and element.height then
-            -- Check if mouse is over this button
-            local isHovered = mx >= element.x and mx <= element.x + element.width and
-                              my >= element.y and my <= element.y + element.height
-                              
-            -- Play sound when first hovering over a button
-            if isHovered and not element.hovered then
-                assetManager:playSound("button_hover")
-                element.hovered = true
-            elseif not isHovered and element.hovered then
-                element.hovered = false
-            end
         end
     end
     
-    -- Update hover state
-    local previousHoverLocation = self.hoverLocation
-    self.hoverLocation = nil
+    -- Update city hover detection
+    self:updateCityHover()
+end
+
+function overworld:updateCityHover()
+    local mouseX, mouseY = love.mouse.getPosition()
+    local prevHoverCity = self.hoverCity
+    self.hoverCity = nil
     
-    for _, location in ipairs(self.locations) do
-        if mx >= location.x and mx <= location.x + location.width and
-           my >= location.y and my <= location.y + location.height then
-            self.hoverLocation = location
+    -- Check if mouse is over any city
+    for _, city in ipairs(self.cities) do
+        if mouseX >= city.x and mouseX <= city.x + city.width and
+           mouseY >= city.y and mouseY <= city.y + city.height then
+            self.hoverCity = city
             break
         end
     end
     
-    -- Play hover sound when hovering over a new location
-    if self.hoverLocation ~= previousHoverLocation then
-        if self.hoverLocation and not self.hoverSoundPlayed then
-            assetManager:playSound("button_hover")
-            self.hoverSoundPlayed = true
-        elseif not self.hoverLocation then
-            self.hoverSoundPlayed = false
-        end
+    -- Play hover sound if we started hovering over a new city
+    if self.hoverCity and self.hoverCity ~= prevHoverCity then
+        assetManager:playSound("button_hover")
     end
 end
 
 function overworld:draw()
-    -- Draw background
-    love.graphics.clear(screenManager.colors.background)
-    
-    -- Draw town map
+    -- Draw continent map background
     love.graphics.setColor(1, 1, 1)
-    local scale = 1 --math.min(GAME.width / self.townMapImage:getWidth(), GAME.height / self.townMapImage:getHeight())
-    local x = (GAME.width - self.townMapImage:getWidth() * scale) / 2
-    local y = ((GAME.height - self.townMapImage:getHeight() * scale) / 2) - 100
-    love.graphics.draw(self.townMapImage, x, y, 0, scale, scale)
+    love.graphics.draw(self.continentMapImage, 0, 0, 0, 
+        GAME.width / self.continentMapImage:getWidth(), 
+        GAME.height / self.continentMapImage:getHeight())
     
-    -- Draw locations
-    for _, location in ipairs(self.locations) do
-        -- Determine color based on hover state
-        if location == self.hoverLocation then
-            love.graphics.setColor(1, 1, 1, 0.3)  -- White highlight when hovering, but subtle
-        else
-            love.graphics.setColor(0.8, 0.8, 1, 0.3)  -- Very subtle indicator when not hovering
-        end
-        
-        -- Draw location hit area
-        love.graphics.rectangle(
-            "fill", 
-            location.x, location.y, 
-            location.width, location.height,
-            10, 10
-        )
-        
-        -- Draw border when hovering
-        if location == self.hoverLocation then
-            love.graphics.setColor(1, 1, 1, 0.6)
-            love.graphics.rectangle(
-                "line", 
-                location.x, location.y, 
-                location.width, location.height,
-                10, 10
-            )
-            
-            -- Draw location name when hovering
-            love.graphics.setFont(screenManager.fonts.medium)
-            love.graphics.setColor(0, 0, 0, 0.9)
-            
-            local nameWidth = screenManager.fonts.small:getWidth(location.name)
-            love.graphics.print(
-                location.name,
-                location.x + (location.width - nameWidth) / 2,
-                location.y + location.height / 2 - 10
-            )
-        end
+    -- Draw cities
+    for _, city in ipairs(self.cities) do
+        self:drawCity(city)
     end
     
-    -- Draw hover info
-    if self.hoverLocation then
-        -- Draw info box
-        local infoWidth = 300
-        local infoHeight = 100
-        local infoX = GAME.width / 2 - infoWidth / 2
-        local infoY = 500
-        
-        -- Draw background with semi-transparency
-        love.graphics.setColor(0.15, 0.15, 0.2, 0.85)
-        love.graphics.rectangle("fill", infoX, infoY, infoWidth, infoHeight, 12, 12)
-        
-        -- Draw fancy border
-        love.graphics.setColor(0.8, 0.7, 0.4, 0.9)
-        love.graphics.rectangle("line", infoX, infoY, infoWidth, infoHeight, 12, 12)
-        love.graphics.rectangle("line", infoX+2, infoY+2, infoWidth-4, infoHeight-4, 10, 10)
-        
-        -- Draw location name
-        love.graphics.setFont(screenManager.fonts.medium)
-        love.graphics.setColor(1, 0.9, 0.6)
-        
-        local nameWidth = screenManager.fonts.medium:getWidth(self.hoverLocation.name)
-        love.graphics.print(
-            self.hoverLocation.name,
-            infoX + (infoWidth - nameWidth) / 2,
-            infoY + 15
-        )
-        
-        -- Draw location description
-        love.graphics.setFont(screenManager.fonts.small)
-        love.graphics.setColor(0.95, 0.95, 0.95)
-        
-        love.graphics.printf(
-            self.hoverLocation.description,
-            infoX + 20, infoY + 50,
-            infoWidth - 40, "center"
-        )
-        
-        -- Draw "Click to enter" text
-        love.graphics.setFont(screenManager.fonts.small)
-        love.graphics.setColor(0.8, 0.9, 1, 0.7)
-        love.graphics.printf(
-            "Click to enter",
-            infoX + 20, infoY + infoHeight - 25,
-            infoWidth - 40, "center"
-        )
+    -- Draw city information panel if hovering
+    if self.hoverCity then
+        self:drawCityInfo(self.hoverCity)
     end
     
     -- Draw UI elements
@@ -613,104 +246,148 @@ function overworld:draw()
     self.elements.inventoryButton:draw()
     self.elements.characterInfoButton:draw()
     self.elements.questLogButton:draw()
-    self.elements.partyPanel:draw()
     self.elements.menuPanel:draw()
-    self.elements.questPanel:draw()
     
-    -- Draw popup last so it's on top
-    self.elements.popupMessage:draw()
-    
-    -- Draw title with shadow effect
+    -- Draw title
     love.graphics.setFont(screenManager.fonts.large)
     love.graphics.setColor(0.1, 0.1, 0.1, 0.7)
-    love.graphics.print("Town of Delzor", 22, 22)
+    love.graphics.print("Continent of Lunarium", 22, 22)
     love.graphics.setColor(1, 0.9, 0.6)
-    love.graphics.print("Town of Delzor", 20, 20)
+    love.graphics.print("Continent of Lunarium", 20, 20)
+    
+    -- Draw reputation info
+    love.graphics.setFont(screenManager.fonts.small)
+    love.graphics.setColor(1, 1, 1)
+    local totalReputation = (GAME.reputation and GAME.reputation.GUILD or 0) + (GAME.reputation and GAME.reputation.TAVERN or 0)
+    love.graphics.print("Reputation: " .. totalReputation, 20, GAME.height - 30)
+end
+
+function overworld:drawCity(city)
+    -- Check if city is accessible based on reputation
+    local totalReputation = (GAME.reputation and GAME.reputation.GUILD or 0) + (GAME.reputation and GAME.reputation.TAVERN or 0)
+    local isAccessible = totalReputation >= city.data.reputationNeeded
+    
+    -- Determine colors based on accessibility and hover state
+    local bgColor = isAccessible and {0.2, 0.5, 0.8, 0.7} or {0.3, 0.3, 0.3, 0.7}
+    local borderColor = isAccessible and {0.4, 0.7, 1, 0.9} or {0.5, 0.5, 0.5, 0.9}
+    local textColor = isAccessible and {1, 1, 1} or {0.6, 0.6, 0.6}
+    
+    -- Highlight if hovering
+    if self.hoverCity == city and isAccessible then
+        bgColor = {0.3, 0.6, 0.9, 0.8}
+        borderColor = {0.5, 0.8, 1, 1}
+    end
+    
+    -- Draw city button
+    love.graphics.setColor(bgColor)
+    love.graphics.rectangle("fill", city.x, city.y, city.width, city.height, 10, 10)
+    love.graphics.setColor(borderColor)
+    love.graphics.rectangle("line", city.x, city.y, city.width, city.height, 10, 10)
+    
+    -- Draw city name
+    love.graphics.setFont(screenManager.fonts.medium)
+    love.graphics.setColor(textColor)
+    local nameWidth = screenManager.fonts.medium:getWidth(city.name)
+    love.graphics.print(city.name, city.x + (city.width - nameWidth) / 2, city.y + 20)
+    
+    -- Draw reputation requirement if locked
+    if not isAccessible then
+        love.graphics.setFont(screenManager.fonts.small)
+        love.graphics.setColor(0.8, 0.4, 0.4)
+        local reqText = "Rep: " .. city.data.reputationNeeded
+        local reqWidth = screenManager.fonts.small:getWidth(reqText)
+        love.graphics.print(reqText, city.x + (city.width - reqWidth) / 2, city.y + 50)
+    end
+    
+    -- Mark current city
+    if GAME.lastCity == city.name then
+        love.graphics.setColor(1, 1, 0, 0.8)
+        love.graphics.rectangle("line", city.x - 3, city.y - 3, city.width + 6, city.height + 6, 12, 12)
+        love.graphics.setFont(screenManager.fonts.small)
+        love.graphics.print("Current", city.x + 5, city.y + city.height + 5)
+    end
+end
+
+function overworld:drawCityInfo(city)
+    -- City info panel dimensions
+    local infoWidth = 300
+    local infoHeight = 120
+    local infoX = GAME.width - infoWidth - 20
+    local infoY = 300
+    
+    -- Draw info panel background
+    love.graphics.setColor(0.1, 0.1, 0.15, 0.9)
+    love.graphics.rectangle("fill", infoX, infoY, infoWidth, infoHeight, 10, 10)
+    love.graphics.setColor(0.6, 0.6, 0.8, 0.8)
+    love.graphics.rectangle("line", infoX, infoY, infoWidth, infoHeight, 10, 10)
+    
+    -- Draw city name
+    love.graphics.setFont(screenManager.fonts.medium)
+    love.graphics.setColor(1, 0.9, 0.6)
+    
+    local nameWidth = screenManager.fonts.medium:getWidth(city.name)
+    love.graphics.print(city.name, infoX + (infoWidth - nameWidth) / 2, infoY + 15)
+    
+    -- Draw city description
+    love.graphics.setFont(screenManager.fonts.small)
+    love.graphics.setColor(0.95, 0.95, 0.95)
+    love.graphics.printf(city.description, infoX + 20, infoY + 50, infoWidth - 40, "center")
+    
+    -- Check accessibility
+    local totalReputation = (GAME.reputation and GAME.reputation.GUILD or 0) + (GAME.reputation and GAME.reputation.TAVERN or 0)
+    local isAccessible = totalReputation >= city.data.reputationNeeded
+    
+    if isAccessible then
+        love.graphics.setColor(0.8, 0.9, 1, 0.7)
+        love.graphics.printf("Click to travel", infoX + 20, infoY + infoHeight - 25, infoWidth - 40, "center")
+    else
+        love.graphics.setColor(0.8, 0.4, 0.4, 0.8)
+        love.graphics.printf("Requires " .. city.data.reputationNeeded .. " reputation", infoX + 20, infoY + infoHeight - 25, infoWidth - 40, "center")
+    end
 end
 
 function overworld:mousepressed(x, y, button, istouch, presses)
-    -- Flag to track if a click was handled
-    local clickHandled = false
-    
-    -- Check popup first
-    if self.elements.popupMessage.visible then
-        return self.elements.popupMessage:clicked(x, y, button)
-    end
-    
-    -- Check if menu panel is open
+    -- Check menu panel first
     if self.elements.menuPanel.visible then
-        clickHandled = self.elements.menuPanel:clicked(x, y, button)
-        if clickHandled then
-            return true
-        end
+        return self.elements.menuPanel:clicked(x, y, button)
     end
     
-    -- Check if quest panel is open
-    if self.elements.questPanel.visible then
-        clickHandled = self.elements.questPanel:clicked(x, y, button)
-        if clickHandled then
-            return true
-        end
-    end
-    
-    -- Check UI element clicks
+    -- Check UI elements
+    local clickHandled = false
     for name, element in pairs(self.elements) do
-        if element.clicked and element.visible ~= false and 
-           element ~= self.elements.menuPanel and
-           element ~= self.elements.questPanel then
+        if element.clicked and element.visible ~= false and element ~= self.elements.menuPanel then
             if element:clicked(x, y, button) then
-                -- Play click sound
                 assetManager:playSound("button_click")
-                
-                if GAME.debug then
-                    print("Button clicked: " .. name)
-                end
-                
                 clickHandled = true
-                -- Don't break to allow hover effects
             end
         end
     end
     
-    -- Check location clicks if no UI element was clicked
-    if not clickHandled and button == 1 and self.hoverLocation then
-        -- Play click sound (moved to here from selectLocation function)
-        assetManager:playSound("button_click")
-        
-        self:selectLocation(self.hoverLocation)
-        clickHandled = true
+    -- Check city clicks if no UI element was clicked
+    if not clickHandled and button == 1 and self.hoverCity then
+        -- Check if city is accessible
+        local totalReputation = (GAME.reputation and GAME.reputation.GUILD or 0) + (GAME.reputation and GAME.reputation.TAVERN or 0)
+        if totalReputation >= self.hoverCity.data.reputationNeeded then
+            assetManager:playSound("button_click")
+            self:selectCity(self.hoverCity)
+            clickHandled = true
+        end
     end
     
     return clickHandled
 end
 
-function overworld:mousereleased(x, y, button, istouch, presses)
-    -- Check if menu panel is open and has a mousereleased method
-    if self.elements.menuPanel.visible and self.elements.menuPanel.mousereleased then
-        self.elements.menuPanel:mousereleased(x, y, button)
-    end
-
-    -- Check if quest panel is open
-    if self.elements.questPanel.visible and self.elements.questPanel.mousereleased then
-        self.elements.questPanel:mousereleased(x, y, button)
-    end
+function overworld:selectCity(city)
+    -- Update last city and current city data
+    GAME.lastCity = city.name
+    GAME.currentCityData = city.data
     
-    -- Pass to other UI elements
-    for name, element in pairs(self.elements) do
-        if element.released and element.visible ~= false and 
-           element ~= self.elements.menuPanel and
-           element ~= self.elements.questPanel then
-            element:released(x, y)
-        end
-    end
-    
-    if GAME.debug then
-        print("Overworld mouse released at: " .. x .. "," .. y)
-    end
+    -- Change to city screen
+    local gameState = require("states/gameState")
+    gameState:changeState(city.data.screen, { cityData = city.data })
 end
 
 function overworld:showMenu()
-    -- Show menu panel
     self.elements.menuPanel.visible = true
 end
 
@@ -723,42 +400,16 @@ function overworld:saveGame()
         quests = GAME.activeQuests,
         completedQuests = GAME.completedQuests,
         flags = GAME.flags,
-        gameTime = GAME.gameTime or 0
+        gameTime = GAME.gameTime or 0,
+        lastCity = GAME.lastCity or "Delzor"
     }
     
     -- Save game
     if saveLoad:saveGame(saveData) then
-        -- Show save confirmation
-        -- For now, just print to console
         print("Game saved successfully!")
     else
-        -- Show save error
         print("Failed to save game!")
     end
-end
-
-function overworld:selectLocation(location)
-    -- Change to selected location
-    local gameState = require("states/gameState")
-    
-    -- Prepare parameters to pass to the next state
-    local params = {}
-    
-    -- Special handling for dungeon entry
-    if location.state == "dungeon" then
-        -- Check for active quests
-        if not GAME.activeQuests or #GAME.activeQuests == 0 then
-            self.elements.popupMessage:show("You need an active quest to enter the dungeon!\n\nVisit the Guild or Tavern.", "Dungeon Entry Restricted")            
-            return -- Stop execution, don't change state
-        end
-        
-        -- If entering dungeon, pass the first active quest
-        params.quest = GAME.activeQuests[1]
-        if GAME.debug then print("Passing quest to dungeon:", params.quest.name) end
-    end
-    
-    -- Pass the location state and any relevant parameters
-    gameState:changeState(location.state, params)
 end
 
 function overworld:openInventory()
@@ -767,13 +418,11 @@ function overworld:openInventory()
 end
 
 function overworld:keypressed(key, scancode, isrepeat)
-    -- Check for inventory shortcut key
     if key == "i" then
         self:openInventory()
         return true
     end
     
-    -- Handle other key presses
     return false
 end
 

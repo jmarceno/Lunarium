@@ -1,10 +1,10 @@
 local cities = {
     {
-        name = "Town of Delzor",
+        name = "Delzor",
         description = "A small town, far from the main road, but still a popular destination for travelers.",
         image = "assets/cities/delzor.png",
         reputationNeeded = 0,
-        screen = "screens/cities/delzor.lua",
+        screen = "delzor",
         smithShop = "assets/SmithScreen.png",
         generalShop = "assets/GeneralScreen.png",
         inn = "assets/InnScreen.png",
@@ -12,11 +12,11 @@ local cities = {
         tavern = "assets/TavernScreen.png",
     },
     {
-        name = "Town of Kael",
+        name = "Kael",
         description = "A prosperous city, known for its trade and industry.	",
         image = "assets/cities/kael.png",
         reputationNeeded = 100,
-        screen = "screens/cities/kael.lua",
+        screen = "kael",
         smithShop = "assets/SmithScreen.png",
         generalShop = "assets/GeneralScreen.png",
         inn = "assets/InnScreen.png",
@@ -24,3 +24,5 @@ local cities = {
         tavern = "assets/TavernScreen.png",
     },
 }
+
+return cities

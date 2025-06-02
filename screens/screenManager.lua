@@ -692,6 +692,27 @@ function screenManager:createScreen(name)
     return screen
 end
 
+-- Centralized return-to-city helper function
+-- This helper handles returning to the current city, and have all screens call this function 
+-- instead of duplicating the logic
+function screenManager:returnToCurrentCity(fromState)
+    local gameState = require("states/gameState")
+    
+    -- Special case: if we came from dungeon, return to dungeon
+    if fromState == "dungeon" then
+        gameState:changeState("dungeon", { from = fromState })
+        return
+    end
+    
+    -- For any city-related fromState or fallback, return to current city
+    if GAME.currentCityData and GAME.currentCityData.screen then
+        gameState:changeState(GAME.currentCityData.screen, { cityData = GAME.currentCityData })
+    else
+        -- Ultimate fallback to overworld (continent map) if no city data
+        gameState:changeState("overworld")
+    end
+end
+
 -- Handle window resize events
 function screenManager:handleResize(width, height)
     -- Update any canvas sizes or UI layouts that depend on window size

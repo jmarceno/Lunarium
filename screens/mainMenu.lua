@@ -559,9 +559,14 @@ function mainMenu:loadSelectedGame()
         -- Apply loaded game data using the new function
         saveLoad:applyLoadedData(gameData)
         
-        -- Move to overworld screen
+        -- Navigate to last visited city or continent map
         local gameState = require("states/gameState")
-        gameState:changeState("overworld")
+        if GAME.currentCityData and GAME.currentCityData.screen then
+            gameState:changeState(GAME.currentCityData.screen, { cityData = GAME.currentCityData })
+        else
+            -- Fallback to overworld (continent map) if no city data
+            gameState:changeState("overworld")
+        end
     end
 end
 

@@ -1536,8 +1536,8 @@ function dungeon:checkEntityInteraction()
                             -- Make sure to clean up minions when leaving dungeon
                             self:exitDungeon()
                             
-                            local gameState = require("states/gameState")
-                            gameState:changeState("overworld")
+                            -- Use centralized helper function
+                            screenManager:returnToCurrentCity()
                             -- Optionally fail quest here if needed (e.g., escort)
                             -- if self.currentQuest then questSystem:failQuest(self.currentQuest.id) end
                         end,
@@ -1863,9 +1863,10 @@ function dungeon:completeQuest()
     -- Make sure to clean up minions when leaving dungeon
     self:exitDungeon()
     
-    -- Return to town
-    local gameState = require("states/gameState")
-    gameState:changeState("overworld")
+    -- Use centralized helper function
+    -- Note: We lose the completedQuest parameter here, but that's likely not needed
+    -- since quest completion is handled by the quest system itself
+    screenManager:returnToCurrentCity()
 end
 
 function dungeon:failQuest()
@@ -1874,9 +1875,8 @@ function dungeon:failQuest()
     -- Make sure to clean up minions when leaving dungeon
     self:exitDungeon()
     
-    -- For now, just return to town
-    local gameState = require("states/gameState")
-    gameState:changeState("overworld")
+    -- Use centralized helper function
+    screenManager:returnToCurrentCity()
 end
 
 -- Add this method to handle window resizing

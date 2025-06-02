@@ -36,9 +36,25 @@ function smith:init()
     self:createUI()
 end
 
+function smith:tableContains(table, value)
+    for _, v in ipairs(table) do
+        if v == value then
+            return true
+        end
+    end
+    return false
+end
+
 function smith:createRecipes()
-    -- Use recipes from the imported file
-    self.recipes = smithRecipes
+    -- Filter recipes by current city location
+    self.recipes = {}
+    local currentCity = GAME.currentCityData and GAME.currentCityData.name or GAME.lastCity or "Delzor"
+    
+    for _, recipe in ipairs(smithRecipes) do
+        if recipe.locations and self:tableContains(recipe.locations, currentCity) then
+            table.insert(self.recipes, recipe)
+        end
+    end
     
     -- Sort recipes by category then by gold cost
     table.sort(self.recipes, function(a, b)
@@ -978,9 +994,8 @@ function smith:craftItem()
 end
 
 function smith:returnToTown()
-    -- Return to town
-    local gameState = require("states/gameState")
-    gameState:changeState("overworld")
+    -- Use centralized helper function
+    screenManager:returnToCurrentCity()
 end
 
 return smith

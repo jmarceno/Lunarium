@@ -550,8 +550,18 @@ function guild:mousereleased(x, y, button, istouch, presses)
 end
 
 function guild:loadQuests()
-    -- Get available quests
-    self.questList = questSystem:getAvailableQuests("Guild")
+    -- Get available quests for this giver
+    local allQuests = questSystem:getAvailableQuests("Guild")
+    
+    -- Filter by current city location
+    self.questList = {}
+    local currentCity = GAME.currentCityData and GAME.currentCityData.name or GAME.lastCity or "Delzor"
+    
+    for _, quest in ipairs(allQuests) do
+        if quest.location == currentCity then
+            table.insert(self.questList, quest)
+        end
+    end
     
     -- Sort quests by level
     table.sort(self.questList, function(a, b)
@@ -617,9 +627,8 @@ function guild:acceptQuest()
 end
 
 function guild:returnToTown()
-    -- Return to town
-    local gameState = require("states/gameState")
-    gameState:changeState("overworld")
+    -- Use centralized helper function
+    screenManager:returnToCurrentCity()
 end
 
 return guild

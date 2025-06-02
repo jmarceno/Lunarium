@@ -1342,9 +1342,28 @@ function characterCreator:finishParty()
         end
     end
     
-    -- Move to overworld
+    -- Move to starting city (Delzor) for new characters
     local gameState = require("states/gameState")
-    gameState:changeState("overworld")
+    
+    -- Ensure city data is loaded for new game
+    if not GAME.currentCityData then
+        local cities_definitions = require("data/cities_definitions")
+        for _, city in ipairs(cities_definitions) do
+            if city.name == "Delzor" then
+                GAME.currentCityData = city
+                GAME.lastCity = "Delzor"
+                break
+            end
+        end
+    end
+    
+    -- Start new game in Delzor
+    if GAME.currentCityData and GAME.currentCityData.screen then
+        gameState:changeState(GAME.currentCityData.screen, { cityData = GAME.currentCityData })
+    else
+        -- Fallback to overworld if city data not found
+        gameState:changeState("overworld")
+    end
 end
 
 function characterCreator:wheelmoved(x, y)

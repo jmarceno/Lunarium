@@ -141,7 +141,8 @@ function saveLoad:createProfile(name)
         dungeonSeeds = {},
         gameTime = 0,
         flags = {},
-        reputation = {} -- Initialize reputation data
+        reputation = {}, -- Initialize reputation data
+        lastCity = "Delzor" -- Default starting city
     }
     
     -- Set default reputation values
@@ -313,6 +314,30 @@ function saveLoad:applyLoadedData(gameData)
     
     -- Load reputation data
     GAME.reputation = gameData.reputation or {}
+    
+    -- Load last city data
+    GAME.lastCity = gameData.lastCity or "Delzor"
+    
+    -- Load current city data from cities definitions
+    local cities_definitions = require("data/cities_definitions")
+    GAME.currentCityData = nil
+    for _, city in ipairs(cities_definitions) do
+        if city.name == GAME.lastCity then
+            GAME.currentCityData = city
+            break
+        end
+    end
+    
+    -- Fallback to Delzor if city not found
+    if not GAME.currentCityData then
+        for _, city in ipairs(cities_definitions) do
+            if city.name == "Delzor" then
+                GAME.currentCityData = city
+                GAME.lastCity = "Delzor"
+                break
+            end
+        end
+    end
     
     -- Initialize required systems
     local reputationSystem = require("gameplay/reputationSystem")

@@ -686,15 +686,27 @@ function shop:mousereleased(x, y, button, istouch, presses)
     end
 end
 
+function shop:tableContains(table, value)
+    for _, v in ipairs(table) do
+        if v == value then
+            return true
+        end
+    end
+    return false
+end
+
 function shop:loadInventory()
     -- Clear inventory
     self.inventory = {}
     
+    -- Get current city
+    local currentCity = GAME.currentCityData and GAME.currentCityData.name or GAME.lastCity or "Delzor"
+    
     -- Add weapons
     local weapons = itemSystem:getItemsByType("weapon")
     for _, weapon in ipairs(weapons) do
-        -- Skip master weapons
-        if weapon.tier ~= 3 then
+        -- Skip master weapons and filter by location
+        if weapon.tier ~= 3 and weapon.locations and self:tableContains(weapon.locations, currentCity) then
             table.insert(self.inventory, weapon)
         end
     end
@@ -702,8 +714,8 @@ function shop:loadInventory()
     -- Add armor
     local armors = itemSystem:getItemsByType("armor")
     for _, armor in ipairs(armors) do
-        -- Skip master armor
-        if armor.tier ~= 3 then
+        -- Skip master armor and filter by location
+        if armor.tier ~= 3 and armor.locations and self:tableContains(armor.locations, currentCity) then
             table.insert(self.inventory, armor)
         end
     end
@@ -711,8 +723,8 @@ function shop:loadInventory()
     -- Add accessories
     local accessories = itemSystem:getItemsByType("accessory")
     for _, accessory in ipairs(accessories) do
-        -- Skip master accessories
-        if accessory.tier ~= 3 then
+        -- Skip master accessories and filter by location
+        if accessory.tier ~= 3 and accessory.locations and self:tableContains(accessory.locations, currentCity) then
             table.insert(self.inventory, accessory)
         end
     end
@@ -720,7 +732,10 @@ function shop:loadInventory()
     -- Add consumables
     local consumables = itemSystem:getItemsByType("consumable")
     for _, consumable in ipairs(consumables) do
-        table.insert(self.inventory, consumable)
+        -- Filter by location
+        if consumable.locations and self:tableContains(consumable.locations, currentCity) then
+            table.insert(self.inventory, consumable)
+        end
     end
     
     -- Sort inventory by type, then by value
@@ -812,9 +827,8 @@ function shop:buyItem()
 end
 
 function shop:returnToTown()
-    -- Return to town
-    local gameState = require("states/gameState")
-    gameState:changeState("overworld")
+    -- Use centralized helper function
+    screenManager:returnToCurrentCity()
 end
 
 return shop

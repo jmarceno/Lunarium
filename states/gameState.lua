@@ -20,7 +20,10 @@ function gameState:init()
         characterInfo = require("screens/characterInfo"),
         inventory = require("screens/inventory"),
         levelUp = require("screens/levelUpScreen"),
-        inn = require("screens/inn")
+        inn = require("screens/inn"),
+        -- City screens
+        delzor = require("screens/cities/delzor"),
+        kael = require("screens/cities/kael")
     }
     
     -- Initialize all states

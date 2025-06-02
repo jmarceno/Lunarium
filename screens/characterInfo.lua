@@ -554,7 +554,14 @@ function characterInfo:updateTabHighlighting()
     end
 end
 
-function characterInfo:enter()
+function characterInfo:enter(params)
+    -- Store from parameter for proper navigation back
+    if params and params.from then
+        self.fromState = params.from
+    else
+        self.fromState = nil
+    end
+    
     -- Select first character if available
     if GAME.party and #GAME.party > 0 then
         self:selectCharacter(GAME.party[1])
@@ -658,24 +665,8 @@ function characterInfo:selectTab(tab)
 end
 
 function characterInfo:returnToGame()
-    -- Return to game
-    local gameState = require("states/gameState")
-    
-    -- Get previous state name
-    local prevStateName = ""
-    for name, state in pairs(gameState.states) do
-        if state == GAME.prevState then
-            prevStateName = name
-            break
-        end
-    end
-    
-    -- Determine where to return based on previous state
-    if prevStateName == "dungeon" then
-        gameState:changeState("dungeon", { from = "characterInfo" })
-    else
-        gameState:changeState("overworld")
-    end
+    -- Use centralized helper function
+    screenManager:returnToCurrentCity(self.fromState)
 end
 
 -- Add mouse wheel handling for scrolling
