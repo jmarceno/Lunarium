@@ -8,8 +8,8 @@ local partyPanel = require("screens/ui_slices/partyPanel")
 local kael = screenManager:createScreen("Kael")
 
 function kael:init()
-    -- Load town map image (using same map for now, could be different)
-    self.townMapImage = assetManager:getImage("townMap") or love.graphics.newImage("assets/TownMap.png")
+    -- Background image will be loaded in enter() function when city data is available
+    self.townMapImage = nil
     
     -- Track if hover sound has been played to avoid repetition
     self.hoverSoundPlayed = false
@@ -320,6 +320,13 @@ function kael:enter(params)
                 break
             end
         end
+    end
+    
+    -- Load city-specific background image
+    if self.cityData and self.cityData.image then
+        self.townMapImage = love.graphics.newImage(self.cityData.image)
+    else
+        error("City data or image path not found for Kael")
     end
     
     -- Check for completed quest notification
