@@ -21,8 +21,8 @@ EXCLUDED_FOLDERS_REL = [
     "planning",
     "dev",
     os.path.join("assets", "sources"),
-    os.path.join("assets", "ExampleCode"),
-    os.path.join("assets", "harc-master.zip"),
+    os.path.join("assets", "cities", "sources"),
+    os.path.join("assets", "ExampleCode"),    
 ]
 
 # Files to exclude, relative to GAME_ROOT_DIR

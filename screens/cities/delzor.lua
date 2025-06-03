@@ -336,8 +336,10 @@ function delzor:enter(params)
 end
 
 function delzor:update(dt)
-    -- Get current mouse position
-    local mx, my = love.mouse.getPosition()
+    -- Get current mouse position and convert to game coordinates
+    local rawMx, rawMy = love.mouse.getPosition()
+    local scaling = require("utils/scaling")
+    local mx, my = scaling:toGameCoords(rawMx, rawMy)
     
     -- Update UI elements
     for _, element in pairs(self.elements) do
@@ -389,12 +391,21 @@ function delzor:draw()
     -- Draw background
     love.graphics.clear(screenManager.colors.background)
     
-    -- Draw town map
+    -- Draw town map - scale to fit screen while maintaining aspect ratio
     love.graphics.setColor(1, 1, 1)
-    local scale = 1
-    local x = (GAME.width - self.townMapImage:getWidth() * scale) / 2
-    local y = ((GAME.height - self.townMapImage:getHeight() * scale) / 2) - 100
-    love.graphics.draw(self.townMapImage, x, y, 0, scale, scale)
+    if self.townMapImage then
+        local imageWidth, imageHeight = self.townMapImage:getDimensions()
+        local scaleX = GAME.width / imageWidth
+        local scaleY = GAME.height / imageHeight
+        local scale = math.min(scaleX, scaleY) -- Use smaller scale to maintain aspect ratio
+        
+        local scaledWidth = imageWidth * scale
+        local scaledHeight = imageHeight * scale
+        local x = (GAME.width - scaledWidth) / 2
+        local y = (GAME.height - scaledHeight) / 2
+        
+        love.graphics.draw(self.townMapImage, x, y, 0, scale, scale)
+    end
     
     -- Draw locations
     for _, location in ipairs(self.locations) do

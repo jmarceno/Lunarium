@@ -224,11 +224,21 @@ function overworld:updateCityHover()
 end
 
 function overworld:draw()
-    -- Draw continent map background
+    -- Draw continent map background - scale to fit screen while maintaining aspect ratio
     love.graphics.setColor(1, 1, 1)
-    love.graphics.draw(self.continentMapImage, 0, 0, 0, 
-        GAME.width / self.continentMapImage:getWidth(), 
-        GAME.height / self.continentMapImage:getHeight())
+    if self.continentMapImage then
+        local imageWidth, imageHeight = self.continentMapImage:getDimensions()
+        local scaleX = GAME.width / imageWidth
+        local scaleY = GAME.height / imageHeight
+        local scale = math.min(scaleX, scaleY) -- Use smaller scale to maintain aspect ratio
+        
+        local scaledWidth = imageWidth * scale
+        local scaledHeight = imageHeight * scale
+        local x = (GAME.width - scaledWidth) / 2
+        local y = (GAME.height - scaledHeight) / 2
+        
+        love.graphics.draw(self.continentMapImage, x, y, 0, scale, scale)
+    end
     
     -- Draw cities
     for _, city in ipairs(self.cities) do
