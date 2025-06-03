@@ -19,8 +19,8 @@ function kael:init()
         {
             name = "Tavern",
             description = "Visit the tavern to find quests, rumors and refreshment.",
-            x = 600,
-            y = 255,
+            x = 695,
+            y = 475,
             width = 120,
             height = 100,
             state = "tavern"
@@ -28,8 +28,8 @@ function kael:init()
         {
             name = "Guild",
             description = "The adventurers' guild offers official quests and services.",
-            x = 900,
-            y = 450,
+            x = 428,
+            y = 369,
             width = 120,
             height = 100,
             state = "guild"
@@ -37,8 +37,8 @@ function kael:init()
         {
             name = "Shop",
             description = "Purchase equipment, items and supplies.",
-            x = 850,
-            y = 250,
+            x = 864,
+            y = 390,
             width = 120,
             height = 100,
             state = "shop"
@@ -46,8 +46,8 @@ function kael:init()
         {
             name = "Smith",
             description = "Craft weapons and armor from monster parts.",
-            x = 320,
-            y = 460,
+            x = 1040,
+            y = 406,
             width = 120,
             height = 100,
             state = "smith"
@@ -55,8 +55,8 @@ function kael:init()
         {
             name = "Dungeon",
             description = "Enter the dungeon to complete quests and find treasure.",
-            x = 20,
-            y = 170,
+            x = 607,
+            y = 239,
             width = 120,
             height = 100,
             state = "dungeon"
@@ -433,18 +433,22 @@ function kael:draw()
                 location.width, location.height,
                 10, 10
             )
-            
-            -- Draw location name when hovering
-            love.graphics.setFont(screenManager.fonts.medium)
-            love.graphics.setColor(0, 0, 0, 0.9)
-            
-            local nameWidth = screenManager.fonts.small:getWidth(location.name)
-            love.graphics.print(
-                location.name,
-                location.x + (location.width - nameWidth) / 2,
-                location.y + location.height / 2 - 10
-            )
         end
+        
+        -- Always draw location name with different opacity based on hover state
+        love.graphics.setFont(screenManager.fonts.medium)
+        if location == self.hoverLocation then
+            love.graphics.setColor(0, 0, 0, 0.9)  -- Opaque when hovering
+        else
+            love.graphics.setColor(0, 0, 0, 0.6)  -- Semi-transparent when not hovering
+        end
+        
+        local nameWidth = screenManager.fonts.medium:getWidth(location.name)
+        love.graphics.print(
+            location.name,
+            location.x + (location.width - nameWidth) / 2,
+            location.y + location.height / 2 - 10
+        )
     end
     
     -- Draw hover info

@@ -19,8 +19,8 @@ function delzor:init()
         {
             name = "Tavern",
             description = "Visit the tavern to find quests, rumors and refreshment.",
-            x = 600,
-            y = 255,
+            x = 576,
+            y = 338,
             width = 120,
             height = 100,
             state = "tavern"
@@ -28,8 +28,8 @@ function delzor:init()
         {
             name = "Guild",
             description = "The adventurers' guild offers official quests and services.",
-            x = 900,
-            y = 450,
+            x = 950,
+            y = 342,
             width = 120,
             height = 100,
             state = "guild"
@@ -37,8 +37,8 @@ function delzor:init()
         {
             name = "Shop",
             description = "Purchase equipment, items and supplies.",
-            x = 850,
-            y = 250,
+            x = 906,
+            y = 197,
             width = 120,
             height = 100,
             state = "shop"
@@ -46,8 +46,8 @@ function delzor:init()
         {
             name = "Smith",
             description = "Craft weapons and armor from monster parts.",
-            x = 320,
-            y = 460,
+            x = 251,
+            y = 64,
             width = 120,
             height = 100,
             state = "smith"
@@ -55,8 +55,8 @@ function delzor:init()
         {
             name = "Dungeon",
             description = "Enter the dungeon to complete quests and find treasure.",
-            x = 20,
-            y = 170,
+            x = 865,
+            y = 49,
             width = 120,
             height = 100,
             state = "dungeon"
@@ -64,8 +64,8 @@ function delzor:init()
         {
             name = "Inn",
             description = "Rest, recover, and enjoy special services at the adventurer's inn.",
-            x = 300,
-            y = 250,
+            x = 436,
+            y = 139,
             width = 120,
             height = 100,
             state = "inn"
@@ -433,18 +433,22 @@ function delzor:draw()
                 location.width, location.height,
                 10, 10
             )
-            
-            -- Draw location name when hovering
-            love.graphics.setFont(screenManager.fonts.medium)
-            love.graphics.setColor(0, 0, 0, 0.9)
-            
-            local nameWidth = screenManager.fonts.small:getWidth(location.name)
-            love.graphics.print(
-                location.name,
-                location.x + (location.width - nameWidth) / 2,
-                location.y + location.height / 2 - 10
-            )
         end
+        
+        -- Always draw location name with different opacity based on hover state
+        love.graphics.setFont(screenManager.fonts.medium)
+        if location == self.hoverLocation then
+            love.graphics.setColor(0, 0, 0, 0.9)  -- Opaque when hovering
+        else
+            love.graphics.setColor(0, 0, 0, 0.6)  -- Semi-transparent when not hovering
+        end
+        
+        local nameWidth = screenManager.fonts.medium:getWidth(location.name)
+        love.graphics.print(
+            location.name,
+            location.x + (location.width - nameWidth) / 2,
+            location.y + location.height / 2 - 10
+        )
     end
     
     -- Draw hover info
@@ -466,7 +470,7 @@ function delzor:draw()
         
         -- Draw location name
         love.graphics.setFont(screenManager.fonts.medium)
-        love.graphics.setColor(1, 0.9, 0.6)
+        love.graphics.setColor(0, 0, 0)
         
         local nameWidth = screenManager.fonts.medium:getWidth(self.hoverLocation.name)
         love.graphics.print(

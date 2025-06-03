@@ -22,9 +22,8 @@ function overworld:init()
             name = cityData.name,
             description = cityData.description,
             data = cityData,
-            -- Position on continent map - customize these coordinates
-            x = cityData.name == "Delzor" and 200 or 600,
-            y = cityData.name == "Delzor" and 300 or 200,
+            x=cityData.xCoord,
+            y=cityData.yCoord,
             width = 150,
             height = 100,
             locked = false
@@ -268,13 +267,13 @@ function overworld:draw()
     -- Draw reputation info
     love.graphics.setFont(screenManager.fonts.small)
     love.graphics.setColor(1, 1, 1)
-    local totalReputation = (GAME.reputation and GAME.reputation.GUILD or 0) + (GAME.reputation and GAME.reputation.TAVERN or 0)
+    local totalReputation = (GAME.reputation and GAME.reputation.Guild or 0) + (GAME.reputation and GAME.reputation.Tavern or 0)
     love.graphics.print("Reputation: " .. totalReputation, 20, GAME.height - 30)
 end
 
 function overworld:drawCity(city)
     -- Check if city is accessible based on reputation
-    local totalReputation = (GAME.reputation and GAME.reputation.GUILD or 0) + (GAME.reputation and GAME.reputation.TAVERN or 0)
+    local totalReputation = (GAME.reputation and GAME.reputation.Guild or 0) + (GAME.reputation and GAME.reputation.Tavern or 0)
     local isAccessible = totalReputation >= city.data.reputationNeeded
     
     -- Determine colors based on accessibility and hover state
@@ -344,7 +343,7 @@ function overworld:drawCityInfo(city)
     love.graphics.printf(city.description, infoX + 20, infoY + 50, infoWidth - 40, "center")
     
     -- Check accessibility
-    local totalReputation = (GAME.reputation and GAME.reputation.GUILD or 0) + (GAME.reputation and GAME.reputation.TAVERN or 0)
+    local totalReputation = (GAME.reputation and GAME.reputation.Guild or 0) + (GAME.reputation and GAME.reputation.Tavern or 0)
     local isAccessible = totalReputation >= city.data.reputationNeeded
     
     if isAccessible then
@@ -376,7 +375,7 @@ function overworld:mousepressed(x, y, button, istouch, presses)
     -- Check city clicks if no UI element was clicked
     if not clickHandled and button == 1 and self.hoverCity then
         -- Check if city is accessible
-        local totalReputation = (GAME.reputation and GAME.reputation.GUILD or 0) + (GAME.reputation and GAME.reputation.TAVERN or 0)
+        local totalReputation = (GAME.reputation and GAME.reputation.Guild or 0) + (GAME.reputation and GAME.reputation.Tavern or 0)
         if totalReputation >= self.hoverCity.data.reputationNeeded then
             assetManager:playSound("button_click")
             self:selectCity(self.hoverCity)

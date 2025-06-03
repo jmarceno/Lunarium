@@ -23,7 +23,10 @@ function gameState:init()
         inn = require("screens/inn"),
         -- City screens
         delzor = require("screens/cities/delzor"),
-        kael = require("screens/cities/kael")
+        kael = require("screens/cities/kael"),
+        sahriq = require("screens/cities/sahriq"),
+        khulaan = require("screens/cities/khulaan"),
+        vargstad = require("screens/cities/vargstad")
     }
     
     -- Initialize all states

@@ -18,6 +18,8 @@ GAME = {
     prevState = nil,
     lastCity = "Delzor",
     currentCityData = nil,
+    mouseX = 0,
+    mouseY = 0,
     
     -- Set game volume settings
     setVolume = function(musicVolume, soundVolume, masterVolume)
@@ -139,6 +141,9 @@ function love.update(dt)
     -- Update debug console
     debugConsole:update(dt)
     
+    -- Update mouse position for debug display
+    GAME.mouseX, GAME.mouseY = love.mouse.getPosition()
+    
     -- Update out-of-combat effects (status and buffs)
     local outOfCombatEffects = require("gameplay/outOfCombatEffects")
     outOfCombatEffects:update(dt)
@@ -206,6 +211,10 @@ function love.draw()
         local offsetX, offsetY = scaling:getOffset()
         love.graphics.print("Scale: " .. string.format("%.2f", scaleX), 10, 50)
         love.graphics.print("Offset: " .. string.format("%.0f,%.0f", offsetX, offsetY), 10, 70)
+        
+        -- Show mouse coordinates (both screen and game coordinates)
+        local gameX, gameY = scaling:toGameCoords(GAME.mouseX, GAME.mouseY)
+        love.graphics.print("Mouse: " .. string.format("%.0f,%.0f", GAME.mouseX, GAME.mouseY) .. " (Game: " .. string.format("%.0f,%.0f", gameX, gameY) .. ")", 10, 90)
     elseif GAME.showFPS then
         -- Just show FPS if showFPS is enabled without full debug mode
         love.graphics.setColor(1, 1, 0)
@@ -244,6 +253,19 @@ function love.keypressed(key, scancode, isrepeat)
     elseif key == "f1" then
         -- Toggle debug mode
         GAME.debug = not GAME.debug
+    elseif key == "0" and GAME.debug then
+        -- Debug function: Add reputation to both Guild and Tavern
+        local reputationSystem = require("gameplay/reputationSystem")
+        local guildChanged, newGuildLevel = reputationSystem:changeReputation(reputationSystem.factions.GUILD, 50)
+        local tavernChanged, newTavernLevel = reputationSystem:changeReputation(reputationSystem.factions.TAVERN, 50)
+        
+        print("DEBUG: Added 50 reputation to Guild and Tavern")
+        if guildChanged then
+            print("Guild reputation level changed to: " .. reputationSystem:getReputationLevelName(newGuildLevel))
+        end
+        if tavernChanged then
+            print("Tavern reputation level changed to: " .. reputationSystem:getReputationLevelName(newTavernLevel))
+        end
     end
     
     -- Pass key press to current state
