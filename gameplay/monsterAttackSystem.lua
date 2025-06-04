@@ -169,6 +169,19 @@ function monsterAttackSystem:resolveAbility(ability, attacker, targets, combatCo
                 goto continue
             end
             
+            -- Check for target dodge (only for player characters)
+            if target.attributes then -- Assume players have attributes, monsters don't
+                local characterSystem = require("gameplay/character")
+                local dodgeChance = characterSystem:calculateDodgeChance(target)
+                if math.random(1, 100) <= dodgeChance then
+                    table.insert(logEntries, {
+                        message = target.name .. " dodges " .. abilityDef.name .. "!",
+                        color = {0.8, 0.8, 0.2}
+                    })
+                    goto continue
+                end
+            end
+            
             -- Apply damage to target
             target.currentHP = math.max(0, target.currentHP - damage)
             

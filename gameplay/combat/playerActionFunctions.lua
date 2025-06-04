@@ -60,6 +60,44 @@ local function executePlayerAction(self)
             print("  Enemy defense: " .. enemyDefense)
         end
         
+        -- Check for hit/miss
+        local characterSystem = require("gameplay/character")
+        local hitChance = 70  -- Base hit chance
+        
+        -- Determine if this is a ranged attack based on weapon type
+        local isRangedAttack = false
+        if currentChar.equipment and currentChar.equipment.weapon then
+            local weapon = currentChar.equipment.weapon
+            if weapon.category == "bow" or weapon.category == "crossbow" or 
+               weapon.subtype == "throwing" or weapon.name:lower():find("bow") then
+                isRangedAttack = true
+            end
+        end
+        
+        if isRangedAttack then
+            hitChance = characterSystem:calculateRangedHitChance(
+                currentChar.attributes.DEX, 
+                currentChar.attributes.STR
+            )
+        else
+            hitChance = characterSystem:calculateMeleeHitChance(
+                currentChar.attributes.STR, 
+                currentChar.attributes.DEX
+            )
+        end
+        
+        -- Check if attack hits
+        if math.random(1, 100) > hitChance then
+            self:addLog(currentChar.name .. " misses!", {0.8, 0.4, 0.4})
+            -- Clear selection state and end turn
+            self.selectedAction = nil
+            self.selectedTarget = nil
+            self:hideActionButtons()
+            self:hideSelectionLists()
+            self.turnEndDelay = 0.7
+            return
+        end
+        
         -- Basic damage calculation with explicit values
         local damage = math.floor(attackPower - (enemyDefense / 2))
         
@@ -69,6 +107,20 @@ local function executePlayerAction(self)
             if GAME.debug then
                 print("  Adjusted to minimum damage: " .. damage)
             end
+        end
+        
+        -- Check for enemy dodge
+        local characterSystem = require("gameplay/character")
+        local dodgeChance = characterSystem:calculateDodgeChance(targetEnemy)
+        if math.random(1, 100) <= dodgeChance then
+            self:addLog(targetEnemy.name .. " dodges the attack!", {0.8, 0.8, 0.2})
+            -- Clear selection state and end turn
+            self.selectedAction = nil
+            self.selectedTarget = nil
+            self:hideActionButtons()
+            self:hideSelectionLists()
+            self.turnEndDelay = 0.7
+            return
         end
         
         -- Apply damage to enemy
@@ -294,6 +346,18 @@ local function executeSkill(self, caster, skill, target, fromQueue)
             isCritical = damageContext.is_critical
         end
         
+        -- Check for target dodge (only for damage-dealing skills)
+        if damage > 0 then
+            local characterSystem = require("gameplay/character")
+            local dodgeChance = characterSystem:calculateDodgeChance(selectedTarget)
+            if math.random(1, 100) <= dodgeChance then
+                self:addLog(selectedTarget.name .. " dodges " .. selectedSkill.name .. "!", {0.8, 0.8, 0.2})
+                -- End turn after a short delay
+                self.turnEndDelay = 0.7
+                return
+            end
+        end
+        
         -- Apply damage
         selectedTarget.currentHP = math.max(0, selectedTarget.currentHP - damage)
         
@@ -444,8 +508,16 @@ local function executeSkill(self, caster, skill, target, fromQueue)
                 -- Apply damage with AOE reduction
                 local aoeReduction = 0.8 -- Reduce damage for AOE attacks
                 damage = math.floor(damage * aoeReduction)
-                enemy.currentHP = math.max(0, enemy.currentHP - damage)
-                totalDamage = totalDamage + damage
+                
+                -- Check for enemy dodge
+                local characterSystem = require("gameplay/character")
+                local dodgeChance = characterSystem:calculateDodgeChance(enemy)
+                if math.random(1, 100) <= dodgeChance then
+                    self:addLog(enemy.name .. " dodges " .. selectedSkill.name .. "!", {0.8, 0.8, 0.2})
+                else
+                    enemy.currentHP = math.max(0, enemy.currentHP - damage)
+                    totalDamage = totalDamage + damage
+                end
                 
                 -- Apply skill effects
                 if selectedSkill.effect then

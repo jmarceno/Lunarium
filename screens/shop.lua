@@ -158,13 +158,19 @@ function shop:createUI()
                     self.x + 40, itemY + 7
                 )
                 
-                -- Draw item price
+                -- Draw item price (with charisma discount)
                 love.graphics.setFont(screenManager.fonts.medium)
                 love.graphics.setColor(1, 1, 0)
                 
+                local finalPrice = shop:getFinalPrice(item)
+                local priceText = finalPrice .. " gold"
+                if finalPrice < item.value then
+                    priceText = finalPrice .. " gold (was " .. item.value .. ")"
+                end
+                
                 love.graphics.print(
-                    item.value .. " gold",
-                    self.x + self.width - 150, itemY + 7
+                    priceText,
+                    self.x + self.width - 200, itemY + 7
                 )
             end
             
@@ -449,12 +455,18 @@ function shop:createUI()
                 end
             end
             
-            -- Draw price
+            -- Draw price (with charisma discount)
             love.graphics.setFont(screenManager.fonts.large)
             love.graphics.setColor(1, 1, 0)
             
+            local finalPrice = shop:getFinalPrice(item)
+            local priceText = "Price: " .. finalPrice .. " gold"
+            if finalPrice < item.value then
+                priceText = priceText .. " (was " .. item.value .. " gold)"
+            end
+            
             love.graphics.print(
-                "Price: " .. item.value .. " gold",
+                priceText,
                 self.x + 30, self.y + self.height - 120
             )
             
@@ -797,20 +809,47 @@ function shop:showMainScreen()
     self:updateElementVisibility()
 end
 
+-- Calculate price discount based on charisma
+function shop:calculatePriceDiscount(character)
+    if not character or not character.attributes then
+        return 1.0  -- No discount
+    end
+    
+    local charisma = character.attributes.CHA or 5
+    local discount = math.min(0.15, charisma * 0.01)  -- Max 15% discount, 1% per CHA
+    return 1.0 - discount
+end
+
+-- Get the final price for an item with charisma discount
+function shop:getFinalPrice(item)
+    if not item then
+        return 0
+    end
+    
+    -- Get the party leader for charisma calculation
+    local leader = GAME.party and GAME.party.members and GAME.party.members[1]
+    local priceMultiplier = self:calculatePriceDiscount(leader)
+    
+    return math.ceil(item.value * priceMultiplier)
+end
+
 function shop:buyItem()
     if not self.selectedItem then
         return
     end
     
+    -- Get the final price with charisma discount
+    local finalPrice = self:getFinalPrice(self.selectedItem)
+    
     -- Check if player has enough gold
-    if not GAME.gold or GAME.gold < self.selectedItem.value then
+    if not GAME.gold or GAME.gold < finalPrice then
         -- Not enough gold
         assetManager:playSound("hit")
         return
     end
     
     -- Deduct gold
-    GAME.gold = GAME.gold - self.selectedItem.value
+    GAME.gold = GAME.gold - finalPrice
     
     -- Create a new item with proper unique ID
     local newItem = itemSystem:cloneItemWithId(self.selectedItem)

@@ -280,11 +280,11 @@ local skillDefinitions = {
         formula = "physical",
         critModifier = 2.5,
         critChance = 0.25,
+        useDexForCrit = true,  -- DEX contributes to critical hit chance
         maxLevel = 5,
         levelModifier = function(level) 
             return {
-                power = 1 + (level * 0.06),
-                critChance = 0.25 + (level * 0.05)
+                power = 1 + (level * 0.06)
             }
         end
     },

@@ -163,10 +163,11 @@ function skillSystem:calculateDamage(skill, user, target, level)
             wisdom = user.attributes.WIS
         end
         
-        -- Make sure wisdom is a number
+        -- Enhanced scaling for high wisdom
+        local wisdomMultiplier = 1.0 + ((wisdom - 10) * 0.05)  -- 5% bonus per point above 10
         wisdom = tonumber(wisdom) or 10
         
-        damage = (power / 100) * (wisdom * 3)
+        damage = (power / 100) * (wisdom * 3) * wisdomMultiplier
         damage = math.max(1, damage)
     end
     
@@ -216,13 +217,10 @@ function skillSystem:calculateDamage(skill, user, target, level)
     if skill.critChance then
         local critChance = skill.critChance
         
-        -- Apply level modifier to crit chance
-        if skill.levelModifier and type(skill.levelModifier) == "function" then
-            local modifier = skill.levelModifier(level or 1)
-            
-            if type(modifier) == "table" and modifier.critChance then
-                critChance = modifier.critChance
-            end
+        -- DEX bonus for precision skills
+        if skill.useDexForCrit and user.attributes and user.attributes.DEX then
+            local dexBonus = user.attributes.DEX * 0.005  -- 0.5% per DEX point
+            critChance = critChance + dexBonus
         end
         
         -- Apply accuracy multiplier from status effects (affects crit chance)
@@ -235,6 +233,25 @@ function skillSystem:calculateDamage(skill, user, target, level)
     end
     
     return math.floor(damage), isCritical
+end
+
+-- Calculate hit chance for a skill
+function skillSystem:calculateHitChance(skill, user, target)
+    local baseHitChance = skill.baseHitChance or 85
+    
+    -- Get statusEffects module
+    local statusEffects = statusEffects or require("gameplay/statusEffects")
+    
+    -- Apply accuracy multiplier from status effects
+    local accuracyMultiplier = statusEffects:getMultiplier(user, "accuracy_multiplier")
+    
+    -- DEX bonus for precision
+    local dexBonus = 0
+    if user.attributes and user.attributes.DEX then
+        dexBonus = user.attributes.DEX * 0.2
+    end
+    
+    return math.min(95, baseHitChance + dexBonus) * accuracyMultiplier
 end
 
 -- Get all skills for a given job

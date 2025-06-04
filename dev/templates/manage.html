@@ -87,6 +87,80 @@
 </div>
 
 {% if data %}
+<!-- Attribute Influence Information Panel -->
+{% if data_type == 'skills' or data_type == 'jobs' %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5><i class="bi bi-person-badge"></i> Attribute Influences</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>STR (Strength)</h6>
+                        <ul>
+                            <li>Physical damage: Direct scaling</li>
+                            <li>Melee hit chance: +0.5% per point</li>
+                            <li>Attack power calculation</li>
+                        </ul>
+                        
+                        <h6>DEX (Dexterity)</h6>
+                        <ul>
+                            <li>Dodge chance: +0.3% per point (base: 2%)</li>
+                            <li>Ranged hit chance: +0.5% per point</li>
+                            <li>Critical hit bonus: +0.5% per point (precision skills)</li>
+                            <li>Steal success: +1% per point</li>
+                            <li>Speed bonus: +1 per 20 points</li>
+                        </ul>
+                        
+                        <h6>CON (Constitution)</h6>
+                        <ul>
+                            <li>Hit Points: Primary HP determinant</li>
+                            <li>Physical defense: Fallback defense calculation</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>INT (Intelligence)</h6>
+                        <ul>
+                            <li>Magic power: Core magical damage</li>
+                            <li>Mana Points: Primary MP component</li>
+                            <li>Magical skill damage: Direct scaling</li>
+                        </ul>
+                        
+                        <h6>WIS (Wisdom)</h6>
+                        <ul>
+                            <li>Healing power: Enhanced scaling (+5% per point above 10)</li>
+                            <li>Mana Points: Secondary MP component</li>
+                            <li>Magic defense: Resistance calculation</li>
+                        </ul>
+                        
+                        <h6>WIL (Willpower)</h6>
+                        <ul>
+                            <li>Mana Points: Primary MP component</li>
+                            <li>Magic defense: Core magical resistance</li>
+                            <li>Mental status resistance</li>
+                        </ul>
+                        
+                        <h6>CHA (Charisma)</h6>
+                        <ul>
+                            <li>Shop prices: -1% per point (max -15%)</li>
+                            <li>Quest rewards: Enhanced rewards (planned)</li>
+                            <li>Haggle success: +3% per point</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="alert alert-info mt-3">
+                    <i class="bi bi-info-circle"></i> 
+                    <strong>Note:</strong> Skills with <code>useDexForCrit = true</code> gain critical hit bonuses from DEX. 
+                    See <a href="{{ url_for('index') }}">Balance Dashboard</a> for detailed attribute impact calculations.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <div class="row mt-4">
     <div class="col-12">
         <div class="card bg-light">

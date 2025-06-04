@@ -561,6 +561,40 @@ function character:calculateMagicDefense(char)
     return baseMDefense
 end
 
+-- Calculate dodge chance
+function character:calculateDodgeChance(char)
+    if not char then
+        return 0  -- No dodge if no character
+    end
+    
+    local baseDodge = 2  -- Base 2% dodge chance
+    local dexBonus = 0
+    
+    -- Only calculate DEX bonus if the character has attributes (player characters)
+    if char.attributes and char.attributes.DEX then
+        dexBonus = char.attributes.DEX * 0.3  -- 0.3% per DEX point
+    end
+    
+    return math.min(50, baseDodge + dexBonus)  -- Cap at 50%
+end
+
+-- Calculate speed with DEX bonus
+function character:calculateSpeed(char)
+    if not char then
+        return 10  -- Default speed if no character
+    end
+    
+    local baseSpeed = char.speed or 10  -- Default speed
+    local dexBonus = 0
+    
+    -- Only calculate DEX bonus if the character has attributes (player characters)
+    if char.attributes and char.attributes.DEX then
+        dexBonus = math.floor(char.attributes.DEX / 20)  -- +1 speed per 20 DEX
+    end
+    
+    return baseSpeed + dexBonus
+end
+
 -- Apply attribute gains, recalculate stats, and heal after level up or job change
 function character:applyLevelUpChanges(char, jobData)
     -- jobData is now the actual job table passed from levelUpScreen
@@ -585,6 +619,9 @@ function character:applyLevelUpChanges(char, jobData)
     -- Recalculate stats based on new total level and potentially new attributes
     char.maxHP = self:calculateHP(char.attributes.CON, totalLevel)
     char.maxMP = self:calculateMP(char.attributes.INT, char.attributes.WIL, char.attributes.WIS, totalLevel)
+    
+    -- Update speed based on DEX
+    char.speed = self:calculateSpeed(char)
 
     -- Heal character to full after level up
     char.currentHP = char.maxHP
