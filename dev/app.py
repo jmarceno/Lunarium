@@ -3,8 +3,11 @@ import os
 import re
 import json
 from pathlib import Path
-import lupa
-from lupa import LuaRuntime
+# import lupa # No longer needed here directly if LuaTableManager handles it
+# from lupa import LuaRuntime # No longer needed here directly
+
+from balance_analyzer import BalanceAnalyzer
+from lua_utils import LuaTableManager # Import from new location
 
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-here'
@@ -14,277 +17,17 @@ PROJECT_ROOT = Path(__file__).parent.parent
 DATA_PATH = PROJECT_ROOT / 'data'
 ASSETS_PATH = PROJECT_ROOT / 'assets'
 
-class LuaTableManager:
-    def __init__(self):
-        self.lua = LuaRuntime(unpack_returned_tuples=True)
-        
-    def read_lua_file(self, file_path):
-        """Read and parse a Lua file containing table definitions."""
-        try:
-            with open(file_path, 'r', encoding='utf-8') as file:
-                content = file.read()
-            
-            # Create a fresh Lua runtime for each file to avoid conflicts
-            lua = LuaRuntime(unpack_returned_tuples=True)
-            
-            # Execute the Lua code
-            result = lua.execute(content)
-            
-            # Check if the file returns a table directly
-            if result is not None:
-                converted = self._lua_to_python(result)
-                print(f"Successfully loaded returned table from {file_path}")
-                return converted if converted is not None else {}
-            
-            # Try to extract the main table (most files export one main table)
-            table_name = self._extract_table_name(content)
-            if table_name and table_name in lua.globals():
-                result = self._lua_to_python(lua.globals()[table_name])
-                print(f"Successfully loaded {table_name} from {file_path}")
-                return result if result is not None else {}
-            else:
-                # If no main table found, return all globals that look like tables
-                result = {}
-                for key, value in lua.globals().items():
-                    if not key.startswith('_') and hasattr(value, 'items'):
-                        try:
-                            result[key] = self._lua_to_python(value)
-                        except Exception as e:
-                            print(f"Error converting {key}: {e}")
-                            continue
-                print(f"Loaded globals from {file_path}: {list(result.keys())}")
-                return result
-                
-        except Exception as e:
-            print(f"Error reading {file_path}: {e}")
-            import traceback
-            traceback.print_exc()
-            return {}
-    
-    def _extract_table_name(self, content):
-        """Extract the main table name from Lua file content."""
-        # Look for patterns like "local tableName = {" or "tableName = {"
-        patterns = [
-            r'local\s+(\w+)\s*=\s*{',
-            r'(\w+Definitions)\s*=\s*{',
-            r'return\s+(\w+)',
-        ]
-        
-        for pattern in patterns:
-            match = re.search(pattern, content)
-            if match:
-                return match.group(1)
-        
-        return None
-    
-    def _lua_to_python(self, lua_obj):
-        """Convert Lua objects to Python objects recursively."""
-        if lua_obj is None:
-            return None
-        elif isinstance(lua_obj, (str, int, float, bool)):
-            return lua_obj
-        elif hasattr(lua_obj, 'items'):  # Lua table with key-value pairs
-            result = {}
-            try:
-                for key, value in lua_obj.items():
-                    result[key] = self._lua_to_python(value)
-                return result
-            except Exception as e:
-                print(f"Error iterating table items: {e}")
-                return {}
-        else:
-            # Try to handle as array/list, but be more careful
-            try:
-                # Check if it's actually iterable before trying to iterate
-                iter(lua_obj)
-                return [self._lua_to_python(item) for item in lua_obj]
-            except (TypeError, AttributeError):
-                # If it's not iterable, convert to string representation
-                try:
-                    return str(lua_obj)
-                except Exception:
-                    return None
-    
-    def write_lua_file(self, file_path, data, table_name):
-        """Write Python data back to a Lua file."""
-        print(f"DEBUG write_lua_file: Writing {table_name} to {file_path}")
-        
-        # Check if this is a complex table structure (like item_definitions.lua)
-        if isinstance(data, dict) and ('items' in data or 'monsters' in data):
-            # This is a complex structure that should be returned directly
-            lua_content = self._python_to_lua_complex(data)
-        else:
-            # Simple table structure
-            lua_content = self._python_to_lua(data, table_name)
-        
-        try:
-            with open(file_path, 'w', encoding='utf-8') as file:
-                file.write(lua_content)
-            print(f"DEBUG write_lua_file: Successfully wrote to file")
-        except Exception as e:
-            print(f"DEBUG write_lua_file: Error writing to file: {e}")
-            raise
-    
-    def _python_to_lua_complex(self, data):
-        """Convert complex Python data structures to Lua format with return statement."""
-        lines = []
-        
-        # Handle RARITY constant if present
-        if 'RARITY' in data:
-            lines.append("-- Define item rarities")
-            lines.append("local RARITY = {")
-            for key, value in data['RARITY'].items():
-                lines.append(f'    {key} = "{value}",')
-            lines.append("}")
-            lines.append("")
-        
-        # Handle items table
-        if 'items' in data:
-            lines.append("local itemDefinitions = {")
-            for key, value in data['items'].items():
-                lines.append(f"    {key} = {self._format_value(value, 1)},")
-            lines.append("}")
-            lines.append("")
-        
-        # Handle monsterParts table
-        if 'monsterParts' in data:
-            lines.append("local monsterParts = {")
-            for key, value in data['monsterParts'].items():
-                lines.append(f"    {key} = {self._format_value(value, 1)},")
-            lines.append("}")
-            lines.append("")
-        
-        # Handle monsters table
-        if 'monsters' in data:
-            lines.append("local monsterDefinitions = {}")
-            lines.append("monsterDefinitions.monsters = {")
-            for key, value in data['monsters'].items():
-                lines.append(f'    ["{key}"] = {self._format_value(value, 1)},')
-            lines.append("}")
-            lines.append("")
-            lines.append("return monsterDefinitions")
-            return "\n".join(lines)
-        
-        # Handle minion abilities table
-        if 'definitions' in data:
-            lines.append("local minionAbilities = {}")
-            lines.append("minionAbilities.definitions = {")
-            for key, value in data['definitions'].items():
-                lines.append(f'    ["{key}"] = {self._format_value(value, 1)},')
-            lines.append("}")
-            lines.append("")
-            lines.append("return minionAbilities")
-            return "\n".join(lines)
-        
-        # Return the appropriate structure
-        return_parts = []
-        if 'items' in data:
-            return_parts.append("items = itemDefinitions")
-        if 'monsterParts' in data:
-            return_parts.append("monsterParts = monsterParts")
-        if 'RARITY' in data:
-            return_parts.append("RARITY = RARITY")
-            
-        if return_parts:
-            lines.append("return {")
-            for part in return_parts:
-                lines.append(f"    {part},")
-            lines.append("}")
-        
-        return "\n".join(lines)
-    
-    def _python_to_lua(self, data, table_name, indent=0):
-        """Convert Python data to Lua table format."""
-        if isinstance(data, list):
-            # Handle arrays (like quests and smith recipes)
-            lines = []
-            if indent == 0:
-                lines.append(f"local {table_name} = {{")
-            else:
-                lines.append("{")
-            
-            for i, item in enumerate(data):
-                indent_str = "    " * (indent + 1)
-                lines.append(f"{indent_str}[{i + 1}] = {self._format_value(item, indent + 1)},")
-            
-            if indent == 0:
-                lines.append("}")
-                lines.append(f"\nreturn {table_name}")
-            else:
-                lines.append("    " * indent + "}")
-            
-            return "\n".join(lines)
-        elif isinstance(data, dict):
-            lines = []
-            if indent == 0:
-                lines.append(f"local {table_name} = {{")
-            else:
-                lines.append("{")
-            
-            for key, value in data.items():
-                indent_str = "    " * (indent + 1)
-                if isinstance(key, str) and key.isidentifier():
-                    key_str = key
-                else:
-                    key_str = f'["{key}"]'
-                
-                if isinstance(value, dict):
-                    lines.append(f"{indent_str}{key_str} = {{")
-                    for sub_key, sub_value in value.items():
-                        sub_indent_str = "    " * (indent + 2)
-                        if isinstance(sub_key, str) and sub_key.isidentifier():
-                            sub_key_str = sub_key
-                        else:
-                            sub_key_str = f'["{sub_key}"]'
-                        lines.append(f"{sub_indent_str}{sub_key_str} = {self._format_value(sub_value, indent + 2)},")
-                    lines.append(f"{indent_str}}},")
-                else:
-                    lines.append(f"{indent_str}{key_str} = {self._format_value(value, indent + 1)},")
-            
-            if indent == 0:
-                lines.append("}")
-                lines.append(f"\nreturn {table_name}")
-            else:
-                lines.append("    " * indent + "}")
-            
-            return "\n".join(lines)
-        else:
-            return self._format_value(data, indent)
-    
-    def _format_value(self, value, indent):
-        """Format a single value for Lua output."""
-        if isinstance(value, str):
-            return f'"{value}"'
-        elif isinstance(value, bool):
-            return "true" if value else "false"
-        elif isinstance(value, (int, float)):
-            return str(value)
-        elif isinstance(value, list):
-            if not value:
-                return "{}"
-            # For arrays, use 1-based indexing like Lua
-            lines = ["{"]
-            for i, item in enumerate(value):
-                indent_str = "    " * (indent + 1)
-                lines.append(f"{indent_str}[{i + 1}] = {self._format_value(item, indent + 1)},")
-            lines.append("    " * indent + "}")
-            return "\n".join(lines)
-        elif isinstance(value, dict):
-            if not value:
-                return "{}"
-            lines = ["{"]
-            for k, v in value.items():
-                indent_str = "    " * (indent + 1)
-                key_str = k if isinstance(k, str) and k.isidentifier() else f'["{k}"]'
-                lines.append(f"{indent_str}{key_str} = {self._format_value(v, indent + 1)},")
-            lines.append("    " * indent + "}")
-            return "\n".join(lines)
-        elif value is None:
-            return "nil"
-        else:
-            return f'"{str(value)}"'
+# Initialize BalanceAnalyzer 
+analyzer = None # Initialize as None first
+try:
+    analyzer = BalanceAnalyzer(PROJECT_ROOT)
+except Exception as e:
+    print(f"CRITICAL: Failed to initialize BalanceAnalyzer: {e}")
+    # Depending on how critical BalanceAnalyzer is at startup, you might:
+    # 1. Let the app run with analyzer = None and handle it in routes
+    # 2. Raise the exception to prevent the app from starting if it's essential
 
-# Initialize the Lua table manager
+# Initialize the Lua table manager using the imported class
 lua_manager = LuaTableManager()
 
 # Data file configurations
@@ -1421,6 +1164,256 @@ def convert_value(value):
 def serve_assets(filename):
     """Serve assets files for image previews."""
     return send_from_directory(ASSETS_PATH, filename)
+
+# Balance Dashboard Routes
+@app.route('/balance')
+def balance_dashboard():
+    """Main balance dashboard."""
+    try:
+        summary = analyzer.get_balance_summary()
+        
+        print(f"DEBUG: Summary data: {summary}")
+        
+        return render_template('balance_dashboard.html', summary=summary)
+    except Exception as e:
+        print(f"ERROR in balance_dashboard: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        # Return a minimal summary to avoid template errors
+        summary = {
+            'total_jobs': 0,
+            'total_skills': 0,
+            'total_weapons': 0,
+            'total_armor': 0,
+            'sample_level': 25,
+            'sample_characters': {},
+            'equipment_tiers': {'basic': 0, 'intermediate': 0, 'advanced': 0}
+        }
+        flash(f'Error loading balance data: {e}')
+        return render_template('balance_dashboard.html', summary=summary)
+
+@app.route('/balance/progression')
+def balance_progression():
+    """Character progression analysis."""
+    try:
+        jobs_data = analyzer.get_jobs_data()
+        # print(f"DEBUG: Jobs data keys: {list(jobs_data.keys())}") # Original print
+        
+        available_jobs = sorted(list(jobs_data.keys())) # Sort jobs alphabetically
+        selected_jobs = request.args.getlist('jobs') 
+        if not selected_jobs and available_jobs: # Ensure selected_jobs is populated if empty
+            selected_jobs = available_jobs[:min(5, len(available_jobs))]
+        
+        max_level = int(request.args.get('max_level', 30))
+        
+        # print(f"DEBUG: Selected jobs: {selected_jobs}") # Original print
+        
+        # Generate progression curves
+        curves = analyzer.generate_progression_curves(selected_jobs, max_level)
+        
+        return jsonify({
+            'curves': curves,
+            'available_jobs': available_jobs,
+            'selected_jobs': selected_jobs,
+            'max_level': max_level
+        })
+    except Exception as e:
+        print(f"ERROR in balance_progression: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'error': str(e),
+            'curves': {},
+            'available_jobs': [],
+            'selected_jobs': [],
+            'max_level': 30
+        }), 500
+
+@app.route('/balance/skills')
+def balance_skills():
+    """Skill efficiency analysis."""
+    try:
+        character_level = int(request.args.get('level', 25))
+        character_job_id = request.args.get('job', 'Fighter')
+        
+        # Get skills specific to the selected job
+        job_skills_data = analyzer.get_skills_for_job(character_job_id)
+        
+        if not job_skills_data:
+            print(f"No skills found for job: {character_job_id}")
+            return jsonify({
+                'skills': [],
+                'character_level': character_level,
+                'character_job': character_job_id,
+                'character_stats': {},
+                'error': f'No skills found for job: {character_job_id}'
+            })
+
+        character_stats = analyzer.calculate_character_power(character_level, character_job_id)
+        
+        skill_analyses = []
+        for skill_id in job_skills_data.keys():
+            analysis = analyzer.analyze_skill_efficiency(skill_id, character_stats)
+            if analysis:
+                skill_analyses.append(analysis)
+        
+        skill_analyses.sort(key=lambda x: x.get('damage_per_mp', 0), reverse=True)
+        
+        return jsonify({
+            'skills': skill_analyses,
+            'character_level': character_level,
+            'character_job': character_job_id,
+            'character_stats': character_stats
+        })
+    except Exception as e:
+        print(f"ERROR in balance_skills: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'error': str(e),
+            'skills': [],
+            'character_level': 25,
+            'character_job': 'Fighter',
+            'character_stats': {}
+        }), 500
+
+@app.route('/balance/equipment')
+def balance_equipment():
+    """Equipment progression analysis."""
+    equipment_data = analyzer.analyze_equipment_progression()
+    
+    # Filter by type if specified
+    item_type = request.args.get('type')
+    if item_type:
+        equipment_data = [item for item in equipment_data if item['type'] == item_type]
+    
+    return jsonify({
+        'equipment': equipment_data,
+        'filter_type': item_type
+    })
+
+@app.route('/balance/xp')
+def balance_xp():
+    """XP scaling analysis."""
+    if not analyzer:
+        return jsonify({"error": "BalanceAnalyzer not initialized"}), 500
+    try:
+        target_hours = float(request.args.get('target_hours', 2.0))
+        
+        xp_data = analyzer.analyze_xp_scaling(target_hours)
+        
+        return jsonify(xp_data)
+    except Exception as e:
+        print(f"Error in /balance/xp: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/balance/monsters/progression')
+def balance_monster_progression():
+    if not analyzer:
+        return jsonify({"error": "BalanceAnalyzer not initialized"}), 500
+    try:
+        monster_progression_data = analyzer.analyze_monster_power_progression()
+        return jsonify(monster_progression_data)
+    except Exception as e:
+        print(f"Error in /balance/monsters/progression: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/balance/monsters/encounter_analysis')
+def balance_monster_encounter():
+    if not analyzer:
+        return jsonify({"error": "BalanceAnalyzer not initialized"}), 500
+    try:
+        player_job_id = request.args.get('player_job_id', 'Fighter') # Default to Fighter
+        player_level = request.args.get('player_level', default=1, type=int)
+        monster_id = request.args.get('monster_id')
+        equipment_tier = request.args.get('equipment_tier', 'basic')
+
+        if not monster_id:
+            return jsonify({"error": "monster_id parameter is required"}), 400
+
+        analysis_result = analyzer.analyze_encounter_balance(
+            player_job_id, player_level, monster_id, equipment_tier
+        )
+        if analysis_result:
+            return jsonify(analysis_result)
+        else:
+            return jsonify({"error": "Could not perform encounter analysis. Check logs."}), 500
+    except Exception as e:
+        print(f"Error in /balance/monsters/encounter_analysis: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/balance/data/monsters')
+def balance_get_monsters_data():
+    if not analyzer:
+        return jsonify({"error": "BalanceAnalyzer not initialized"}), 500
+    try:
+        monsters_data = analyzer.get_monsters_data()
+        monster_list = sorted([
+            {"id": m_id, "name": m_data.get("name", m_id), "level": m_data.get("stats", {}).get("level", 0)}
+            for m_id, m_data in monsters_data.items()
+            if isinstance(m_data, dict) # Ensure m_data is a dict
+        ], key=lambda m: m["name"].lower()) # Sort alphabetically by name
+        return jsonify(monster_list)
+    except Exception as e:
+        print(f"Error in /balance/data/monsters: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/balance/data/jobs')
+def balance_get_jobs_data():
+    if not analyzer:
+        return jsonify({"error": "BalanceAnalyzer not initialized"}), 500
+    try:
+        jobs_data = analyzer.get_jobs_data()
+        job_list = sorted([
+            {"id": job_id, "name": job_data.get("name", job_id)}
+            for job_id, job_data in jobs_data.items()
+            if isinstance(job_data, dict) # Ensure job_data is a dict
+        ], key=lambda j: j["name"].lower()) # Sort alphabetically by name
+        return jsonify(job_list)
+    except Exception as e:
+        print(f"Error in /balance/data/jobs: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/balance/monsters/difficulty_curve_data')
+def monster_difficulty_curve_data():
+    if not analyzer:
+        return jsonify({"error": "BalanceAnalyzer not initialized"}), 500
+    try:
+        ref_job_id = request.args.get('jobId', 'Fighter')
+        ref_equip_tier = request.args.get('equipTier', 'basic')
+        
+        data = analyzer.analyze_monster_difficulty_curve(reference_job_id=ref_job_id, reference_equipment_tier=ref_equip_tier)
+        return jsonify(data)
+    except Exception as e:
+        print(f"Error in /balance/monsters/difficulty_curve_data: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/balance/debug')
+def balance_debug():
+    """Debug route to check data loading."""
+    try:
+        jobs_data = analyzer.get_jobs_data()
+        skills_data = analyzer.get_skills_data()
+        items_data = analyzer.get_items_data()
+        
+        debug_info = {
+            'jobs_count': len(jobs_data),
+            'jobs_sample': list(jobs_data.keys())[:5] if jobs_data else [],
+            'skills_count': len(skills_data),
+            'skills_sample': list(skills_data.keys())[:5] if skills_data else [],
+            'items_count': len(items_data),
+            'items_sample': list(items_data.keys())[:5] if items_data else [],
+            'first_job': jobs_data.get(list(jobs_data.keys())[0]) if jobs_data else None
+        }
+        
+        return jsonify(debug_info)
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
 
 @app.route('/search/<data_type>')
 def search_data(data_type):

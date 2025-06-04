@@ -10,6 +10,7 @@ Remember that if you are using a function/value from another file/module, you ne
 Remember that you are using Lua, a language that do not have types and can have nil values, if you are not sure a value has been initialized, check for nil before using it in any operation
 Do not try to run any script/program inside the project if you were not explicitly asked to
 You should always try your best to support Mouse and Keyboard on any feature you implement
+We have a balance dashboard at [balance_dashboard.html](mdc:dev/templates/balance_dashboard.html) and [balance_analyzer.py](mdc:dev/balance_analyzer.py) and a content manager dashboard at [manage.html](mdc:dev/templates/manage.html) and [app.py](mdc:dev/app.py), everytime a change affects how content (content in everything at /data folder, but for balance analyzer is anything that affects combat damage calculations) is structured or a new field is added, you should review the impact on those dashboards and update them.
 
 Do not commit code unless you were specifically asked to
 You are not allowed to run the game

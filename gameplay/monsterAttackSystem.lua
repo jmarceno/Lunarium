@@ -30,20 +30,24 @@ function monsterAttackSystem:calculateDamage(ability, attacker, target)
         return 0, 1.0, ability.damageType or "physical"
     end
     
-    -- Base damage = attack power * ability power / 100
-    local baseDamage = math.floor(attackPower * (ability.basePower / 100))
+    -- Get target's raw defense stat
+    local rawDefense = target.defense or target.stats.defense or 5
+
+    -- New damage calculation logic:
+    local rawOffense = attackPower * 2 -- Scale attacker's stat (e.g., *2 similar to player skills)
     
-    -- Get target defense
-    local defense = target.defense or target.stats.defense or 5
-    
-    -- Apply defense reduction (less effective for magic and special damage types)
-    local defenseReduction = defense / 2
-    if ability.type == "magical" then
-        defenseReduction = defense / 3 -- Magic ignores some defense
+    local effectiveDefense = 0
+    if ability.type == "physical" then
+        effectiveDefense = math.floor(rawDefense / 2)
+    elseif ability.type == "magical" then
+        effectiveDefense = math.floor(rawDefense / 3) -- Magic ignores more defense
+    else -- Fallback for other damage-dealing types if any, default to physical reduction
+        effectiveDefense = math.floor(rawDefense / 2)
     end
-    
-    -- Calculate initial damage
-    local damage = math.floor(baseDamage - defenseReduction)
+
+    -- Calculate damage using the new formula
+    -- Damage = (AbilityBasePower / 100) * (ScaledAttackerStat - EffectivePlayerDefense)
+    local damage = math.floor((ability.basePower / 100) * (rawOffense - effectiveDefense))
     damage = math.max(1, damage) -- Ensure minimum damage of 1
     
     -- Apply damage type modifier based on target resistances/vulnerabilities

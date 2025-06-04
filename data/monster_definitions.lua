@@ -1029,7 +1029,7 @@ monsterDefinitions.monsters = {
         },
         abilities = {
             { id = "strong_physical_attack", chanceToUse = 0.8 },
-            { id = "regeneration", chanceToUse = 0.2 }
+            { id = "regeneration", chanceToUse = 0.1 }
         },
         resistances = {
             ["physical"] = -60,

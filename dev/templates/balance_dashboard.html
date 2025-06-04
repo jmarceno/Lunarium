@@ -1,0 +1,1409 @@
+{% extends "base.html" %}
+
+{% block title %}Game Balance Dashboard{% endblock %}
+
+{% block head %}
+    <!-- Chart.js for interactive charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Custom styles for dashboard -->
+    <style>
+        .dashboard-card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .metric-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-align: center;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        
+        .metric-value {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .metric-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin: 20px 0;
+        }
+        
+        .filter-panel {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .nav-tabs .nav-link.active {
+            background-color: #667eea;
+            border-color: #667eea;
+            color: white;
+        }
+        
+        .progress-thin {
+            height: 8px;
+        }
+        
+        .balance-alert {
+            border-left: 4px solid #ffc107;
+            background: #fff3cd;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">
+                <i class="fas fa-chart-line"></i> Game Balance Dashboard
+                <small class="text-muted">- Progression Analysis & Balance Tools</small>
+            </h1>
+        </div>
+    </div>
+
+    <!-- Summary Statistics -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="metric-card">
+                <div class="metric-value">{{ summary.total_jobs }}</div>
+                <div class="metric-label">Total Jobs</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="metric-card">
+                <div class="metric-value">{{ summary.total_skills }}</div>
+                <div class="metric-label">Total Skills</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="metric-card">
+                <div class="metric-value">{{ summary.total_weapons }}</div>
+                <div class="metric-label">Weapons</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="metric-card">
+                <div class="metric-value">{{ summary.total_armor }}</div>
+                <div class="metric-label">Armor Items</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <ul class="nav nav-tabs" id="balanceTab" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="progression-tab" data-bs-toggle="tab" 
+                    data-bs-target="#progression" type="button" role="tab">
+                <i class="fas fa-chart-line"></i> Progression Curves
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="skills-tab" data-bs-toggle="tab" 
+                    data-bs-target="#skills" type="button" role="tab">
+                <i class="fas fa-magic"></i> Skill Analysis
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="equipment-tab" data-bs-toggle="tab" 
+                    data-bs-target="#equipment" type="button" role="tab">
+                <i class="fas fa-sword"></i> Equipment Balance
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="xp-tab" data-bs-toggle="tab" 
+                    data-bs-target="#xp" type="button" role="tab">
+                <i class="fas fa-star"></i> XP Scaling
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="monster-tab" data-bs-toggle="tab" 
+                    data-bs-target="#monster" type="button" role="tab">
+                <i class="fas fa-dragon"></i> Monster & Encounter Analysis
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="balanceTabContent">
+        
+        <!-- Progression Curves Tab -->
+        <div class="tab-pane fade show active" id="progression" role="tabpanel">
+            <div class="dashboard-card">
+                <h3>Character Power Progression</h3>
+                <p class="text-muted">Compare how different jobs scale in power across levels</p>
+                
+                <!-- Filters -->
+                <div class="filter-panel">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="form-label">Select Jobs to Compare:</label>
+                            <select id="jobSelector" class="form-select" multiple>
+                                <!-- Will be populated by JavaScript -->
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Max Level:</label>
+                            <input type="number" id="maxLevel" class="form-control" value="30" min="5" max="50">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Metric:</label>
+                            <select id="metricSelector" class="form-select">
+                                <option value="attack_power">Attack Power</option>
+                                <option value="magic_power">Magic Power</option>
+                                <option value="defense">Defense</option>
+                                <option value="survivability">Survivability</option>
+                                <option value="hp">Hit Points</option>
+                                <option value="mp">Mana Points</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button id="updateProgression" class="btn btn-primary mt-3">
+                        <i class="fas fa-sync"></i> Update Chart
+                    </button>
+                </div>
+                
+                <div class="loading-spinner" id="progressionLoading">
+                    <i class="fas fa-spinner fa-spin fa-2x"></i>
+                    <p>Calculating progression curves...</p>
+                </div>
+                
+                <div class="chart-container">
+                    <canvas id="progressionChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Skills Analysis Tab -->
+        <div class="tab-pane fade" id="skills" role="tabpanel">
+            <div class="dashboard-card">
+                <h3>Skill Efficiency Analysis</h3>
+                <p class="text-muted">Analyze skill damage vs MP cost efficiency</p>
+                
+                <!-- Filters -->
+                <div class="filter-panel">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <label class="form-label">Character Level:</label>
+                            <input type="number" id="skillCharLevel" class="form-control" value="25" min="1" max="50">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Character Job:</label>
+                            <select id="skillCharJob" class="form-select">
+                                <!-- Will be populated by JavaScript -->
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Analysis Type:</label>
+                            <select id="skillAnalysisType" class="form-select">
+                                <option value="damage_per_mp">Damage per MP</option>
+                                <option value="dps">DPS (Damage per Second)</option>
+                                <option value="effective_power">Raw Power</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button id="updateSkills" class="btn btn-primary mt-3">
+                        <i class="fas fa-sync"></i> Analyze Skills
+                    </button>
+                </div>
+                
+                <div class="loading-spinner" id="skillsLoading">
+                    <i class="fas fa-spinner fa-spin fa-2x"></i>
+                    <p>Analyzing skill efficiency...</p>
+                </div>
+                
+                <div class="chart-container">
+                    <canvas id="skillsChart"></canvas>
+                </div>
+                
+                <!-- Balance Alerts -->
+                <div id="skillAlerts"></div>
+            </div>
+        </div>
+
+        <!-- Equipment Balance Tab -->
+        <div class="tab-pane fade" id="equipment" role="tabpanel">
+            <div class="dashboard-card">
+                <h3>Equipment Progression Balance</h3>
+                <p class="text-muted">Analyze weapon and armor scaling vs requirements</p>
+                
+                <!-- Filters -->
+                <div class="filter-panel">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="form-label">Equipment Type:</label>
+                            <select id="equipmentType" class="form-select">
+                                <option value="">All Equipment</option>
+                                <option value="weapon">Weapons Only</option>
+                                <option value="armor">Armor Only</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Analysis Metric:</label>
+                            <select id="equipmentMetric" class="form-select">
+                                <option value="power">Power vs Requirements</option>
+                                <option value="efficiency">Power per Gold</option>
+                                <option value="progression">Progression Gaps</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button id="updateEquipment" class="btn btn-primary mt-3">
+                        <i class="fas fa-sync"></i> Analyze Equipment
+                    </button>
+                </div>
+                
+                <div class="loading-spinner" id="equipmentLoading">
+                    <i class="fas fa-spinner fa-spin fa-2x"></i>
+                    <p>Analyzing equipment balance...</p>
+                </div>
+                
+                <div class="chart-container">
+                    <canvas id="equipmentChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- XP Scaling Tab -->
+        <div class="tab-pane fade" id="xp" role="tabpanel">
+            <div class="dashboard-card">
+                <h3>XP and Leveling Analysis</h3>
+                <p class="text-muted">Analyze current XP curve vs. intended progression pace</p>
+                
+                <div class="filter-panel">
+                    <label for="targetHoursXP" class="form-label">Target Hours per Level:</label>
+                    <input type="number" id="targetHoursXP" class="form-control mb-2" value="2.0" step="0.1">
+                    <button id="updateXpChart" class="btn btn-primary">
+                        <i class="fas fa-sync"></i> Update XP Analysis
+                    </button>
+                </div>
+
+                <div class="loading-spinner" id="xpLoading">
+                    <i class="fas fa-spinner fa-spin fa-2x"></i>
+                    <p>Analyzing XP scaling...</p>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <h4>XP Required per Level</h4>
+                        <div class="chart-container" style="height: 300px;">
+                            <canvas id="xpRequiredChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h4>Estimated Hours per Level</h4>
+                        <div class="chart-container" style="height: 300px;">
+                            <canvas id="hoursPerLevelChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div id="xpSummary" class="mt-3"></div>
+            </div>
+        </div>
+
+        <!-- Monster & Encounter Analysis Tab -->
+        <div class="tab-pane fade" id="monster" role="tabpanel">
+            <div class="dashboard-card">
+                <h3>Monster & Encounter Analysis</h3>
+                <p class="text-muted">Analyze monster power and simulate encounters.</p>
+
+                <!-- Monster Power Progression Section -->
+                <div class="mt-4">
+                    <h4>Monster Power Progression</h4>
+                    <p class="text-muted">Visualizes how monster stats (HP, Attack, Defense) scale by level.</p>
+                    <div class="filter-panel">
+                         <div class="row">
+                            <div class="col-md-4">
+                                <label class="form-label">Select Metric:</label>
+                                <select id="monsterMetricSelector" class="form-select">
+                                    <option value="hp" selected>HP</option>
+                                    <option value="attack">Attack</option>
+                                    <option value="defense">Defense</option>
+                                    <option value="magic_attack">Magic Attack</option>
+                                    <option value="speed">Speed</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button id="updateMonsterProgressionChart" class="btn btn-primary mt-2">Reload Monster Data</button>
+                    </div>
+                    <div class="loading-spinner" id="monsterProgressionLoading">
+                        <i class="fas fa-spinner fa-spin fa-2x"></i>
+                        <p>Loading monster progression data...</p>
+                    </div>
+                    <div class="chart-container" style="height: 450px;">
+                        <canvas id="monsterProgressionChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Encounter Balance Analysis Section -->
+                <div class="mt-5">
+                    <hr>
+                    <h4>Encounter Balance Simulation</h4>
+                    <p class="text-muted">Simulate an encounter between a player build and a specific monster.</p>
+                    <div class="filter-panel">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <label for="encounterPlayerJob" class="form-label">Player Job:</label>
+                                <select id="encounterPlayerJob" class="form-select">
+                                    <!-- Populated by JS -->
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label for="encounterPlayerLevel" class="form-label">Player Level:</label>
+                                <input type="number" id="encounterPlayerLevel" class="form-control" value="10" min="1" max="50">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="encounterMonster" class="form-label">Select Monster:</label>
+                                <select id="encounterMonster" class="form-select">
+                                    <!-- Populated by JS from /balance/data/monsters -->
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="encounterEquipmentTier" class="form-label">Equipment Tier:</label>
+                                <select id="encounterEquipmentTier" class="form-select">
+                                    <option value="basic" selected>Basic</option>
+                                    <option value="intermediate">Intermediate</option>
+                                    <option value="advanced">Advanced</option>
+                                    <option value="any">Any (Best Available)</option> 
+                                </select>
+                            </div>
+                        </div>
+                        <button id="runEncounterAnalysis" class="btn btn-success mt-3">
+                            <i class="fas fa-bolt"></i> Run Encounter Analysis
+                        </button>
+                    </div>
+                    <div class="loading-spinner" id="encounterAnalysisLoading">
+                        <i class="fas fa-spinner fa-spin fa-2x"></i>
+                        <p>Analyzing encounter...</p>
+                    </div>
+                    <div id="encounterAnalysisResult" class="mt-3"></div>
+                </div>
+
+                <div id="monsterEncounterResults"></div>
+            </div>
+            <div class="row mt-4">
+                <div class="col-md-12">
+                    <h4>Overall Monster Difficulty Curve (vs. Standard Player)</h4>
+                    <p>This chart shows the calculated difficulty of each monster against a standard player of the same level. Difficulty is ~ (Monster DPR / Player HP at that level) * 100.</p>
+                    <div class="row mb-2">
+                        <div class="col-md-3">
+                            <label for="difficultyCurveRefJob" class="form-label">Reference Player Job:</label>
+                            <select id="difficultyCurveRefJob" class="form-select form-select-sm"></select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="difficultyCurveRefEq" class="form-label">Reference Player Equip Tier:</label>
+                            <select id="difficultyCurveRefEq" class="form-select form-select-sm">
+                                <option value="basic" selected>Basic</option>
+                                <option value="intermediate">Intermediate</option>
+                                <option value="advanced">Advanced</option>
+                                <option value="any">Any (Best Available)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 align-self-end">
+                            <button id="updateDifficultyCurveBtn" class="btn btn-info btn-sm">Update Difficulty Curve</button>
+                        </div>
+                    </div>
+                    <canvas id="monsterDifficultyCurveChart"></canvas>
+                    <div id="difficultyCurveChartError" class="text-danger"></div>
+                </div>
+            </div>
+        </div>
+
+    </div> <!-- End Tab Content -->
+
+    <!-- Quick Actions -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="dashboard-card">
+                <h4>Quick Actions</h4>
+                <div class="btn-group" role="group">
+                    <a href="/manage/items" class="btn btn-outline-primary">
+                        <i class="fas fa-edit"></i> Edit Items
+                    </a>
+                    <a href="/manage/skills" class="btn btn-outline-primary">
+                        <i class="fas fa-edit"></i> Edit Skills
+                    </a>
+                    <a href="/manage/jobs" class="btn btn-outline-primary">
+                        <i class="fas fa-edit"></i> Edit Jobs
+                    </a>
+                    <button id="exportData" class="btn btn-outline-success">
+                        <i class="fas fa-download"></i> Export Analysis
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Global variables for charts
+let progressionChart, skillsChart, equipmentChart, xpRequiredChartInstance, hoursPerLevelChartInstance, monsterProgressionChartInstance, difficultyCurveChartInstance;
+let availableJobs = [];
+let availableMonsters = []; // For monster selector
+let monsterProgressionChart = null;
+let encounterAnalysisChart = null; // For potential future chart in encounter results
+let monsterDifficultyCurveChart = null;
+
+// Initialize the dashboard
+document.addEventListener('DOMContentLoaded', function() {
+    initializeDashboard();
+    loadProgressionData(); // Initial load for the first tab
+    fetchJobsAndMonstersForSelectors(); // Fetch data for dropdowns early
+
+    if (document.getElementById('updateMonsterProgressionBtn')) {
+        document.getElementById('updateMonsterProgressionBtn').addEventListener('click', fetchAndDisplayMonsterProgression);
+        // Initial load
+        fetchAndDisplayMonsterProgression();
+    }
+
+    if (document.getElementById('runEncounterAnalysisBtn')) {
+        document.getElementById('runEncounterAnalysisBtn').addEventListener('click', runEncounterAnalysis);
+    }
+
+    if (document.getElementById('updateDifficultyCurveBtn')) {
+        document.getElementById('updateDifficultyCurveBtn').addEventListener('click', fetchAndDisplayMonsterDifficultyCurve);
+        // Initial load
+        fetchAndDisplayMonsterDifficultyCurve();
+    }
+});
+
+function initializeDashboard() {
+    // Set up chart containers
+    const charts = ['progression', 'skills', 'equipment', 'xp'];
+    charts.forEach(chartType => {
+        const ctx = document.getElementById(chartType + 'Chart');
+        if (ctx) {
+            // Ensure context is only fetched if element exists, Chart.js will handle it internally
+        }
+    });
+    
+    // Set up event listeners
+    document.getElementById('updateProgression').addEventListener('click', loadProgressionData);
+    document.getElementById('metricSelector').addEventListener('change', loadProgressionData);
+    document.getElementById('updateSkills').addEventListener('click', loadSkillsData);
+    document.getElementById('skillCharLevel').addEventListener('change', loadSkillsData);
+    document.getElementById('skillCharJob').addEventListener('change', loadSkillsData);
+    document.getElementById('skillAnalysisType').addEventListener('change', loadSkillsData);
+    document.getElementById('updateEquipment').addEventListener('click', loadEquipmentData);
+    document.getElementById('equipmentType').addEventListener('change', loadEquipmentData);
+    document.getElementById('equipmentMetric').addEventListener('change', loadEquipmentData);
+    document.getElementById('updateXpChart').addEventListener('click', loadXPData); // Corrected ID
+    document.getElementById('targetHoursXP').addEventListener('change', loadXPData); // Corrected ID
+
+    // Event listeners for Monster Tab
+    document.getElementById('updateMonsterProgressionChart').addEventListener('click', loadMonsterProgressionData);
+    document.getElementById('monsterMetricSelector').addEventListener('change', loadMonsterProgressionData);
+    document.getElementById('runEncounterAnalysis').addEventListener('click', runEncounterAnalysis);
+    
+    // Tab change listeners to load data when a tab becomes active
+    const tabs = [
+        { id: 'progression-tab', loader: loadProgressionData },
+        { id: 'skills-tab', loader: loadSkillsData },
+        { id: 'equipment-tab', loader: loadEquipmentData },
+        { id: 'xp-tab', loader: loadXPData },
+        { id: 'monster-tab', loader: () => { loadMonsterProgressionData(); /* also ensure monster dropdown is populated */ } }
+    ];
+
+    tabs.forEach(tabInfo => {
+        const tabElement = document.getElementById(tabInfo.id);
+        if (tabElement) {
+            tabElement.addEventListener('shown.bs.tab', function (event) {
+                console.log(event.target.id + " tab shown");
+                if (tabInfo.loader) tabInfo.loader();
+            });
+        }
+    });
+}
+
+function showLoading(type) {
+    document.getElementById(type + 'Loading').style.display = 'block';
+}
+
+function hideLoading(type) {
+    document.getElementById(type + 'Loading').style.display = 'none';
+}
+
+function loadProgressionData() {
+    showLoading('progression');
+    
+    const selectedJobs = Array.from(document.getElementById('jobSelector').selectedOptions)
+                             .map(option => option.value);
+    const maxLevel = document.getElementById('maxLevel').value;
+    
+    const params = new URLSearchParams({
+        max_level: maxLevel
+    });
+    
+    selectedJobs.forEach(job => params.append('jobs', job));
+    
+    fetch(`/balance/progression?${params}`)
+        .then(response => response.json())
+        .then(data => {
+            hideLoading('progression');
+            updateProgressionChart(data);
+            populateJobSelector(data.available_jobs, data.selected_jobs);
+        })
+        .catch(error => {
+            hideLoading('progression');
+            console.error('Error loading progression data:', error);
+        });
+}
+
+function updateProgressionChart(data) {
+    const ctx = document.getElementById('progressionChart').getContext('2d');
+    const metric = document.getElementById('metricSelector').value;
+    
+    if (progressionChart) {
+        progressionChart.destroy();
+    }
+    
+    // Check if we have valid curve data
+    if (!data.curves || Object.keys(data.curves).length === 0) {
+        console.warn('No progression curve data available');
+        // Show placeholder chart
+        progressionChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [1, 5, 10, 15, 20, 25, 30],
+                datasets: [{
+                    label: 'No Data Available',
+                    data: [0, 0, 0, 0, 0, 0, 0],
+                    borderColor: '#999',
+                    backgroundColor: '#99920',
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'No Progression Data Available'
+                    }
+                }
+            }
+        });
+        return;
+    }
+    
+    const datasets = Object.entries(data.curves).map(([job, jobData], index) => {
+        const colors = [
+            '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+            '#FF9F40', '#FF6384', '#C9CBCF', '#4BC0C0', '#FF6384'
+        ];
+        
+        return {
+            label: job,
+            data: jobData[metric] || [],
+            borderColor: colors[index % colors.length],
+            backgroundColor: colors[index % colors.length] + '20',
+            fill: false,
+            tension: 0.1
+        };
+    });
+    
+    const firstJob = Object.keys(data.curves)[0];
+    const levels = data.curves[firstJob]?.levels || Array.from({length: 30}, (_, i) => i + 1);
+    
+    progressionChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: levels,
+            datasets: datasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: true,
+                    text: `${metric.replace('_', ' ').toUpperCase()} Progression by Job`
+                },
+                legend: {
+                    display: true,
+                    position: 'top'
+                }
+            },
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Character Level'
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: metric.replace('_', ' ').toUpperCase()
+                    }
+                }
+            }
+        }
+    });
+}
+
+function populateJobSelector(jobs, progressionCurveSelectedJobs = []) {
+    const jobSelector = document.getElementById('jobSelector');
+    jobSelector.innerHTML = ''; // Clear existing options
+    jobs.sort(); // Sort jobs alphabetically
+    jobs.forEach(job => {
+        const option = document.createElement('option');
+        option.value = job;
+        option.textContent = job;
+        // Pre-select based on current chart or default (logic might be elsewhere)
+        jobSelector.appendChild(option);
+    });
+    
+    // Also populate other job selectors with the same data
+    populateEncounterJobSelector(jobs);
+    populateSkillCharJobSelector(jobs);
+    populateDifficultyRefJobSelector('Fighter', jobs);
+}
+
+function populateEncounterJobSelector(jobs) {
+    if (!jobs || !Array.isArray(jobs)) {
+        console.warn('populateEncounterJobSelector called with invalid jobs data');
+        return;
+    }
+    const encounterPlayerJobSelect = document.getElementById('encounterPlayerJob');
+    if (!encounterPlayerJobSelect) return;
+    
+    encounterPlayerJobSelect.innerHTML = '';
+    jobs.sort(); // Sort jobs alphabetically
+    jobs.forEach(job => {
+        const option = document.createElement('option');
+        option.value = job;
+        option.textContent = job;
+        encounterPlayerJobSelect.appendChild(option);
+    });
+    if (jobs.length > 0) {
+        encounterPlayerJobSelect.value = jobs[0];
+    }
+}
+
+function populateSkillCharJobSelector(jobs) {
+    if (!jobs || !Array.isArray(jobs)) {
+        console.warn('populateSkillCharJobSelector called with invalid jobs data');
+        return;
+    }
+    const skillCharJobSelect = document.getElementById('skillCharJob');
+    if (!skillCharJobSelect) return;
+    
+    skillCharJobSelect.innerHTML = '';
+    jobs.sort(); // Sort jobs alphabetically
+    jobs.forEach(job => {
+        const option = document.createElement('option');
+        option.value = job;
+        option.textContent = job;
+        skillCharJobSelect.appendChild(option);
+    });
+    if (jobs.length > 0) {
+        skillCharJobSelect.value = jobs[0]; // Default to first job
+    }
+}
+
+function populateMonsterSelector(monsters) {
+    const encounterMonsterSelect = document.getElementById('encounterMonster');
+    encounterMonsterSelect.innerHTML = '';
+    // Monsters is an array of objects {id: 'monster_id', name: 'Monster Name'}
+    monsters.sort((a, b) => a.name.localeCompare(b.name)); // Sort monsters by name
+    monsters.forEach(monster => {
+        const option = document.createElement('option');
+        option.value = monster.id;
+        option.textContent = monster.name;
+        encounterMonsterSelect.appendChild(option);
+    });
+    if (monsters.length > 0) {
+        encounterMonsterSelect.value = monsters[0].id;
+    }
+}
+
+function loadSkillsData() {
+    showLoading('skills');
+    
+    const level = document.getElementById('skillCharLevel').value;
+    const job = document.getElementById('skillCharJob').value;
+    
+    fetch(`/balance/skills?level=${level}&job=${job}`)
+        .then(response => response.json())
+        .then(data => {
+            hideLoading('skills');
+            updateSkillsChart(data);
+            showSkillAlerts(data);
+        })
+        .catch(error => {
+            hideLoading('skills');
+            console.error('Error loading skills data:', error);
+        });
+}
+
+function updateSkillsChart(data) {
+    const ctx = document.getElementById('skillsChart').getContext('2d');
+    const analysisType = document.getElementById('skillAnalysisType').value;
+    
+    if (skillsChart) {
+        skillsChart.destroy();
+    }
+    
+    const chartData = data.skills.map(skill => ({
+        x: skill.mp_cost,
+        y: skill[analysisType],
+        label: skill.skill_id
+    }));
+    
+    skillsChart = new Chart(ctx, {
+        type: 'scatter',
+        data: {
+            datasets: [{
+                label: 'Skills',
+                data: chartData,
+                backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: true,
+                    text: `Skill ${analysisType.replace('_', ' ')} vs MP Cost`
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `${context.raw.label}: ${context.raw.y.toFixed(2)} (${context.raw.x} MP)`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'MP Cost'
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: analysisType.replace('_', ' ').toUpperCase()
+                    }
+                }
+            }
+        }
+    });
+}
+
+function showSkillAlerts(data) {
+    const alertsContainer = document.getElementById('skillAlerts');
+    alertsContainer.innerHTML = '';
+    
+    // Find outliers
+    const analysisType = document.getElementById('skillAnalysisType').value;
+    const values = data.skills.map(s => s[analysisType]).filter(v => v > 0);
+    const avg = values.reduce((a, b) => a + b, 0) / values.length;
+    const outliers = data.skills.filter(s => s[analysisType] > avg * 2 || s[analysisType] < avg * 0.5);
+    
+    if (outliers.length > 0) {
+        const alertDiv = document.createElement('div');
+        alertDiv.className = 'balance-alert';
+        alertDiv.innerHTML = `
+            <strong>⚠️ Balance Alerts:</strong><br>
+            ${outliers.map(skill => 
+                `<span class="badge bg-warning">${skill.skill_id}</span> - ${analysisType}: ${skill[analysisType].toFixed(2)}`
+            ).join('<br>')}
+        `;
+        alertsContainer.appendChild(alertDiv);
+    }
+}
+
+function loadEquipmentData() {
+    showLoading('equipment');
+    
+    const type = document.getElementById('equipmentType').value;
+    const params = type ? `?type=${type}` : '';
+    
+    fetch(`/balance/equipment${params}`)
+        .then(response => response.json())
+        .then(data => {
+            hideLoading('equipment');
+            updateEquipmentChart(data);
+        })
+        .catch(error => {
+            hideLoading('equipment');
+            console.error('Error loading equipment data:', error);
+        });
+}
+
+function updateEquipmentChart(data) {
+    const ctx = document.getElementById('equipmentChart').getContext('2d');
+    const metric = document.getElementById('equipmentMetric').value;
+    
+    if (equipmentChart) {
+        equipmentChart.destroy();
+    }
+    
+    let chartData, xLabel, yLabel, chartTitle;
+    
+    if (metric === 'power' || metric === 'progression') {
+        chartData = data.equipment.map(item => ({
+            x: item.max_requirement,
+            y: item.power,
+            label: item.name // Use item.name or item.item_id as label
+        }));
+        xLabel = 'Maximum Requirement';
+        yLabel = 'Power';
+        chartTitle = (metric === 'progression') ? 'Equipment Progression (Gaps)' : 'Equipment Power vs Requirements';
+    } else if (metric === 'efficiency') {
+        chartData = data.equipment.map(item => ({
+            x: item.value,
+            y: item.power_per_gold,
+            label: item.name // Use item.name or item.item_id as label
+        }));
+        xLabel = 'Item Value (Gold)';
+        yLabel = 'Power per Gold';
+        chartTitle = 'Equipment Power per Gold';
+    } else {
+        console.error("Unknown equipment metric:", metric);
+        chartData = []; 
+        xLabel = 'X'; yLabel = 'Y'; chartTitle = 'Unknown Metric';
+    }
+    
+    equipmentChart = new Chart(ctx, {
+        type: 'scatter',
+        data: {
+            datasets: [{
+                label: 'Weapons',
+                data: chartData.filter(item => {
+                    const originalItem = data.equipment.find(e => e.name === item.label || e.item_id === item.label);
+                    return originalItem && originalItem.type === 'weapon';
+                }),
+                backgroundColor: 'rgba(255, 99, 132, 0.6)',
+                borderColor: 'rgba(255, 99, 132, 1)',
+            }, {
+                label: 'Armor',
+                data: chartData.filter(item => {
+                    const originalItem = data.equipment.find(e => e.name === item.label || e.item_id === item.label);
+                    return originalItem && originalItem.type === 'armor';
+                }),
+                backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: true,
+                    text: chartTitle
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `${context.raw.label}: ${context.raw.y.toFixed(2)}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: xLabel
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: yLabel
+                    }
+                }
+            }
+        }
+    });
+}
+
+function loadXPData() {
+    showLoading('xp');
+    const targetHours = document.getElementById('targetHoursXP').value;
+    fetch(`/balance/xp?target_hours=${targetHours}`)
+        .then(response => response.json())
+        .then(data => {
+            hideLoading('xp');
+            if (data.error) {
+                console.error('Error loading XP data:', data.error);
+                document.getElementById('xpSummary').innerHTML = `<div class="alert alert-danger">Error: ${data.error}</div>`;
+                return;
+            }
+            updateXPCharts(data); // Changed to plural as it updates two charts
+            showXPSummary(data); // Renamed from showXPAlerts for clarity
+        })
+        .catch(error => {
+            hideLoading('xp');
+            console.error('Error fetching XP data:', error);
+            document.getElementById('xpSummary').innerHTML = `<div class="alert alert-danger">Error fetching XP data: ${error.toString()}</div>`;
+        });
+}
+
+function updateXPCharts(data) { // Changed from updateXPChart
+    const xpRequiredCtx = document.getElementById('xpRequiredChart').getContext('2d');
+    const hoursPerLevelCtx = document.getElementById('hoursPerLevelChart').getContext('2d');
+
+    if (xpRequiredChartInstance) xpRequiredChartInstance.destroy();
+    if (hoursPerLevelChartInstance) hoursPerLevelChartInstance.destroy();
+
+    if (!data || !data.levels || data.levels.length === 0) {
+        console.warn("No XP data to display.");
+        // Optionally display placeholder charts
+        return;
+    }
+
+    xpRequiredChartInstance = new Chart(xpRequiredCtx, {
+        type: 'line',
+        data: {
+            labels: data.levels,
+            datasets: [{
+                label: 'XP Required per Level',
+                data: data.xp_required,
+                borderColor: 'rgba(75, 192, 192, 1)',
+                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                tension: 0.1
+            }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'XP Required per Level' }}, scales: { x: { title: {display: true, text: 'Level'}}, y: {title: {display: true, text: 'XP'}}}}
+    });
+
+    hoursPerLevelChartInstance = new Chart(hoursPerLevelCtx, {
+        type: 'line',
+        data: {
+            labels: data.levels,
+            datasets: [
+                {
+                    label: 'Estimated Hours per Level',
+                    data: data.hours_per_level,
+                    borderColor: 'rgba(255, 159, 64, 1)',
+                    backgroundColor: 'rgba(255, 159, 64, 0.2)',
+                    tension: 0.1
+                },
+                {
+                    label: 'Target Hours per Level',
+                    data: new Array(data.levels.length).fill(data.target_hours_per_level),
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                    borderDash: [5, 5],
+                    tension: 0,
+                    pointRadius: 0 // No points for target line
+                }
+            ]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Estimated Hours per Level vs Target' }}, scales: { x: { title: {display: true, text: 'Level'}}, y: {title: {display: true, text: 'Hours'}}}}
+    });
+}
+
+function showXPSummary(data) { // Renamed from showXPAlerts
+    const summaryDiv = document.getElementById('xpSummary');
+    summaryDiv.innerHTML = '';
+
+    let summaryHtml = `<p>Target Hours per Level: <strong>${data.target_hours_per_level}</strong></p>`;
+    if (data.problem_levels && data.problem_levels.length > 0) {
+        summaryHtml += `<div class="alert alert-warning">
+                            <strong>Leveling Pace Issues:</strong><br>
+                            The following levels significantly deviate from the target:<br>
+                            <ul>`;
+        data.problem_levels.forEach(level => {
+            summaryHtml += `<li>Level ${level.level}: ${level.hours_required.toFixed(1)}h (Target: ${data.target_hours_per_level}h, ${level.excess_factor.toFixed(1)}x target)</li>`;
+        });
+        summaryHtml += '</ul></div>';
+    } else {
+        summaryHtml += '<div class="alert alert-success">Leveling pace appears consistent with the target.</div>';
+    }
+    summaryDiv.innerHTML = summaryHtml;
+}
+
+async function fetchJobsAndMonstersForSelectors() {
+    // Fetch monsters for selectors
+    fetch('/balance/data/monsters')
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                console.error('Error fetching monsters:', data.error);
+                return;
+            }
+            availableMonsters = data;
+            populateMonsterSelector(availableMonsters);
+        })
+        .catch(error => console.error('Error fetching monster list:', error));
+}
+
+function loadMonsterProgressionData() {
+    showLoading('monsterProgression');
+    const metric = document.getElementById('monsterMetricSelector').value;
+    fetch('/balance/monsters/progression')
+        .then(response => response.json())
+        .then(data => {
+            hideLoading('monsterProgression');
+            if (data.error) {
+                console.error('Error loading monster progression:', data.error);
+                // Display error on chart or in a div
+                return;
+            }
+            updateMonsterProgressionChart(data, metric);
+        })
+        .catch(error => {
+            hideLoading('monsterProgression');
+            console.error('Error fetching monster progression data:', error);
+        });
+}
+
+function updateMonsterProgressionChart(monsterData, metric) {
+    const ctx = document.getElementById('monsterProgressionChart').getContext('2d');
+    if (monsterProgressionChartInstance) {
+        monsterProgressionChartInstance.destroy();
+    }
+
+    if (!monsterData || monsterData.length === 0) {
+        console.warn('No monster progression data to display.');
+        monsterProgressionChartInstance = new Chart(ctx, {
+            type: 'line',
+            data: { labels: [0], datasets: [{ label: 'No Data', data: [0] }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'No Monster Data Available' } } }
+        });
+        return;
+    }
+
+    // Prepare data for chart: group by level, or plot all monsters
+    // For now, let's plot each monster as a point, x-axis level, y-axis selected metric
+    // This might be better as a scatter plot if levels are not dense
+    
+    // Sort data by level for line chart
+    monsterData.sort((a, b) => (a.level || 0) - (b.level || 0));
+
+    const uniqueLevels = [...new Set(monsterData.map(m => m.level || 0))].sort((a,b) => a-b);
+
+    // For a line chart showing average/min/max per level, data needs more processing.
+    // For a scatter, it's simpler.
+    // Let's try a scatter plot where each point is a monster.
+
+    const chartDatasets = [{
+        label: metric.replace('_', ' ').toUpperCase(),
+        data: monsterData.map(monster => ({
+            x: monster.level,
+            y: monster[metric],
+            name: monster.name, // For tooltip
+            id: monster.id
+        })),
+        backgroundColor: 'rgba(255, 99, 132, 0.6)', // Example color
+        borderColor: 'rgba(255, 99, 132, 1)'
+    }];
+
+    monsterProgressionChartInstance = new Chart(ctx, {
+        type: 'scatter', // Changed to scatter for individual points
+        data: {
+            // Labels can be omitted for scatter if x values are numeric
+            datasets: chartDatasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: true,
+                    text: `Monster ${metric.replace('_', ' ').toUpperCase()} vs Level`
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            const point = context.raw;
+                            return `${point.name} (Lvl ${point.x}): ${point.y}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    type: 'linear',
+                    position: 'bottom',
+                    title: {
+                        display: true,
+                        text: 'Monster Level'
+                    },
+                    ticks: {
+                        stepSize: 1 // Show integer levels
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: metric.replace('_', ' ').toUpperCase()
+                    }
+                }
+            }
+        }
+    });
+}
+
+function runEncounterAnalysis() {
+    showLoading('encounterAnalysis');
+    const resultDiv = document.getElementById('encounterAnalysisResult');
+    resultDiv.innerHTML = ''; // Clear previous results
+
+    const playerJobId = document.getElementById('encounterPlayerJob').value;
+    const playerLevel = document.getElementById('encounterPlayerLevel').value;
+    const monsterId = document.getElementById('encounterMonster').value;
+    const equipmentTier = document.getElementById('encounterEquipmentTier').value;
+
+    if (!monsterId) {
+        alert('Please select a monster.');
+        hideLoading('encounterAnalysis');
+        return;
+    }
+
+    const params = new URLSearchParams({
+        player_job_id: playerJobId,
+        player_level: playerLevel,
+        monster_id: monsterId,
+        equipment_tier: equipmentTier
+    });
+
+    fetch(`/balance/monsters/encounter_analysis?${params}`)
+        .then(response => response.json())
+        .then(data => {
+            hideLoading('encounterAnalysis');
+            if (data.error) {
+                console.error('Encounter analysis error:', data.error);
+                resultDiv.innerHTML = `<div class="alert alert-danger">Error: ${data.error}</div>`;
+                return;
+            }
+            displayEncounterAnalysisResult(data);
+        })
+        .catch(error => {
+            hideLoading('encounterAnalysis');
+            console.error('Error fetching encounter analysis:', error);
+            resultDiv.innerHTML = `<div class="alert alert-danger">Error: ${error.toString()}</div>`;
+        });
+}
+
+function displayEncounterAnalysisResult(data) {
+    const resultDiv = document.getElementById('encounterAnalysisResult');
+    let html = '<div class="card"><div class="card-body">';
+    html += `<h5 class="card-title">Encounter: Player (Lvl ${data.player_level} ${data.player_job}) vs ${data.monster_name} (Lvl ${data.monster_level})</h5>`;
+    
+    html += '<ul class="list-group list-group-flush">';
+    html += `<li class="list-group-item">Player Estimated DPS: <strong>${data.player_dps_estimate ? data.player_dps_estimate.toFixed(2) : 'N/A'}</strong></li>`;
+    html += `<li class="list-group-item">Monster Estimated DPS: <strong>${data.monster_dps_estimate ? data.monster_dps_estimate.toFixed(2) : 'N/A'}</strong></li>`;
+    html += `<li class="list-group-item">Time to Kill Monster (TTK): <strong>${data.ttk_rounds ? data.ttk_rounds.toFixed(2) : 'N/A'} rounds</strong></li>`;
+    html += `<li class="list-group-item">Player Survivability: <strong>${data.player_survivability_rounds ? data.player_survivability_rounds.toFixed(2) : 'N/A'} rounds</strong></li>`;
+    html += `<li class="list-group-item">Monster XP Reward: <strong>${data.xp_reward !== undefined ? data.xp_reward : 'N/A'}</strong></li>`;
+    html += `<li class="list-group-item">XP per TTK: <strong>${data.xp_per_ttk ? data.xp_per_ttk.toFixed(2) : 'N/A'}</strong></li>`;
+    
+    if (data.monster_possible_effects && data.monster_possible_effects.length > 0) {
+        html += `<li class="list-group-item">Monster Possible Effects: <span class="fw-normal">${data.monster_possible_effects.join(', ')}</span></li>`;
+    } else {
+        html += `<li class="list-group-item">Monster Possible Effects: None</li>`;
+    }
+
+    if (data.loot_drops && data.loot_drops.length > 0) {
+        html += `<li class="list-group-item">Loot Drops: ${data.loot_drops.join(', ')}</li>`;
+    } else {
+        html += `<li class="list-group-item">Loot Drops: None</li>`;
+    }
+    html += '</ul>';
+
+    // Add a simple verdict
+    let verdict = "Balanced";
+    let verdictClass = "alert-info";
+    if (data.ttk_rounds === Infinity || data.ttk_rounds > 20) { // Example: 20 rounds is too long
+        verdict = "Potentially too difficult or long for player.";
+        verdictClass = "alert-warning";
+    } else if (data.player_survivability_rounds < data.ttk_rounds && data.player_survivability_rounds < 5) { // Example: Player dies too fast
+         verdict = "Player may not survive this encounter.";
+         verdictClass = "alert-danger";
+    } else if (data.ttk_rounds < 3 ) { // Example: Too easy
+        verdict = "Potentially too easy for player.";
+        verdictClass = "alert-success";
+    }
+
+    html += `<div class="alert ${verdictClass} mt-3" role="alert"><strong>Verdict:</strong> ${verdict}</div>`;
+    html += '</div></div>';
+    resultDiv.innerHTML = html;
+}
+
+// Export functionality
+document.getElementById('exportData').addEventListener('click', function() {
+    // This would export the current analysis data
+    // For now, just a placeholder
+    alert('Export functionality to be implemented. This could involve generating a JSON or CSV of the current chart data.');
+});
+
+function populateDifficultyRefJobSelector(selectedJobId = null, jobs = null) {
+    const selector = document.getElementById('difficultyCurveRefJob');
+    if (!selector) return;
+    
+    if (jobs && Array.isArray(jobs)) {
+        // Use provided jobs data
+        selector.innerHTML = ''; // Clear existing options
+        jobs.sort(); // Sort jobs alphabetically
+        jobs.forEach(job => {
+            const option = document.createElement('option');
+            option.value = job;
+            option.textContent = job;
+            if (selectedJobId && job === selectedJobId) {
+                option.selected = true;
+            }
+            selector.appendChild(option);
+        });
+        if (!selectedJobId && jobs.length > 0) {
+            selector.value = 'Fighter'; // Default to Fighter if available
+        }
+    } else {
+        // Fetch jobs data
+        fetch('/balance/data/jobs')
+            .then(response => response.json())
+            .then(jobsData => {
+                selector.innerHTML = ''; // Clear existing options
+                jobsData.sort((a, b) => a.name.localeCompare(b.name)); // Sort jobs alphabetically
+                jobsData.forEach(job => {
+                    const option = document.createElement('option');
+                    option.value = job.id;
+                    option.textContent = job.name;
+                    if (selectedJobId && job.id === selectedJobId) {
+                        option.selected = true;
+                    }
+                    selector.appendChild(option);
+                });
+                if (!selectedJobId && jobsData.length > 0) {
+                     selector.value = 'Fighter'; // Default to Fighter if available
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching jobs for difficulty curve ref selector:', error);
+                const errorDiv = document.getElementById('difficultyCurveChartError');
+                if (errorDiv) {
+                    errorDiv.textContent = 'Error loading job list for reference player.';
+                }
+            });
+    }
+}
+
+function fetchAndDisplayMonsterProgression() {
+    // Implementation of fetchAndDisplayMonsterProgression function
+}
+
+function fetchAndDisplayMonsterDifficultyCurve() {
+    const refJobId = document.getElementById('difficultyCurveRefJob').value || 'Fighter';
+    const refEquipTier = document.getElementById('difficultyCurveRefEq').value || 'basic';
+    const errorDiv = document.getElementById('difficultyCurveChartError');
+    errorDiv.textContent = ''; // Clear previous errors
+
+    fetch(`/balance/monsters/difficulty_curve_data?jobId=${refJobId}&equipTier=${refEquipTier}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (!data || data.length === 0) {
+                errorDiv.textContent = 'No difficulty data returned. Check server logs.';
+                if (monsterDifficultyCurveChart) {
+                    monsterDifficultyCurveChart.destroy();
+                    monsterDifficultyCurveChart = null;
+                }
+                return;
+            }
+
+            const ctx = document.getElementById('monsterDifficultyCurveChart').getContext('2d');
+            if (monsterDifficultyCurveChart) {
+                monsterDifficultyCurveChart.destroy();
+            }
+
+            // Sort data by monster level for the chart
+            data.sort((a, b) => a.monster_level - b.monster_level);
+
+            monsterDifficultyCurveChart = new Chart(ctx, {
+                type: 'line', // or 'scatter'
+                data: {
+                    datasets: [{
+                        label: `Monster Difficulty Score (vs ${refJobId}/${refEquipTier})`,
+                        data: data.map(d => ({ x: d.monster_level, y: d.difficulty_score, name: d.monster_name, avg_dpr: d.monster_avg_dpr, player_hp: d.ref_player_hp_at_level })),
+                        borderColor: 'rgb(255, 99, 132)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.5)',
+                        tension: 0.1 // Makes the line a bit smoother
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            position: 'bottom',
+                            title: {
+                                display: true,
+                                text: 'Monster Level'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Difficulty Score ((Monster DPR / Player HP) * 100)'
+                            },
+                            beginAtZero: true
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    const point = context.raw;
+                                    if (point && typeof point.y !== 'undefined') {
+                                        label += `${point.y.toFixed(2)} (Monster: ${point.name}, AvgDPR: ${point.avg_dpr}, PlayerHP: ${point.player_hp})`;
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        })
+        .catch(error => {
+            console.error('Error fetching monster difficulty curve data:', error);
+            errorDiv.textContent = `Error fetching or processing difficulty curve data: ${error.message}. See console for details.`;
+        });
+}
+</script>
+{% endblock %} 
