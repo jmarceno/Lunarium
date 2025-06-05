@@ -1,18 +1,23 @@
 import re
+import uuid
 from lupa import LuaRuntime
 
 class LuaTableManager:
     def __init__(self):
         self.lua = LuaRuntime(unpack_returned_tuples=True)
+        self.function_registry = {}  # Store extracted functions with UIDs
     
-    def read_lua_file(self, file_path):
+    def read_lua_file(self, file_path, preserve_functions=False):
         """Read and parse a Lua file, returning Python data structures."""
         try:
             with open(file_path, 'r', encoding='utf-8') as file:
                 content = file.read()
             
+            # Extract functions and replace with UIDs before parsing
+            content_with_uids = self._extract_functions(content, preserve_registry=preserve_functions)
+            
             # Execute the Lua code and get the returned table
-            result = self.lua.execute(content)
+            result = self.lua.execute(content_with_uids)
             
             # Convert to Python data structures
             if result:
@@ -33,6 +38,176 @@ class LuaTableManager:
             import traceback
             traceback.print_exc()
             return {}
+    
+    def _extract_functions(self, content, preserve_registry=False):
+        """Extract function definitions and replace them with UIDs."""
+        if not preserve_registry:
+            self.function_registry.clear()  # Clear previous functions
+        
+        # Pattern to find function definitions
+        # This looks for 'function(' and captures everything until the matching 'end'
+        modified_content = content
+        
+        # Find all function definitions
+        function_pattern = r'function\s*\([^)]*\)'
+        
+        while True:
+            match = re.search(function_pattern, modified_content)
+            if not match:
+                break
+            
+            function_start = match.start()
+            
+            # Find the end of this function by looking for the next comma and backtracking to 'end'
+            comma_search_start = match.end()
+            next_comma = self._find_next_comma_after_function(modified_content, comma_search_start)
+            
+            if next_comma == -1:
+                # If no comma found, this might be the last item in the table
+                # Look for the closing brace of the parent table
+                next_comma = self._find_table_end(modified_content, comma_search_start)
+            
+            if next_comma == -1:
+                break  # Cannot find end, skip this function
+            
+            # Backtrack from comma to find 'end'
+            function_end = self._backtrack_to_end(modified_content, next_comma)
+            
+            if function_end == -1:
+                break  # Cannot find 'end', skip this function
+            
+            # Extract the complete function text
+            function_text = modified_content[function_start:function_end + 3]  # +3 for 'end'
+            
+            # Generate a unique ID for this function
+            function_uid = f"FUNCTION_UID_{uuid.uuid4().hex[:8]}"
+            
+            # Store the function in our registry
+            self.function_registry[function_uid] = function_text
+            
+            # Replace the function with the UID in quotes
+            modified_content = (
+                modified_content[:function_start] + 
+                f'"{function_uid}"' + 
+                modified_content[function_end + 3:]
+            )
+        
+        return modified_content
+    
+    def _find_next_comma_after_function(self, content, start_pos):
+        """Find the next comma that marks the end of the current table field."""
+        brace_count = 0
+        paren_count = 0
+        in_string = False
+        string_char = None
+        i = start_pos
+        
+        while i < len(content):
+            char = content[i]
+            
+            # Handle string literals
+            if not in_string and (char == '"' or char == "'"):
+                in_string = True
+                string_char = char
+            elif in_string and char == string_char and (i == 0 or content[i-1] != '\\'):
+                in_string = False
+                string_char = None
+            elif in_string:
+                i += 1
+                continue
+            
+            # Handle nested structures
+            if char == '{':
+                brace_count += 1
+            elif char == '}':
+                brace_count -= 1
+                if brace_count < 0:
+                    # We've reached the end of the parent table
+                    return i
+            elif char == '(':
+                paren_count += 1
+            elif char == ')':
+                paren_count -= 1
+            elif char == ',' and brace_count == 0 and paren_count == 0:
+                # Found a comma at the same level as our function
+                return i
+            
+            i += 1
+        
+        return -1
+    
+    def _find_table_end(self, content, start_pos):
+        """Find the end of the current table (closing brace)."""
+        brace_count = 0
+        in_string = False
+        string_char = None
+        i = start_pos
+        
+        while i < len(content):
+            char = content[i]
+            
+            # Handle string literals
+            if not in_string and (char == '"' or char == "'"):
+                in_string = True
+                string_char = char
+            elif in_string and char == string_char and (i == 0 or content[i-1] != '\\'):
+                in_string = False
+                string_char = None
+            elif in_string:
+                i += 1
+                continue
+            
+            # Handle braces
+            if char == '{':
+                brace_count += 1
+            elif char == '}':
+                if brace_count == 0:
+                    # Found the closing brace of our table
+                    return i
+                brace_count -= 1
+            
+            i += 1
+        
+        return -1
+    
+    def _backtrack_to_end(self, content, comma_pos):
+        """Backtrack from comma position to find the 'end' keyword."""
+        # Go backwards from comma position
+        i = comma_pos - 1
+        
+        # Skip whitespace and newlines
+        while i >= 0 and content[i] in ' \t\n\r':
+            i -= 1
+        
+        # Check if we're at 'end'
+        if i >= 2 and content[i-2:i+1] == 'end':
+            return i - 2
+        
+        # Look for 'end' keyword going backwards
+        end_pattern = r'\bend\b'
+        text_before_comma = content[:comma_pos]
+        
+        # Find all 'end' keywords before the comma
+        matches = list(re.finditer(end_pattern, text_before_comma))
+        
+        if matches:
+            # Return the position of the last 'end' before the comma
+            return matches[-1].start()
+        
+        return -1
+    
+    def _restore_functions(self, content):
+        """Restore function UIDs back to their original function text."""
+        modified_content = content
+        
+        for function_uid, function_text in self.function_registry.items():
+            # Replace both quoted and unquoted UIDs with the original function text
+            # Try quoted version first
+            modified_content = modified_content.replace(f'"{function_uid}"', function_text)
+            # Then try unquoted version in case quotes were stripped during formatting
+            modified_content = modified_content.replace(function_uid, function_text)
+        
+        return modified_content
     
     def _extract_table_name(self, content):
         """Extract the main table name from Lua file content."""
@@ -116,9 +291,12 @@ class LuaTableManager:
             # Simple table structure
             lua_content = self._python_to_lua(data, table_name, 0)
         
+        # Restore function UIDs back to their original function text
+        lua_content_with_functions = self._restore_functions(lua_content)
+        
         try:
             with open(file_path, 'w', encoding='utf-8') as file:
-                file.write(lua_content)
+                file.write(lua_content_with_functions)
         except Exception as e:
             raise
     
@@ -226,6 +404,12 @@ class LuaTableManager:
         if value is None:
             return "nil"
         elif isinstance(value, str):
+            # Check if this is a function UID that should not be quoted
+            if value.startswith('FUNCTION_UID_'):
+                return value  # Return UID without quotes for easier replacement
+            # Check if this is a function definition that should not be quoted
+            elif value.startswith('function(') and value.endswith(' end'):
+                return value  # Return function without quotes
             # Escape backslashes and quotes for regular strings
             escaped_value = value.replace('\\', '\\\\').replace('"', '\\"')
             return f'"{escaped_value}"'

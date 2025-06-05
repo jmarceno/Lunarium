@@ -570,9 +570,13 @@ def save_item(data_type):
     
     print(f"DEBUG: Parsed item data: {item_data}")
     
+    # Restore any function UIDs in the item data back to their original function text
+    item_data = restore_functions_in_data(item_data, lua_manager.function_registry)
+    print(f"DEBUG: Item data after function restoration: {item_data}")
+    
     try:
-        # Load existing data
-        all_data = lua_manager.read_lua_file(file_path)
+        # Load existing data - preserve function registry to maintain UIDs from edit form
+        all_data = lua_manager.read_lua_file(file_path, preserve_functions=True)
         # DEBUG: Essential info for troubleshooting
         print(f"DEBUG: Loaded data with keys: {list(all_data.keys()) if isinstance(all_data, dict) else type(all_data)}")
         
@@ -1213,6 +1217,20 @@ def convert_value(value):
                 return int(value)
         except ValueError:
             return value
+
+def restore_functions_in_data(data, function_registry):
+    """Recursively restore function UIDs in data structure back to function text."""
+    if isinstance(data, str):
+        # Check if this is a function UID
+        if data.startswith('FUNCTION_UID_') and data in function_registry:
+            return function_registry[data]
+        return data
+    elif isinstance(data, dict):
+        return {key: restore_functions_in_data(value, function_registry) for key, value in data.items()}
+    elif isinstance(data, list):
+        return [restore_functions_in_data(item, function_registry) for item in data]
+    else:
+        return data
 
 @app.route('/assets/<path:filename>')
 def serve_assets(filename):
