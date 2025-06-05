@@ -251,6 +251,10 @@ def manage_data(data_type):
     if data is None:
         data = {}
     
+    # Sort data alphabetically by key
+    if isinstance(data, dict):
+        data = dict(sorted(data.items(), key=lambda x: x[0].lower()))
+    
     images = get_image_files()
     
     # Get additional data for specific types
@@ -327,6 +331,10 @@ def edit_item(data_type, item_id):
     # Ensure data is still a dict after nested access
     if data is None:
         data = {}
+    
+    # Sort data alphabetically by key for consistency
+    if isinstance(data, dict):
+        data = dict(sorted(data.items(), key=lambda x: x[0].lower()))
     
     if item_id not in data:
         flash(f"Item not found: {item_id}")
@@ -1547,6 +1555,10 @@ def search_data(data_type):
         
         print(f"DEBUG: Loaded {len(data)} items for {data_type}")
         
+        # Sort data alphabetically by key
+        if isinstance(data, dict):
+            data = dict(sorted(data.items(), key=lambda x: x[0].lower()))
+        
         # Filter data based on search query
         if search_query:
             filtered_data = {}
@@ -1633,6 +1645,10 @@ def search_data(data_type):
                                     break
             
             data = filtered_data
+        
+        # Sort filtered data alphabetically by key
+        if isinstance(data, dict):
+            data = dict(sorted(data.items(), key=lambda x: x[0].lower()))
         
         # Return grid items
         return render_template('partials/grid_items.html', 
