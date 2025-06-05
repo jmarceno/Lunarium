@@ -121,7 +121,9 @@ function character:new(name, jobName, attributes, profileIndex, portraitId)
         inventory = {},
         portraitId = finalPortraitId,
         -- Keep profileIndex for backwards compatibility
-        profileIndex = profileIndex or math.random(1, 8)
+        profileIndex = profileIndex or math.random(1, 8),
+        -- Initialize speed properly
+        speed = 10 -- Base speed for all characters
     }
     
     -- Add starting skills from job
@@ -141,6 +143,15 @@ function character:new(name, jobName, attributes, profileIndex, portraitId)
         if item then
             char.equipment[slot] = item
         end
+    end
+    
+    -- Calculate and set proper speed based on DEX
+    char.speed = self:calculateSpeed(char)
+    
+    -- Debug logging for speed calculation
+    if GAME and GAME.debug then
+        print(string.format("Character %s (%s): DEX=%d, Speed=%d", 
+            char.name, char.job, char.attributes.DEX, char.speed))
     end
     
     return char
@@ -584,15 +595,21 @@ function character:calculateSpeed(char)
         return 10  -- Default speed if no character
     end
     
-    local baseSpeed = char.speed or 10  -- Default speed
+    -- Always start with base speed of 10 for balance
+    local baseSpeed = 10
     local dexBonus = 0
     
     -- Only calculate DEX bonus if the character has attributes (player characters)
     if char.attributes and char.attributes.DEX then
-        dexBonus = math.floor(char.attributes.DEX / 20)  -- +1 speed per 20 DEX
+        -- Much smaller DEX bonus: +1 speed per 30 DEX (was 20)
+        -- This means you need very high DEX to get significant speed benefits
+        dexBonus = math.floor(char.attributes.DEX / 30)
     end
     
-    return baseSpeed + dexBonus
+    -- Cap the total speed to prevent extreme values
+    local totalSpeed = math.min(15, baseSpeed + dexBonus)  -- Cap at 15 speed
+    
+    return totalSpeed
 end
 
 -- Apply attribute gains, recalculate stats, and heal after level up or job change

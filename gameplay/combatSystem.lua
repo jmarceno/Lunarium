@@ -255,6 +255,7 @@ function combatSystem:createCombat(party, enemy, isAmbush)
     combat.drawCombatLog = uiFunctions.drawCombatLog
     combat.drawPlayerTurnUI = uiFunctions.drawPlayerTurnUI
     combat.drawEnemyTurnUI = uiFunctions.drawEnemyTurnUI
+    combat.drawWaitingUI = uiFunctions.drawWaitingUI
     combat.drawSpeechBubble = uiFunctions.drawSpeechBubble
     combat.drawActorStatus = uiFunctions.drawActorStatus
     combat.drawDefeatUI = uiFunctions.drawDefeatUI
@@ -620,6 +621,9 @@ function combatSystem:createCombat(party, enemy, isAmbush)
             self:drawPlayerTurnUI()
         elseif state == combatSystem.STATE.ENEMY_TURN then
             self:drawEnemyTurnUI()
+        elseif state == combatSystem.STATE.INIT then
+            -- Show waiting for action meters UI
+            self:drawWaitingUI()
         elseif state == combatSystem.STATE.VICTORY then
             self:drawVictoryUI()
             -- The continue button for victory is often part of drawVictoryUI or handled by it

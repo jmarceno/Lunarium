@@ -83,7 +83,11 @@ function turnManager:initializeActionMeters()
     for i, character in ipairs(self.combat.party) do
         if character.active then
             character.actionMeter = character.actionMeter or 0
-            character.speed = character.speed or character.attributes.DEX or 10
+            -- Ensure speed is properly calculated (no more DEX fallback)
+            if not character.speed then
+                local characterSystem = require("gameplay/character")
+                character.speed = characterSystem:calculateSpeed(character)
+            end
             
             -- Set initial action meter value based on ambush status
             -- Convert from old tick-based system to time-based system
@@ -102,7 +106,7 @@ function turnManager:initializeActionMeters()
     for i, enemy in ipairs(self.combat.enemies) do
         if enemy.active then
             enemy.actionMeter = enemy.actionMeter or 0
-            enemy.speed = enemy.speed or enemy.stats.speed or 10
+            enemy.speed = enemy.speed or (enemy.stats and enemy.stats.speed) or 10
             
             -- Enemies always get normal random start (even in ambush they get first turn)
             local randomTicks = math.random(self.INITIAL_RANDOM_RANGE[1], self.INITIAL_RANDOM_RANGE[2])
@@ -144,6 +148,11 @@ function turnManager:update(dt)
     if self.pendingLastActorClear and not self.combat.animationDelay then
         self:clearLastActor()
         self.pendingLastActorClear = false
+        
+        -- If no entities are ready to act after clearing, set state to waiting
+        if #self.turnQueue == 0 then
+            self.combat.state = COMBAT_STATE.INIT
+        end
     end
     
     -- Process action meter updates (now smooth using delta time)
@@ -422,6 +431,9 @@ function turnManager:executeEnemyTurn(entry)
     -- Mark this entity as having acted to prevent consecutive turns
     self:markEntityActed(entry.entity, entry.entityType, entry.index, entry.minionIndex)
     
+    -- Set combat state to enemy turn
+    self.combat.state = COMBAT_STATE.ENEMY_TURN
+    
     -- Reset action meter after turn
     entry.entity.actionMeter = 0
     
@@ -440,6 +452,9 @@ end
 function turnManager:executeMinionTurn(entry)
     -- Mark this entity as having acted to prevent consecutive turns
     self:markEntityActed(entry.entity, entry.entityType, entry.index, entry.minionIndex)
+    
+    -- Set combat state to minion turn
+    self.combat.state = COMBAT_STATE.MINION_TURN
     
     -- Reset action meter after turn
     entry.entity.actionMeter = 0
@@ -475,6 +490,10 @@ function turnManager:playerTurnCompleted()
     
     -- Deactivate player turn flag (resumes action meter ticking)
     self.isPlayerTurnActive = false
+    
+    -- Change combat state to indicate we're waiting for action meters
+    -- This helps UI systems know that no specific entity type is acting
+    self.combat.state = COMBAT_STATE.INIT
     
     -- Hide action buttons
     self.combat:hideActionButtons()

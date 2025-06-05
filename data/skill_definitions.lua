@@ -121,6 +121,10 @@ local skillDefinitions = {
         damageType = "fire",
         castingTime = 2, -- Instant cast
         maxLevel = 5,
+        incantationPhrases = {
+            "I call upon the flames of destruction...",
+            "Let fire consume my enemies!"
+        },
         effect = {
             type = "burn",
             chance = 0.3,
@@ -170,6 +174,10 @@ local skillDefinitions = {
         critChance = 0.2,
         castingTime = 2, -- Medium casting time
         maxLevel = 5,
+        incantationPhrases = {
+            "Storms, heed my call!",
+            "Strike down with thunder's might!"
+        },
         levelModifier = function(level) 
             return {
                 power = 1 + (level * 0.08),
@@ -186,8 +194,12 @@ local skillDefinitions = {
         mpCost = 15,
         basePower = 0,
         formula = nil,
-        castingTime = 1, -- Short casting time
+        castingTime = 2, -- Medium casting time for protective spell
         maxLevel = 5,
+        incantationPhrases = {
+            "By the power of my will...",
+            "Shield me with arcane force!"
+        },
         effect = {
             stat = "barrier",
             formula = function(caster) 
@@ -364,6 +376,11 @@ local skillDefinitions = {
         basePower = 90,
         formula = "magical",
         maxLevel = 5,
+        incantationPhrases = {
+            "By the ancient fires...",
+            "I gather the flames of chaos...",
+            "Explosion of infernal power!"
+        },
         levelModifier = function(level) return 1 + (level * 0.1) end
     },
     
@@ -375,7 +392,13 @@ local skillDefinitions = {
         mpCost = 20,
         basePower = 80,
         formula = "healing",
+        castingTime = 3, -- Long casting time for group healing
         maxLevel = 5,
+        incantationPhrases = {
+            "By the light that binds us...",
+            "Let healing energy flow through me...",
+            "Restore what was broken!"
+        },
         levelModifier = function(level) return 1 + (level * 0.1) end
     },
     
@@ -1654,6 +1677,11 @@ local skillDefinitions = {
         basePower = 0,
         castingTime = 3, -- Longer casting time
         maxLevel = 5,
+        incantationPhrases = {
+            "Gears and steel, assemble!",
+            "By my craft, I command...",
+            "Rise, mechanical guardian!"
+        },
         summonType = "ballista",
         summonStats = {
             name = "Ballista",
@@ -1712,6 +1740,10 @@ local skillDefinitions = {
         basePower = 40,
         castingTime = 2,
         maxLevel = 5,
+        incantationPhrases = {
+            "Tools of my trade, mend what is broken...",
+            "Restore function to this machine!"
+        },
         effect = function(caster, target, combatSystem)
             if target and target.type == "ballista" then
                 local healAmount = 40 * (1 + caster.skillLevels.BallistaRepair * 0.2)
@@ -1739,6 +1771,10 @@ local skillDefinitions = {
         basePower = 0,
         castingTime = 2,
         maxLevel = 3,
+        incantationPhrases = {
+            "Channel more power through the mechanisms...",
+            "Overload the firing chamber!"
+        },
         effect = function(caster, target, combatSystem)
             if target and target.type == "ballista" then
                 -- Replace current ability with overcharge ability

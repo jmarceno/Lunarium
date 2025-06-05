@@ -22,16 +22,16 @@ function monsterAttackSystem:calculateDamage(ability, attacker, target)
     
     -- Check if this is a physical or magical ability
     if ability.type == "physical" then
-        attackPower = attacker.attackPower or attacker.stats.attack or 10
+        attackPower = attacker.attackPower or (attacker.stats and attacker.stats.attack) or 10
     elseif ability.type == "magical" then
-        attackPower = attacker.magicAttackPower or attacker.stats.magicAttack or 8
+        attackPower = attacker.magicAttackPower or (attacker.stats and attacker.stats.magicAttack) or 8
     else
         -- Support abilities typically don't do damage
         return 0, 1.0, ability.damageType or "physical"
     end
     
     -- Get target's raw defense stat
-    local rawDefense = target.defense or target.stats.defense or 5
+    local rawDefense = target.defense or (target.stats and target.stats.defense) or 5
 
     -- New damage calculation logic:
     local rawOffense = attackPower * 2 -- Scale attacker's stat (e.g., *2 similar to player skills)
@@ -266,9 +266,10 @@ function monsterAttackSystem:selectAbility(monster)
     
     -- Filter abilities based on unlock level
     local availableAbilities = {}
+    local monsterLevel = (monster.stats and monster.stats.level) or 1
     for _, abilityEntry in ipairs(monster.abilities) do
         local unlockLevel = abilityEntry.unlockLevel or 1
-        if monster.stats.level >= unlockLevel then
+        if monsterLevel >= unlockLevel then
             table.insert(availableAbilities, abilityEntry)
         end
     end

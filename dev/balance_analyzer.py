@@ -315,8 +315,10 @@ class BalanceAnalyzer:
             # Calculate dodge chance (DEX-based)
             dodge_chance = min(50, 2 + (attributes.get('DEX', 10) * 0.3))
             
-            # Calculate speed bonus from DEX
-            speed_bonus = math.floor(attributes.get('DEX', 10) / 20)
+            # Calculate speed bonus from DEX (updated formula)
+            speed_bonus = math.floor(attributes.get('DEX', 10) / 30)
+            # Total speed is base 10 + DEX bonus, capped at 15
+            total_speed = min(15, 10 + speed_bonus)
             
             # Calculate survivability index (composite metric)
             survivability = hp + (defense * 5) + (magic_defense * 3) + (dodge_chance * 2)
@@ -333,6 +335,7 @@ class BalanceAnalyzer:
                 'mp': float(mp),
                 'dodge_chance': float(dodge_chance),
                 'speed_bonus': int(speed_bonus),
+                'total_speed': int(total_speed),
                 'survivability': float(survivability),
                 'equipment': equipment
             }

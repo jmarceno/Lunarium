@@ -19,9 +19,10 @@ Every entity (players, enemies, and minions) has an `actionMeter` that ticks eve
 #### Speed System:
 - Higher speed values result in fewer ticks needed to act
 - Speed can be negative, which increases the ticks required (slower actions)
-- For players: Speed defaults to DEX attribute (typically 10)
-- For enemies: Speed is defined in monster stats (typically 10)
-- For minions: Speed defaults to 8
+- **For players**: Base speed 10 + DEX bonus (see Speed Calculation section)
+- **For enemies**: Speed is defined in monster stats (typically 8-12)
+- **For minions**: Speed defaults to 8
+- **Speed cap**: Maximum speed is 15 to prevent extreme turn frequency imbalances
 
 ### Turn Queue and Priority
 
@@ -37,6 +38,78 @@ The system has a critical pausing mechanism:
 - **Player turns pause everything**: When a player character is taking their turn, all action meters stop ticking
 - **Spell casting also pauses**: Entities casting spells with `castingTime > 1` second have their action meters paused
 - **Status effects can pause**: Certain status effects (like STUN) prevent action meter ticking
+
+## Speed Calculation System
+
+### Player Character Speed Formula
+
+Player character speed is calculated using a balanced formula to prevent certain classes from dominating combat:
+
+```lua
+baseSpeed = 10                              -- All characters start with base speed 10
+dexBonus = floor(character.DEX / 30)        -- +1 speed per 30 DEX points
+totalSpeed = min(15, baseSpeed + dexBonus) -- Capped at maximum 15 speed
+```
+
+### Speed Balance Fix (v1.2)
+
+The speed system was rebalanced to fix issues where high-DEX classes (Rogues, Assassins) were taking excessive turns:
+
+#### Before Fix (Broken):
+- Characters could inherit raw DEX values as speed
+- Rogues with 15+ DEX would get 15+ speed
+- High-level characters could reach 20+ speed
+- This created massive turn frequency imbalances
+
+#### After Fix (Balanced):
+- All characters start with base speed 10
+- DEX provides minimal speed bonus (1 per 30 DEX)
+- Speed is capped at 15 maximum
+- Turn frequency is much more balanced across classes
+
+### Speed Comparison Table
+
+| Character Type | DEX | Old Speed | New Speed | Action Ticks | Turn Frequency |
+|---------------|-----|-----------|-----------|--------------|----------------|
+| Fighter       | 6   | 6-7       | 10        | 10 ticks     | Balanced ✅    |
+| Rogue         | 8   | 8-9       | 10        | 10 ticks     | Balanced ✅    |
+| Assassin      | 12  | 12-13     | 10        | 10 ticks     | Balanced ✅    |
+| High-level    | 20+ | 20+       | 10-11     | 9-10 ticks   | Slightly fast  |
+| Max possible  | 50  | 50+       | 11        | 9 ticks      | Fast but fair  |
+
+*Note: Lower tick counts = faster turn frequency*
+
+### Class-Based Speed Examples
+
+| Class      | Starting DEX | Level 1 Speed | Level 20 DEX | Level 20 Speed |
+|------------|-------------|---------------|--------------|----------------|
+| Fighter    | 6           | 10            | ~12          | 10             |
+| Mage       | 6           | 10            | ~8           | 10             |
+| Rogue      | 8           | 10            | ~18          | 10             |
+| Assassin   | 12          | 10            | ~25          | 10             |
+| Monk       | 7           | 10            | ~15          | 10             |
+
+*All classes now have equal turn frequency until very high DEX values (30+)*
+
+### Balance Design Rationale
+
+The speed calculation rebalance addresses several critical issues:
+
+1. **Early Game Balance**: All classes now have equal turn frequency at level 1-10, preventing any single class from dominating
+2. **Meaningful DEX Investment**: Very high DEX (30+) provides a small speed advantage, making DEX investment worthwhile without being overpowered
+3. **Class Identity**: High-DEX classes (Rogues, Assassins) still benefit from DEX through dodge chance, critical hit bonus, and other mechanics
+4. **Scaling Prevention**: The 30-point requirement for speed bonus prevents exponential scaling issues
+5. **Combat Pacing**: Capped speed ensures combat remains tactical rather than being dominated by speed-stacking
+
+### DEX Benefits Beyond Speed
+
+While speed bonus from DEX is now minimal, DEX still provides significant benefits:
+- **Dodge Chance**: +0.3% per DEX point (up to 50% cap)
+- **Critical Hit Bonus**: +0.5% per DEX point for precision skills
+- **Ranged Hit Chance**: +0.5% per DEX point for bow/crossbow attacks
+- **Steal Success**: +1% per DEX point for stealing attempts
+
+This ensures DEX remains valuable for DEX-focused builds while preventing speed dominance.
 
 ## Spell Casting Integration
 
@@ -157,11 +230,34 @@ turnManager.INITIAL_RANDOM_RANGE = {1, 5}
 
 ### Speed Balancing Guidelines:
 
-- **Player Characters**: 8-15 (based on DEX)
-- **Fast Enemies**: 12-18
-- **Normal Enemies**: 8-12  
-- **Slow Enemies**: 5-8
-- **Minions**: 6-10
+#### Player Characters:
+- **Base Speed**: 10 (all classes start equal)
+- **DEX Bonus**: +1 speed per 30 DEX points
+- **Realistic Range**: 10-11 (most characters)
+- **Maximum Possible**: 11 (DEX 30+, capped at 15)
+
+#### Enemies:
+- **Fast Enemies**: 12-15 (noticeably faster than players)
+- **Normal Enemies**: 8-12 (comparable to players)
+- **Slow Enemies**: 5-8 (noticeably slower)
+- **Boss Enemies**: 10-15 (varies by encounter design)
+
+#### Minions:
+- **Standard Minions**: 6-10 (slightly slower than players)
+- **Fast Minions**: 10-12 (equal to players)
+- **Slow Minions**: 4-8 (support/tank roles)
+
+#### Action Meter Calculation:
+```
+requiredTicks = max(1, 20 - speed)
+timeToAct = requiredTicks * 0.5 seconds
+```
+
+**Examples:**
+- Speed 10: 10 ticks = 5.0 seconds
+- Speed 12: 8 ticks = 4.0 seconds  
+- Speed 15: 5 ticks = 2.5 seconds
+- Speed 5: 15 ticks = 7.5 seconds
 
 ### Casting Time Guidelines:
 
@@ -199,6 +295,14 @@ The new system maintains compatibility with existing:
 - Turn order is no longer deterministic at combat start
 - Casting times changed from turns to seconds
 - Some timing-dependent mechanics may need adjustment
+- **Speed calculation rebalanced** (v1.2): High-DEX classes no longer dominate turn frequency
+
+### Speed System Migration (v1.2)
+
+Existing characters will have their speed recalculated using the new formula:
+- Characters with `speed > 15` will be capped at 15
+- Characters without explicit speed values will get proper calculation based on DEX
+- Save file compatibility is maintained (speed is recalculated on load)
 
 ## Future Enhancements
 

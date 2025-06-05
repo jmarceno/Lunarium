@@ -64,6 +64,11 @@ local function setupCombatants(self)
         
         -- Initialize spellQueue for party members
         character.spellQueue = {}
+        
+        -- Initialize status effects table if it doesn't exist
+        if not character.status then
+            character.status = {}
+        end
     end
     
     -- Check for and apply trap effects from Artificer
@@ -190,6 +195,77 @@ local function update(self, dt)
     self:updateSpellQueueTime(dt)
 end
 
+-- New function to handle incantation phrase progression
+local function updateIncantationPhrases(spell, dt)
+    if not spell.incantationPhrases or #spell.incantationPhrases == 0 then
+        return
+    end
+    
+    local totalPhrases = #spell.incantationPhrases
+    
+    -- Handle post-cast display timer
+    if spell.isPostCast then
+        spell.postCastDisplayTimer = spell.postCastDisplayTimer + dt
+        return -- Don't update phrases during post-cast display
+    end
+    
+    if totalPhrases == 1 then
+        -- Single phrase: show at the beginning
+        if spell.currentPhraseIndex == 0 then
+            spell.currentPhraseIndex = 1
+            spell.accumulatedText = spell.incantationPhrases[1]
+            spell.phrasesShown[1] = true
+        end
+        return
+    end
+    
+    -- Multiple phrases: distribute evenly across casting time
+    local phraseInterval = spell.totalCastingTime / totalPhrases
+    local elapsedTime = spell.totalCastingTime - spell.castingTimeRemaining
+    local expectedPhraseIndex = math.floor(elapsedTime / phraseInterval) + 1
+    
+    -- Ensure we don't exceed available phrases
+    expectedPhraseIndex = math.min(expectedPhraseIndex, totalPhrases)
+    
+    -- Add new phrases to accumulated text if they should be shown
+    if expectedPhraseIndex > spell.currentPhraseIndex then
+        for i = spell.currentPhraseIndex + 1, expectedPhraseIndex do
+            if not spell.phrasesShown[i] then
+                -- Add phrase to accumulated text
+                if spell.accumulatedText ~= "" then
+                    spell.accumulatedText = spell.accumulatedText .. "\n" .. spell.incantationPhrases[i]
+                else
+                    spell.accumulatedText = spell.incantationPhrases[i]
+                end
+                spell.phrasesShown[i] = true
+            end
+        end
+        spell.currentPhraseIndex = expectedPhraseIndex
+        spell.phraseDisplayTime = 0 -- Reset display timer for new phrase
+    end
+    
+    -- Handle last phrase special case and ensure all phrases are shown
+    if spell.castingTimeRemaining <= 0 and not spell.lastPhraseShown then
+        -- Make sure all phrases are in the accumulated text
+        for i = 1, totalPhrases do
+            if not spell.phrasesShown[i] then
+                if spell.accumulatedText ~= "" then
+                    spell.accumulatedText = spell.accumulatedText .. "\n" .. spell.incantationPhrases[i]
+                else
+                    spell.accumulatedText = spell.incantationPhrases[i]
+                end
+                spell.phrasesShown[i] = true
+            end
+        end
+        spell.lastPhraseShown = true
+        spell.isPostCast = true
+        spell.postCastDisplayTimer = 0
+        spell.phraseDisplayTime = 0
+    end
+    
+    spell.phraseDisplayTime = spell.phraseDisplayTime + dt
+end
+
 -- New function to update spell queue based on time instead of turns
 local function updateSpellQueueTime(self, dt)
     -- Don't progress spell queue if player turn is active (everything pauses)
@@ -200,6 +276,9 @@ local function updateSpellQueueTime(self, dt)
     for i = #self.spellQueue, 1, -1 do
         local spell = self.spellQueue[i]
         if spell.caster.active and not spell.completionStarted then
+            -- Update incantation phrases
+            updateIncantationPhrases(spell, dt)
+            
             -- Decrease remaining cast time in seconds (spell queue now uses seconds instead of turns)
             spell.castingTimeRemaining = spell.castingTimeRemaining - dt
             
@@ -236,6 +315,12 @@ local function updateSpellQueueTime(self, dt)
             -- Caster is inactive (dead or incapacitated), remove the spell
             self:cancelSpell(spell.caster, i)
         end
+        
+        -- Handle post-cast cleanup (remove spells after 2 seconds of post-cast display)
+        if spell.isPostCast and spell.postCastDisplayTimer >= 2.0 then
+            -- Remove the spell from queue after post-cast display period
+            table.remove(self.spellQueue, i)
+        end
     end
 end
 
@@ -249,7 +334,16 @@ local function addToSpellQueue(self, caster, skill, target)
         progress = 0,
         totalCastingTime = skill.castingTime,
         castingTimeRemaining = skill.castingTime, -- Now in seconds instead of turns
-        isCasting = true  -- Flag to indicate entity is currently casting
+        isCasting = true,  -- Flag to indicate entity is currently casting
+        -- NEW FIELDS FOR INCANTATIONS:
+        incantationPhrases = skill.incantationPhrases or {},
+        currentPhraseIndex = 0, -- Start at 0, will increment to 1 for first phrase
+        phrasesShown = {}, -- Array to track which phrases have been displayed
+        accumulatedText = "", -- The full text displayed in the bubble (additive)
+        phraseDisplayTime = 0, -- How long current phrase has been displayed
+        lastPhraseShown = false,
+        postCastDisplayTimer = 0, -- Timer for keeping bubble visible after cast
+        isPostCast = false -- Flag to indicate spell is complete but bubble still showing
     }
     
     -- Add to the queue
@@ -711,10 +805,11 @@ local function calculateVictoryRewards(self)
     -- Sum up experience and generate loot from all enemies
     for _, enemy in ipairs(self.enemies) do
         -- Add experience
-        self.rewards.exp = self.rewards.exp + (enemy.stats.level * 100)
+        local enemyLevel = (enemy.stats and enemy.stats.level) or 1
+        self.rewards.exp = self.rewards.exp + (enemyLevel * 100)
         
         -- Generate loot for each enemy and add to the total
-        local enemyLoot = itemSystem:generateRandomLoot(enemy.stats.level)
+        local enemyLoot = itemSystem:generateRandomLoot(enemyLevel)
         for _, item in ipairs(enemyLoot) do
             table.insert(self.rewards.loot, item)
         end

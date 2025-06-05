@@ -180,19 +180,23 @@ function skillSystem:calculateDamage(skill, user, target, level)
         end
         
         -- Apply elemental resistance from status effects
-        if statusEffects:has(target, "elementalResist") and 
-           (not target.status.elementalResist.extraParams.element or 
-            target.status.elementalResist.extraParams.element == skill.element) then
-            -- If target has general elemental resist or specific resist to this element
-            elementMultiplier = elementMultiplier * 0.75 -- Reduce damage by 25%
+        if statusEffects:has(target, "elementalResist") then
+            local resistEffect = target.status.elementalResist
+            local elementSpecific = resistEffect.extraParams and resistEffect.extraParams.element
+            if not elementSpecific or elementSpecific == skill.element then
+                -- If target has general elemental resist or specific resist to this element
+                elementMultiplier = elementMultiplier * 0.75 -- Reduce damage by 25%
+            end
         end
         
         -- Apply elemental power from status effects
-        if statusEffects:has(user, "elementalPower") and 
-           (not user.status.elementalPower.extraParams.element or 
-            user.status.elementalPower.extraParams.element == skill.element) then
-            -- If user has general elemental power boost or specific to this element
-            elementMultiplier = elementMultiplier * 1.25 -- Increase damage by 25%
+        if statusEffects:has(user, "elementalPower") then
+            local powerEffect = user.status.elementalPower
+            local elementSpecific = powerEffect.extraParams and powerEffect.extraParams.element
+            if not elementSpecific or elementSpecific == skill.element then
+                -- If user has general elemental power boost or specific to this element
+                elementMultiplier = elementMultiplier * 1.25 -- Increase damage by 25%
+            end
         end
         
         damage = damage * elementMultiplier

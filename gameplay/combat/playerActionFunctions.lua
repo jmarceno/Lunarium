@@ -710,9 +710,8 @@ local function executeStealSkill(self, character)
     end
     
     -- Subtract enemy level penalty
-    if self.enemy.stats and self.enemy.stats.level then
-        stealChance = stealChance - (self.enemy.stats.level * 0.02)
-    end
+    local enemyLevel = (self.enemy.stats and self.enemy.stats.level) or 1
+    stealChance = stealChance - (enemyLevel * 0.02)
     
     -- Clamp steal chance
     stealChance = math.max(0.1, math.min(0.8, stealChance))
@@ -720,7 +719,7 @@ local function executeStealSkill(self, character)
     -- Try to steal
     if math.random() < stealChance then
         -- Success! Generate a random item
-        local stolenItem = itemSystem:generateRandomItem(self.enemy.stats.level or 1)
+        local stolenItem = itemSystem:generateRandomItem(enemyLevel)
         
         -- Add item to inventory
         itemSystem:addToInventory(stolenItem)

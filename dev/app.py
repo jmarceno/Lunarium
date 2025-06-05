@@ -521,6 +521,8 @@ def save_item(data_type):
                 item_data = parse_monster_form_data(form_data)
             elif data_type == 'quests':
                 item_data = parse_quest_form_data(form_data)
+            elif data_type == 'skills':
+                item_data = parse_skill_form_data(form_data)
             elif data_type == 'smith_recipes':
                 item_data = parse_smith_recipe_form_data(form_data)
             elif data_type == 'unique_items':
@@ -550,6 +552,8 @@ def save_item(data_type):
             item_data = parse_monster_form_data(form_data)
         elif data_type == 'quests':
             item_data = parse_quest_form_data(form_data)
+        elif data_type == 'skills':
+            item_data = parse_skill_form_data(form_data)
         elif data_type == 'smith_recipes':
             item_data = parse_smith_recipe_form_data(form_data)
         elif data_type == 'unique_items':
@@ -903,6 +907,36 @@ def parse_quest_form_data(form_data):
     
     if rewards:
         result['rewards'] = rewards
+    
+    return result
+
+def parse_skill_form_data(form_data):
+    """Parse skill-specific form data with special handling for incantation phrases."""
+    result = parse_form_data(form_data)
+    
+    # Handle incantation phrases (array of strings)
+    incantation_phrases = []
+    phrase_indices = set()
+    
+    # First, collect all phrase indices
+    for key in form_data.keys():
+        if key.startswith('incantationPhrases.'):
+            parts = key.split('.')
+            if len(parts) >= 2:
+                phrase_indices.add(parts[1])
+    
+    # Process each phrase in order
+    for index in sorted(phrase_indices, key=lambda x: int(x) if x.isdigit() else 0):
+        phrase_key = f"incantationPhrases.{index}"
+        phrase_text = form_data.get(phrase_key, '').strip()
+        
+        if phrase_text:
+            incantation_phrases.append(phrase_text)
+    
+    # Only add incantationPhrases if there are phrases and castingTime > 1
+    casting_time = result.get('castingTime', 0)
+    if incantation_phrases and casting_time and casting_time > 1:
+        result['incantationPhrases'] = incantation_phrases
     
     return result
 

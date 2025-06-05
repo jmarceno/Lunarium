@@ -1,6 +1,7 @@
 local screenManager = require("screens/screenManager")
 local assetManager = require("assets/assetManager")
 local statusEffects = require("gameplay/statusEffects")
+local speechBubble = require("screens/ui_slices/speechBubble")
 
     
 -- Create party status panel
@@ -204,6 +205,19 @@ local partyPanel = {
                         )
                         
                         iconIndex = iconIndex + 1
+                    end
+                end
+            end
+            
+            -- NEW: Draw incantation speech bubbles after character rendering
+            if self.combatSystem and self.combatSystem.spellQueue then
+                for _, spell in ipairs(self.combatSystem.spellQueue) do
+                    if spell.caster == character and spell.incantationPhrases 
+                       and #spell.incantationPhrases > 0 and spell.accumulatedText ~= "" then
+                        -- Draw speech bubble above character portrait with accumulated text
+                        local portraitCenterX = x + portraitSpace/2
+                        local portraitTopY = self.y + 15
+                        speechBubble:draw(spell.accumulatedText, portraitCenterX, portraitTopY, 200, i)
                     end
                 end
             end

@@ -246,6 +246,49 @@
                             </div>
                         </div>
 
+                        <!-- Incantation Phrases (only shown if casting time > 1) -->
+                        <div class="field-group mt-3" id="incantation-phrases-section" style="display: none;">
+                            <h6 class="field-label">
+                                Incantation Phrases 
+                                <small class="text-muted">(for spells with casting time > 1)</small>
+                            </h6>
+                            <div id="incantation-phrases-container">
+                                {% if item_data.incantationPhrases %}
+                                    {% for phrase in item_data.incantationPhrases %}
+                                    <div class="row mb-2 phrase-row">
+                                        <div class="col-md-10">
+                                            <input type="text" class="form-control" name="incantationPhrases.{{ loop.index }}" 
+                                                   value="{{ phrase }}" placeholder="Enter incantation phrase...">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="removePhrase(this)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <div class="row mb-2 phrase-row">
+                                        <div class="col-md-10">
+                                            <input type="text" class="form-control" name="incantationPhrases.1" 
+                                                   placeholder="Enter incantation phrase...">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="removePhrase(this)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <button type="button" class="btn btn-outline-primary btn-sm mt-2" onclick="addPhrase()">
+                                <i class="bi bi-plus"></i> Add Phrase
+                            </button>
+                            <small class="text-muted d-block mt-1">
+                                Phrases will appear in order during spell casting. Each phrase accumulates in the speech bubble.
+                            </small>
+                        </div>
+
                     {% elif data_type == 'monsters' %}
                         <!-- Monster-specific fields -->
                         <div class="mb-3">
@@ -1600,5 +1643,75 @@
             }
         });
     }
+
+    // Incantation phrase management functions
+    function addPhrase() {
+        const container = document.getElementById('incantation-phrases-container');
+        const phraseRows = container.querySelectorAll('.phrase-row');
+        const nextIndex = phraseRows.length + 1;
+        
+        const newRow = document.createElement('div');
+        newRow.className = 'row mb-2 phrase-row';
+        newRow.innerHTML = `
+            <div class="col-md-10">
+                <input type="text" class="form-control" name="incantationPhrases.${nextIndex}" 
+                       placeholder="Enter incantation phrase...">
+            </div>
+            <div class="col-md-2">
+                <button type="button" class="btn btn-outline-danger btn-sm" onclick="removePhrase(this)">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        `;
+        
+        container.appendChild(newRow);
+    }
+    
+    function removePhrase(button) {
+        const row = button.closest('.phrase-row');
+        if (row) {
+            row.remove();
+            renumberPhrases();
+        }
+    }
+    
+    function renumberPhrases() {
+        const container = document.getElementById('incantation-phrases-container');
+        const phraseRows = container.querySelectorAll('.phrase-row');
+        
+        phraseRows.forEach((row, index) => {
+            const input = row.querySelector('input[name^="incantationPhrases."]');
+            if (input) {
+                input.name = `incantationPhrases.${index + 1}`;
+            }
+        });
+    }
+
+    // Show/hide incantation phrases section based on casting time
+    function toggleIncantationPhrases() {
+        const castingTimeInput = document.getElementById('castingTime');
+        const phrasesSection = document.getElementById('incantation-phrases-section');
+        
+        if (castingTimeInput && phrasesSection) {
+            const castingTime = parseInt(castingTimeInput.value) || 0;
+            if (castingTime > 1) {
+                phrasesSection.style.display = 'block';
+            } else {
+                phrasesSection.style.display = 'none';
+            }
+        }
+    }
+
+    // Initialize incantation phrases visibility on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        // Set up casting time change listener
+        const castingTimeInput = document.getElementById('castingTime');
+        if (castingTimeInput) {
+            castingTimeInput.addEventListener('input', toggleIncantationPhrases);
+            castingTimeInput.addEventListener('change', toggleIncantationPhrases);
+            // Check initial state
+            toggleIncantationPhrases();
+        }
+    });
 </script>
 {% endblock %} 

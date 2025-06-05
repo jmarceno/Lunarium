@@ -1008,6 +1008,7 @@ end
 local function drawParty(self)
     -- Configure party panel for combat
     partyPanel:setCombatMode(true, self.party)
+    partyPanel.combatSystem = self -- NEW: Pass reference for spell queue access
     
     -- Set the active character based on current state
     if self.state == combatSystem.STATE.PLAYER_TURN then
@@ -1093,19 +1094,48 @@ local function drawPlayerTurnUI(self)
     
     -- Draw UI based on whether an action is selected
     if not self.selectedAction then
-        -- No action selected - show action buttons
-        -- Make sure action buttons are visible
-        self:showActionButtons()
+        -- No action selected - check if player should be able to act
+        local canPlayerAct = true
+        if self.turnManager and self.turnManager.isPlayerTurnActive then
+            -- If turn manager exists and says player turn is active, show buttons
+            canPlayerAct = true
+        elseif self.turnManager then
+            -- If turn manager exists but player turn is not active, hide buttons
+            canPlayerAct = false
+        end
+        -- If no turn manager, fall back to old behavior (for compatibility)
         
-        -- Draw the buttons
-        self.elements.attackButton:draw()
-        self.elements.skillButton:draw()
-        self.elements.itemButton:draw()
-        self.elements.defendButton:draw()
-        
-        -- Hide confirm and back buttons since no action is selected
-        self.elements.confirmButton.visible = false
-        self.elements.backButton.visible = false
+        if canPlayerAct then
+            -- Player can act - show action buttons
+            self:showActionButtons()
+            
+            -- Draw the buttons
+            self.elements.attackButton:draw()
+            self.elements.skillButton:draw()
+            self.elements.itemButton:draw()
+            self.elements.defendButton:draw()
+            
+            -- Hide confirm and back buttons since no action is selected
+            self.elements.confirmButton.visible = false
+            self.elements.backButton.visible = false
+        else
+            -- Player cannot act - hide action buttons and show waiting message
+            self:hideActionButtons()
+            
+            -- Show "Waiting for turn..." message
+            love.graphics.setFont(safeGetFont("medium"))
+            love.graphics.setColor(1, 1, 0.5)
+            
+            local waitText = "Waiting for turn..."
+            local textWidth = love.graphics.getFont():getWidth(waitText)
+            local textX = GAME.width / 2 - textWidth / 2
+            
+            love.graphics.print(waitText, textX, turnTextY + 25)
+            
+            -- Hide confirm and back buttons
+            self.elements.confirmButton.visible = false
+            self.elements.backButton.visible = false
+        end
     else
         -- Action is selected - hide action buttons and show selection UI
         self:hideActionButtons()
@@ -1197,6 +1227,34 @@ local function drawEnemyTurnUI(self)
     love.graphics.setColor(1, 1, 1, 0.7)
     
     local waitText = "Waiting for enemy action..."
+    local waitWidth = love.graphics.getFont():getWidth(waitText)
+    local waitX = GAME.width / 2 - waitWidth / 2
+    
+    love.graphics.print(waitText, waitX, turnTextY + 25)
+end
+
+-- Draw UI for waiting/action meter ticking state
+local function drawWaitingUI(self)
+    -- Get where the action buttons would be
+    local partyHeight = 90 -- Height of the party display section
+    local buttonY = GAME.height - partyHeight - 50 -- Same as in createUI
+    local turnTextY = buttonY - 40
+    
+    -- Draw "Action Meters Ticking" text centered
+    love.graphics.setFont(safeGetFont("medium"))
+    love.graphics.setColor(0.7, 0.7, 1)
+    
+    local turnText = "Action Meters Ticking"
+    local textWidth = love.graphics.getFont():getWidth(turnText)
+    local textX = GAME.width / 2 - textWidth / 2
+    
+    love.graphics.print(turnText, textX, turnTextY)
+    
+    -- Show a "Waiting for next turn..." message below it
+    love.graphics.setFont(safeGetFont("small"))
+    love.graphics.setColor(1, 1, 1, 0.7)
+    
+    local waitText = "Waiting for next turn..."
     local waitWidth = love.graphics.getFont():getWidth(waitText)
     local waitX = GAME.width / 2 - waitWidth / 2
     
@@ -1881,6 +1939,7 @@ return {
     drawParty = drawParty,
     drawMinions = drawMinions,
     drawEnemyTurnUI = drawEnemyTurnUI,
+    drawWaitingUI = drawWaitingUI,
     drawVictoryUI = drawVictoryUI,
     drawDefeatUI = drawDefeatUI,
     drawVictoryPrompt = drawVictoryPrompt,
