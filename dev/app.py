@@ -375,10 +375,11 @@ def edit_item(data_type, item_id):
     return render_template('edit.html',
                          data_type=data_type,
                          item_id=item_id,
-                         item_data=item_data,
+                         item_data=prepare_item_data_for_template(item_data),
                          config=config,
                          images=images,
-                         extra_data=extra_data)
+                         extra_data=extra_data,
+                         is_new=False)
 
 @app.route('/new/<data_type>')
 def new_item(data_type):
@@ -477,7 +478,7 @@ def new_item(data_type):
     return render_template('edit.html',
                          data_type=data_type,
                          item_id='',
-                         item_data=item_data,
+                         item_data=prepare_item_data_for_template(item_data),
                          config=config,
                          images=images,
                          is_new=True,
@@ -836,19 +837,47 @@ def parse_job_form_data(form_data):
     if attribute_modifiers:
         result['attributeModifiers'] = attribute_modifiers
     
-    # Handle available skills (multiselect)
+    # Handle available skills (multiselect) - create proper array
     available_skills = []
-    for key, value in form_data.items():
-        if key.startswith('availableSkills.') and value:
-            available_skills.append(value)
+    skill_indices = []
+    
+    # Collect available skills indices
+    for key in form_data.keys():
+        if key.startswith('availableSkills.'):
+            try:
+                index = int(key.split('.')[1])
+                skill_indices.append(index)
+            except (IndexError, ValueError):
+                continue
+    
+    # Sort indices and collect skill names
+    for index in sorted(skill_indices):
+        skill_name = form_data.get(f'availableSkills.{index}', '').strip()
+        if skill_name:
+            available_skills.append(skill_name)
+            
     if available_skills:
         result['availableSkills'] = available_skills
-    
-    # Handle starting skills (multiselect)
+
+    # Handle starting skills (multiselect) - create proper array
     starting_skills = []
-    for key, value in form_data.items():
-        if key.startswith('startingSkills.') and value:
-            starting_skills.append(value)
+    starting_indices = []
+    
+    # Collect starting skills indices
+    for key in form_data.keys():
+        if key.startswith('startingSkills.'):
+            try:
+                index = int(key.split('.')[1])
+                starting_indices.append(index)
+            except (IndexError, ValueError):
+                continue
+    
+    # Sort indices and collect skill names
+    for index in sorted(starting_indices):
+        skill_name = form_data.get(f'startingSkills.{index}', '').strip()
+        if skill_name:
+            starting_skills.append(skill_name)
+            
     if starting_skills:
         result['startingSkills'] = starting_skills
     
@@ -994,12 +1023,9 @@ def parse_item_form_data(form_data):
         if job_name:  # Only add non-empty job names
             jobs.append(job_name)
     
-    # Convert jobs array to numeric string key format to match existing structure
+    # Store as proper array
     if jobs:
-        jobs_dict = {}
-        for i, job_name in enumerate(jobs):
-            jobs_dict[str(i + 1)] = job_name
-        result['jobs'] = jobs_dict
+        result['jobs'] = jobs
     
     return result
 
@@ -1038,12 +1064,9 @@ def parse_unique_item_form_data(form_data):
         if job_name:  # Only add non-empty job names
             jobs.append(job_name)
     
-    # Convert jobs array to numeric string key format to match existing structure
+    # Store as proper array
     if jobs:
-        jobs_dict = {}
-        for i, job_name in enumerate(jobs):
-            jobs_dict[str(i + 1)] = job_name
-        result['jobs'] = jobs_dict
+        result['jobs'] = jobs
     
     # Handle unique effects
     unique_effects = []
@@ -1121,12 +1144,9 @@ def parse_set_item_form_data(form_data):
         if job_name:  # Only add non-empty job names
             jobs.append(job_name)
     
-    # Convert jobs array to numeric string key format to match existing structure
+    # Store as proper array
     if jobs:
-        jobs_dict = {}
-        for i, job_name in enumerate(jobs):
-            jobs_dict[str(i + 1)] = job_name
-        result['jobs'] = jobs_dict
+        result['jobs'] = jobs
     
     # Set item properties
     result['setItem'] = True
@@ -1604,6 +1624,10 @@ def search_data(data_type):
     except Exception as e:
         print(f"DEBUG: Error during search: {e}")
         return '', 500
+
+def prepare_item_data_for_template(item_data):
+    """Prepare item data for template display - just pass through for now."""
+    return item_data
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000) 

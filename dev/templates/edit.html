@@ -254,19 +254,38 @@
                             </h6>
                             <div id="incantation-phrases-container">
                                 {% if item_data.incantationPhrases %}
-                                    {% for phrase in item_data.incantationPhrases %}
-                                    <div class="row mb-2 phrase-row">
-                                        <div class="col-md-10">
-                                            <input type="text" class="form-control" name="incantationPhrases.{{ loop.index }}" 
-                                                   value="{{ phrase }}" placeholder="Enter incantation phrase...">
+                                    {% if item_data.incantationPhrases is sequence and item_data.incantationPhrases is not string %}
+                                        <!-- Handle as array/list -->
+                                        {% for phrase in item_data.incantationPhrases %}
+                                        <div class="row mb-2 phrase-row">
+                                            <div class="col-md-10">
+                                                <input type="text" class="form-control" name="incantationPhrases.{{ loop.index }}" 
+                                                       value="{{ phrase }}" placeholder="Enter incantation phrase...">
+                                            </div>
+                                            <div class="col-md-2">
+                                                <button type="button" class="btn btn-outline-danger btn-sm" onclick="removePhrase(this)">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </div>
                                         </div>
-                                        <div class="col-md-2">
-                                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="removePhrase(this)">
-                                                <i class="bi bi-trash"></i>
-                                            </button>
+                                        {% endfor %}
+                                    {% else %}
+                                        <!-- Handle as dict with numeric keys (corrupted data) -->
+                                        {% set sorted_keys = item_data.incantationPhrases.keys() | sort %}
+                                        {% for index in sorted_keys %}
+                                        <div class="row mb-2 phrase-row">
+                                            <div class="col-md-10">
+                                                <input type="text" class="form-control" name="incantationPhrases.{{ loop.index }}" 
+                                                       value="{{ item_data.incantationPhrases[index] }}" placeholder="Enter incantation phrase...">
+                                            </div>
+                                            <div class="col-md-2">
+                                                <button type="button" class="btn btn-outline-danger btn-sm" onclick="removePhrase(this)">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </div>
                                         </div>
-                                    </div>
-                                    {% endfor %}
+                                        {% endfor %}
+                                    {% endif %}
                                 {% else %}
                                     <div class="row mb-2 phrase-row">
                                         <div class="col-md-10">
