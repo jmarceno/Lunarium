@@ -200,11 +200,54 @@ function skillSystem:calculateDamage(skill, user, target, level)
         end
         
         damage = damage * elementMultiplier
+        
+        -- Elemental conversion - convert damage to MP
+        if statusEffects:has(target, "elemental_conversion") and skill.element then
+            local conversionRate = statusEffects:getValue(target, "elemental_conversion") / 100
+            local convertedMP = math.floor(damage * conversionRate)
+            
+            -- Add MP to target (if they have MP)
+            if target.currentMP and target.maxMP then
+                target.currentMP = math.min(target.maxMP, target.currentMP + convertedMP)
+                
+                -- Reduce damage by converted amount
+                damage = damage * (1 - conversionRate)
+                
+                if GAME.debug then
+                    print("Elemental conversion: " .. convertedMP .. " damage converted to MP")
+                end
+            end
+        end
+    end
+    
+    -- Creature type bonuses (for trap mastery and similar skills)
+    if skill.creatureTypeBonus and target.creatureType then
+        for creatureType, multiplier in pairs(skill.creatureTypeBonus) do
+            if target.creatureType == creatureType then
+                damage = damage * multiplier
+                
+                if GAME.debug then
+                    print(skill.name .. " deals extra damage to " .. creatureType .. " (" .. multiplier .. "x)")
+                end
+                break
+            end
+        end
     end
     
     -- Apply offensive status effects
     if statusEffects:has(user, "strengthen") then
         damage = damage * 1.25 -- 25% more damage
+    end
+    
+    -- Stealth damage bonus
+    if statusEffects:has(user, "stealth") then
+        damage = damage * 1.5 -- 50% more damage from stealth
+    end
+    
+    -- Bloodlust damage bonus (but accuracy penalty handled elsewhere)
+    if statusEffects:has(user, "bloodlust") then
+        local bloodlustMultiplier = 1 + (statusEffects:getValue(user, "bloodlust") / 100)
+        damage = damage * bloodlustMultiplier
     end
     
     -- Apply defensive status effects
@@ -214,6 +257,12 @@ function skillSystem:calculateDamage(skill, user, target, level)
     
     if statusEffects:has(target, "protect") then
         damage = damage * 0.75 -- 25% less damage when protected
+    end
+    
+    -- Guardian stance damage reduction
+    if statusEffects:has(target, "guardian_stance") then
+        local reductionPercent = statusEffects:getValue(target, "guardian_stance")
+        damage = damage * (1 - (reductionPercent / 100))
     end
     
     -- Calculate critical hit
@@ -230,17 +279,60 @@ function skillSystem:calculateDamage(skill, user, target, level)
         -- Apply accuracy multiplier from status effects (affects crit chance)
         critChance = critChance * statusEffects:getMultiplier(user, "accuracy_multiplier")
         
+        -- Apply HawkEye crit bonus
+        if statusEffects:has(user, "hawkeye") then
+            local hawkeyeStrength = statusEffects:getValue(user, "hawkeye")
+            critChance = critChance + (hawkeyeStrength / 100) -- Convert to decimal
+        end
+        
         if math.random() < critChance then
             damage = damage * (skill.critModifier or 1.5)
             isCritical = true
         end
     end
     
-    return math.floor(damage), isCritical
+    -- Execute/Health-Based Damage System
+    local instantKill = false
+    
+    -- Execute threshold - instant kill if target below health threshold
+    if skill.executeThreshold and target.currentHP and target.maxHP then
+        local healthPercent = target.currentHP / target.maxHP
+        if healthPercent <= skill.executeThreshold then
+            damage = target.currentHP -- Instant kill
+            instantKill = true
+        end
+    end
+    
+    -- Missing health multiplier - damage scales with target's missing health
+    if skill.missingHealthMultiplier and target.currentHP and target.maxHP and not instantKill then
+        local missingHealthPercent = 1 - (target.currentHP / target.maxHP)
+        local multiplier = 1 + (missingHealthPercent * skill.missingHealthMultiplier)
+        damage = damage * multiplier
+    end
+    
+    -- Execute damage - flat damage bonus based on target's missing health
+    if skill.executeDamage and target.currentHP and target.maxHP and not instantKill then
+        local missingHP = target.maxHP - target.currentHP
+        local executeBonus = missingHP * skill.executeDamage
+        damage = damage + executeBonus
+    end
+    
+    -- Health-based damage - damage scales with user's current health
+    if skill.healthBasedDamage and user.currentHP then
+        local healthMultiplier = (user.currentHP / 100) * skill.healthBasedDamage
+        damage = damage * (1 + healthMultiplier)
+    end
+    
+    return math.floor(damage), isCritical, instantKill
 end
 
 -- Calculate hit chance for a skill
-function skillSystem:calculateHitChance(skill, user, target)
+function skillSystem:calculateHitChance(skill, user, target, hitNumber)
+    -- Never miss skills always hit
+    if skill.neverMiss then
+        return 100
+    end
+    
     local baseHitChance = skill.baseHitChance or 85
     
     -- Get statusEffects module
@@ -255,7 +347,34 @@ function skillSystem:calculateHitChance(skill, user, target)
         dexBonus = user.attributes.DEX * 0.2
     end
     
-    return math.min(95, baseHitChance + dexBonus) * accuracyMultiplier
+    -- Apply accuracy bonus from skill
+    if skill.accuracyBonus then
+        baseHitChance = baseHitChance + skill.accuracyBonus
+    end
+    
+    -- Apply HawkEye accuracy bonus
+    if statusEffects:has(user, "hawkeye") then
+        local hawkeyeAccuracy = statusEffects:getValue(user, "hawkeye")
+        baseHitChance = baseHitChance + hawkeyeAccuracy
+    end
+    
+    -- Apply Bloodlust accuracy penalty
+    if statusEffects:has(user, "bloodlust") then
+        local bloodlustPenalty = statusEffects:getValue(user, "bloodlust") * 0.5 -- Half the damage bonus as accuracy penalty
+        baseHitChance = baseHitChance - bloodlustPenalty
+    end
+    
+    -- Apply accuracy decay for multi-hit skills (like Frenzy)
+    hitNumber = hitNumber or 1
+    if skill.accuracyDecay and hitNumber > 1 then
+        local decay = skill.accuracyDecay * (hitNumber - 1)
+        baseHitChance = baseHitChance * (1 - decay)
+    end
+    
+    -- Calculate final hit chance
+    local finalHitChance = (baseHitChance + dexBonus) * accuracyMultiplier
+    
+    return math.max(5, math.min(95, finalHitChance)) -- Clamp between 5% and 95%
 end
 
 -- Get all skills for a given job

@@ -456,7 +456,7 @@
                                         <input class="form-check-input" type="checkbox" 
                                                name="availableSkills.{{ loop.index }}" value="{{ skill }}"
                                                id="availableSkills_{{ skill }}"
-                                               {{ 'checked' if item_data.get('availableSkills') and skill in item_data.availableSkills.values() else '' }}>
+                                               {{ 'checked' if item_data.get('availableSkills') and skill in item_data.availableSkills else '' }}>
                                         <label class="form-check-label" for="availableSkills_{{ skill }}">
                                             {{ skill }}
                                         </label>
@@ -478,7 +478,7 @@
                                         <input class="form-check-input" type="checkbox" 
                                                name="startingSkills.{{ loop.index }}" value="{{ skill }}"
                                                id="startingSkills_{{ skill }}"
-                                               {{ 'checked' if item_data.get('startingSkills') and skill in item_data.startingSkills.values() else '' }}>
+                                               {{ 'checked' if item_data.get('startingSkills') and skill in item_data.startingSkills else '' }}>
                                         <label class="form-check-label" for="startingSkills_{{ skill }}">
                                             {{ skill }}
                                         </label>

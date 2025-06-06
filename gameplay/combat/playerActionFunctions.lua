@@ -145,6 +145,15 @@ local function executePlayerAction(self)
         -- Add to combat log
         self:addLog(currentChar.name .. " attacks " .. targetEnemy.name .. " for " .. damage .. " damage!")
         
+        -- Apply poison from poisoned weapon on normal attacks
+        if statusEffects:has(currentChar, "poisoned_weapon") then
+            local poisonStrength = statusEffects:getValue(currentChar, "poisoned_weapon")
+            local success = statusEffects:apply("poison", targetEnemy, 3, poisonStrength, 1.0)
+            if success then
+                self:addLog(targetEnemy.name .. " is poisoned by the weapon!", {0.4, 0.8, 0.2})
+            end
+        end
+        
         -- Check for enemy defeat
         if targetEnemy.currentHP <= 0 then
             -- Make sure to mark as inactive
@@ -187,6 +196,19 @@ local function executeSkill(self, caster, skill, target, fromQueue)
                   selectedSkill and "Skill OK" or "No skill")
         end
         return 
+    end
+    
+    -- Check stealth requirements
+    if selectedSkill.requiresStealth and not statusEffects:has(currentChar, "stealth") then
+        self:addLog(currentChar.name .. " needs to be stealthed to use " .. selectedSkill.name .. "!", {1, 0.5, 0})
+        -- Clear selection and end turn
+        self.selectedAction = nil
+        self.selectedSkill = nil
+        self.selectedTarget = nil
+        self:hideActionButtons()
+        self:hideSelectionLists()
+        self.turnEndDelay = 0.7
+        return
     end
     
     -- Prevent duplicate execution (but only for player-initiated skills, not queue executions)
@@ -283,7 +305,8 @@ local function executeSkill(self, caster, skill, target, fromQueue)
                 skillCopy[k] = v
             end
             
-            damage, isCritical = skillSystem:calculateDamage(
+            local instantKill
+            damage, isCritical, instantKill = skillSystem:calculateDamage(
                 skillCopy,
                 currentChar,
                 selectedTarget,
@@ -324,7 +347,8 @@ local function executeSkill(self, caster, skill, target, fromQueue)
                 skillCopy[k] = v
             end
             
-            damage, isCritical = skillSystem:calculateDamage(
+            local instantKill
+            damage, isCritical, instantKill = skillSystem:calculateDamage(
                 skillCopy,
                 currentChar,
                 selectedTarget,
@@ -346,20 +370,40 @@ local function executeSkill(self, caster, skill, target, fromQueue)
             isCritical = damageContext.is_critical
         end
         
-        -- Check for target dodge (only for damage-dealing skills)
-        if damage > 0 then
-            local characterSystem = require("gameplay/character")
-            local dodgeChance = characterSystem:calculateDodgeChance(selectedTarget)
-            if math.random(1, 100) <= dodgeChance then
-                self:addLog(selectedTarget.name .. " dodges " .. selectedSkill.name .. "!", {0.8, 0.8, 0.2})
-                -- End turn after a short delay
-                self.turnEndDelay = 0.7
-                return
+        -- Handle multi-hit skills with accuracy decay
+        local hits = selectedSkill.hits or 1
+        local totalDamage = 0
+        local hitCount = 0
+        
+        for hitNumber = 1, hits do
+            -- Calculate hit chance for this specific hit
+            local hitChance = skillSystem:calculateHitChance(selectedSkill, currentChar, selectedTarget, hitNumber)
+            
+            -- Check for hit/miss
+            if math.random() * 100 <= hitChance then
+                -- Hit successful
+                hitCount = hitCount + 1
+                totalDamage = totalDamage + damage
+                
+                if hits > 1 then
+                    self:addLog("Hit " .. hitNumber .. "/" .. hits .. " connects!", {0.8, 0.8, 0.2})
+                end
+            else
+                -- Miss
+                if hits > 1 then
+                    self:addLog("Hit " .. hitNumber .. "/" .. hits .. " misses!", {0.6, 0.6, 0.6})
+                else
+                    self:addLog(selectedTarget.name .. " dodges " .. selectedSkill.name .. "!", {0.8, 0.8, 0.2})
+                    -- End turn after a short delay
+                    self.turnEndDelay = 0.7
+                    return
+                end
             end
         end
         
-        -- Apply damage
-        selectedTarget.currentHP = math.max(0, selectedTarget.currentHP - damage)
+        -- Apply total damage from all hits
+        selectedTarget.currentHP = math.max(0, selectedTarget.currentHP - totalDamage)
+        damage = totalDamage -- Update damage for logging purposes
         
         -- Play appropriate sound
         if selectedSkill.type == "magical" then
@@ -371,17 +415,152 @@ local function executeSkill(self, caster, skill, target, fromQueue)
         -- Add to combat log
         local logText = currentChar.name .. " uses " .. selectedSkill.name
         logText = logText .. " on " .. selectedTarget.name
-        logText = logText .. " for " .. damage .. " damage!"
         
-        if isCritical then
-            logText = logText .. " Critical hit!"
+        if instantKill then
+            logText = logText .. " - EXECUTED!"
+            self:addLog(logText, {0.9, 0.2, 0.2}) -- Red text for execution
+        else
+            logText = logText .. " for " .. damage .. " damage!"
+            
+            if isCritical then
+                logText = logText .. " Critical hit!"
+            end
+            
+            self:addLog(logText)
         end
-        
-        self:addLog(logText)
         
         -- Check for enemy defeat
         if selectedTarget.currentHP <= 0 then
             self:enemyDefeated(selectedTarget)
+        end
+        
+        -- Handle stealth breaking and weapon effects
+        if selectedSkill.breaksStealthOnUse and statusEffects:has(currentChar, "stealth") then
+            statusEffects:remove(currentChar, "stealth")
+            self:addLog(currentChar.name .. " breaks stealth!", {0.7, 0.7, 0.9})
+        end
+        
+        -- Apply poison from poisoned weapon
+        if statusEffects:has(currentChar, "poisoned_weapon") and selectedTarget.active then
+            local poisonStrength = statusEffects:getValue(currentChar, "poisoned_weapon")
+            local success = statusEffects:apply("poison", selectedTarget, 3, poisonStrength, 1.0)
+            if success then
+                self:addLog(selectedTarget.name .. " is poisoned by the weapon!", {0.4, 0.8, 0.2})
+            end
+        end
+        
+        -- Apply direct status effects (new system)
+        if selectedSkill.statusEffect then
+            local duration = selectedSkill.statusDuration or 3
+            local strength = selectedSkill.statusStrength or 1
+            
+            -- Apply level modifiers if available
+            if currentChar.skills and currentChar.skills[selectedSkill.name] then
+                local skillLevel = currentChar.skills[selectedSkill.name].level
+                if selectedSkill.levelModifier and type(selectedSkill.levelModifier) == "function" then
+                    local modifier = selectedSkill.levelModifier(skillLevel)
+                    if modifier.statusDuration then
+                        duration = modifier.statusDuration
+                    end
+                    if modifier.statusStrength then
+                        strength = modifier.statusStrength
+                    end
+                end
+            end
+            
+            local target = selectedTarget or currentChar -- Support self-targeted effects
+            local success = statusEffects:apply(selectedSkill.statusEffect, target, duration, strength, 1.0)
+            if success then
+                local effectName = statusEffects.effects[selectedSkill.statusEffect] and 
+                                  statusEffects.effects[selectedSkill.statusEffect].name or 
+                                  selectedSkill.statusEffect
+                self:addLog(target.name .. " gains " .. effectName .. "!", {0.2, 0.8, 0.8})
+                
+                -- Special handling for Vanish - apply untargetable too
+                if selectedSkill.applyUntargetable then
+                    statusEffects:apply("untargetable", target, duration, 1, 1.0)
+                    self:addLog(target.name .. " becomes untargetable!", {0.3, 0.3, 0.7})
+                end
+            end
+        end
+        
+        -- Handle self-affecting mechanics
+        if selectedSkill.stunSelf and selectedSkill.stunSelf > 0 then
+            local success = statusEffects:apply("stun", currentChar, selectedSkill.stunSelf, 1, 1.0)
+            if success then
+                self:addLog(currentChar.name .. " is stunned by the exertion!", {0.8, 0.6, 0.2})
+            end
+        end
+        
+        -- Handle time manipulation effects
+        if selectedSkill.timeStop then
+            -- Apply time stop to caster (positive effect)
+            statusEffects:apply("time_stop", currentChar, selectedSkill.timeStop, 1, 1.0)
+            self:addLog(currentChar.name .. " bends time to their will!", {0.9, 0.9, 0.1})
+            
+            -- Slow down all enemies dramatically using speed multiplier
+            for _, enemy in ipairs(self.enemies) do
+                if enemy.active then
+                    -- Apply massive speed reduction (80% slower)
+                    statusEffects:apply("speed_multiplier", enemy, selectedSkill.timeStop, 0.2, 1.0, {multiplier = 0.2})
+                    self:addLog(enemy.name .. " is caught in slowed time!", {0.7, 0.7, 0.9})
+                end
+            end
+        end
+        
+        -- Handle consecration (area environmental effect)
+        if selectedSkill.consecration then
+            -- Apply consecrated ground effect to all enemies
+            for _, enemy in ipairs(self.enemies) do
+                if enemy.active then
+                    statusEffects:apply("consecrated_ground", enemy, selectedSkill.consecration, selectedSkill.strength or 10, 1.0)
+                    self:addLog(enemy.name .. " stands on consecrated ground!", {1.0, 0.9, 0.3})
+                end
+            end
+            self:addLog("The ground burns with holy power!", {1.0, 0.9, 0.3})
+        end
+        
+        -- Handle chaos/dimensional rift effects
+        if selectedSkill.chaosEffects then
+            local effectCount = selectedSkill.effectCount or 3
+            
+            for i = 1, effectCount do
+                local effect = selectedSkill.chaosEffects[math.random(#selectedSkill.chaosEffects)]
+                
+                if effect.type == "damage_all" then
+                    -- Random damage to all enemies
+                    for _, enemy in ipairs(self.enemies) do
+                        if enemy.active then
+                            local damage = math.random(effect.minDamage, effect.maxDamage)
+                            enemy.currentHP = math.max(0, enemy.currentHP - damage)
+                            self:addLog("Chaos strikes " .. enemy.name .. " for " .. damage .. " damage!", {0.8, 0.3, 0.8})
+                        end
+                    end
+                elseif effect.type == "heal_party" then
+                    -- Random healing to all party members
+                    for _, ally in ipairs(self.party) do
+                        if ally.active and ally.currentHP > 0 then
+                            local healing = math.random(effect.minHealing, effect.maxHealing)
+                            ally.currentHP = math.min(ally.maxHP, ally.currentHP + healing)
+                            self:addLog("Chaos heals " .. ally.name .. " for " .. healing .. " HP!", {0.2, 0.8, 0.2})
+                        end
+                    end
+                elseif effect.type == "status_effect" then
+                    -- Apply random status effect to enemies
+                    for _, enemy in ipairs(self.enemies) do
+                        if enemy.active then
+                            statusEffects:apply(effect.status, enemy, effect.duration, effect.strength, 1.0)
+                            self:addLog("Chaos afflicts " .. enemy.name .. " with " .. effect.status .. "!", {0.9, 0.5, 0.1})
+                        end
+                    end
+                elseif effect.type == "element_change" then
+                    -- Change next spell element for caster
+                    currentChar.nextSpellElement = effect.element
+                    self:addLog(currentChar.name .. "'s next spell will be " .. effect.element .. "!", {0.7, 0.3, 0.9})
+                end
+            end
+            
+            self:addLog("Reality tears asunder with chaotic energies!", {0.8, 0.3, 0.8})
         end
         
         -- Apply skill effects using the new unified structure
@@ -466,7 +645,7 @@ local function executeSkill(self, caster, skill, target, fromQueue)
         
         for _, enemy in ipairs(self.enemies) do
             if enemy.active then
-                local damage, isCritical = 0, false
+                local damage, isCritical, instantKill = 0, false, false
                 
                 -- Create a mutable copy of the skill for this calculation
                 local skillCopy = {}
@@ -476,14 +655,14 @@ local function executeSkill(self, caster, skill, target, fromQueue)
                 
                 -- Calculate damage for each enemy
                 if currentChar.skills and currentChar.skills[selectedSkill.name] then
-                    damage, isCritical = skillSystem:calculateDamage(
+                    damage, isCritical, instantKill = skillSystem:calculateDamage(
                         skillCopy,
                         currentChar,
                         enemy,
                         currentChar.skills[selectedSkill.name].level
                     )
                 else
-                    damage, isCritical = skillSystem:calculateDamage(
+                    damage, isCritical, instantKill = skillSystem:calculateDamage(
                         skillCopy,
                         currentChar,
                         enemy,
@@ -558,14 +737,14 @@ local function executeSkill(self, caster, skill, target, fromQueue)
             local healing = 0
             -- Make sure character has this skill
             if currentChar.skills and currentChar.skills[selectedSkill.name] then
-                healing = skillSystem:calculateDamage(
+                healing, _, _ = skillSystem:calculateDamage(
                     selectedSkill,
                     currentChar,
                     selectedTarget,
                     currentChar.skills[selectedSkill.name].level
                 )
             else
-                healing = skillSystem:calculateDamage(
+                healing, _, _ = skillSystem:calculateDamage(
                     selectedSkill,
                     currentChar,
                     selectedTarget,
@@ -610,14 +789,14 @@ local function executeSkill(self, caster, skill, target, fromQueue)
                     local healing = 0
                     -- Make sure character has this skill
                     if currentChar.skills and currentChar.skills[selectedSkill.name] then
-                        healing = skillSystem:calculateDamage(
+                        healing, _, _ = skillSystem:calculateDamage(
                             selectedSkill,
                             currentChar,
                             ally,
                             currentChar.skills[selectedSkill.name].level
                         )
                     else
-                        healing = skillSystem:calculateDamage(
+                        healing, _, _ = skillSystem:calculateDamage(
                             selectedSkill,
                             currentChar,
                             ally,
@@ -647,6 +826,41 @@ local function executeSkill(self, caster, skill, target, fromQueue)
             " on the entire party!",
             {0.2, 0.8, 0.2}
         )
+    elseif selectedSkill.target == "fallen_ally" then
+        -- Handle revival skills
+        if selectedSkill.revive or selectedSkill.healthPercent then
+            local healthPercent = selectedSkill.healthPercent or 0.3
+            
+            -- Apply level modifiers if available
+            if currentChar.skills and currentChar.skills[selectedSkill.name] then
+                local skillLevel = currentChar.skills[selectedSkill.name].level
+                if selectedSkill.levelModifier and type(selectedSkill.levelModifier) == "function" then
+                    local modifier = selectedSkill.levelModifier(skillLevel)
+                    if modifier.healthPercent then
+                        healthPercent = modifier.healthPercent
+                    end
+                end
+            end
+            
+            -- Revive the fallen ally
+            selectedTarget.active = true
+            selectedTarget.currentHP = math.floor(selectedTarget.maxHP * healthPercent)
+            
+            -- Play revive sound
+            assetManager:playSound("spell")
+            
+            -- Add to combat log
+            self:addLog(
+                currentChar.name .. " revives " .. selectedTarget.name .. " with " .. 
+                math.floor(healthPercent * 100) .. "% health!",
+                {0.2, 1, 0.2}
+            )
+            
+            -- Recalculate turn order to include revived ally
+            if self.determineTurnOrder then
+                self:determineTurnOrder()
+            end
+        end
     elseif selectedSkill.target == "none" then
         -- Handle target-less skills (like some summons)
         -- Play appropriate sound
@@ -920,7 +1134,7 @@ local function applySkillEffect(self, skill, caster, target)
                 
                 -- If this is a Purify skill, apply custom healing after removing effects
                 if skill.name == "Purify" then
-                    local healing = skillSystem:calculateDamage(
+                    local healing, _, _ = skillSystem:calculateDamage(
                         skill,
                         caster,
                         target,

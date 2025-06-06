@@ -32,6 +32,29 @@ local function importExistingMinions(self)
                     minion.currentHP = minion.maxHP
                 end
                 
+                -- Initialize action meter for turn system integration
+                if minion.takesActions then
+                    minion.actionMeter = minion.actionMeter or 0
+                    minion.speed = minion.speed or 8
+                    
+                    -- Only set initial action meter if it's zero (new minion)
+                    if minion.actionMeter == 0 then
+                        -- Start with a partial action meter to give them a chance to act soon
+                        local randomStart = math.random(1, 5)
+                        if self.turnManager then
+                            -- Use turn manager's tick interval for consistency
+                            minion.actionMeter = (minion.speed + randomStart) * (self.turnManager.TICK_INTERVAL or 0.5)
+                        else
+                            -- Fallback to direct calculation
+                            minion.actionMeter = (minion.speed + randomStart) * 0.5
+                        end
+                        
+                        if GAME.debug then
+                            print("Initialized actionMeter for imported minion " .. minion.name .. ": " .. minion.actionMeter)
+                        end
+                    end
+                end
+                
                 -- Store minion reference
                 self.minions[i][j] = minion
                 self.minionsTurnTaken[i][j] = false
@@ -40,9 +63,15 @@ local function importExistingMinions(self)
                     print("Imported minion: " .. minion.name)
                     print("  HP: " .. minion.currentHP .. "/" .. minion.maxHP)
                     print("  Takes actions: " .. tostring(minion.takesActions))
+                    print("  Action meter: " .. (minion.actionMeter or 0))
                 end
             end
         end
+    end
+    
+    -- Re-initialize turn manager action meters if it exists
+    if self.turnManager then
+        self.turnManager:initializeActionMeters()
     end
 end
 
@@ -109,7 +138,7 @@ local function processSummonSkill(self, character, skillData)
         index = self.currentCharacter  -- Store the character index for reference
     }
     
-    -- Create the minion
+    -- Create the minion (this adds it to minionManager)
     local minion = minionManager:summonMinion(
         character,
         skillData.summonType,
@@ -131,43 +160,9 @@ local function processSummonSkill(self, character, skillData)
     -- Add log message
     self:addLog(character.name .. " summoned " .. minion.name .. "!", {0.5, 0.8, 1})
     
-    -- Update the current combat's minion list
-    if not self.minions[self.currentCharacter] then
-        self.minions[self.currentCharacter] = {}
-    end
-    
-    -- Add to minions list for this combat
-    table.insert(self.minions[self.currentCharacter], minion)
-    local newMinionIndex = #self.minions[self.currentCharacter]
-    
-    -- Initialize actionMeter for the new minion (required for turn system)
-    if minion.takesActions then
-        minion.actionMeter = minion.actionMeter or 0
-        minion.speed = minion.speed or 8
-        
-        -- Start with a partial action meter to give them a chance to act soon
-        local randomStart = math.random(1, 5)
-        minion.actionMeter = (minion.speed + randomStart) * 0.5 -- Half second intervals
-        
-        if GAME.debug then
-            print("Initialized actionMeter for summoned minion " .. minion.name .. ": " .. minion.actionMeter)
-        end
-    end
-    
-    -- Initialize turn tracking for this minion
-    if not self.minionsTurnTaken then
-        self.minionsTurnTaken = {}
-    end
-    
-    if not self.minionsTurnTaken[self.currentCharacter] then
-        self.minionsTurnTaken[self.currentCharacter] = {}
-    end
-    
-    -- Mark that the minion hasn't taken a turn yet
-    self.minionsTurnTaken[self.currentCharacter][newMinionIndex] = false
-    
-    -- Recalculate turn order to include the new minion
-    self:determineTurnOrder()
+    -- Re-import existing minions to update the combat's local minion list
+    -- This will properly integrate the new minion with the turn system
+    self:importExistingMinions()
     
     -- Return success
     return true

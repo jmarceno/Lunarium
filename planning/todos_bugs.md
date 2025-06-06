@@ -1,5 +1,6 @@
 ### TODOs
 
+- Camera bob
 - Add quests and other things tied to the lore documents
 - How to deal with damage out of combat in the dungeon?
   - Deaths

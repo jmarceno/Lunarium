@@ -90,8 +90,8 @@ local function executeEnemyTurn(self)
             -- Check if character has taunt effect
             if statusEffects:has(character, "taunt") then
                 table.insert(tauntingTargets, { type = "player", index = i, entity = character })
-            -- Check if character is untargetable
-            elseif not statusEffects:has(character, "untargetable") then
+            -- Check if character is untargetable or stealthed
+            elseif not statusEffects:has(character, "untargetable") and not statusEffects:has(character, "stealth") and not statusEffects:has(character, "invisible") then
                 table.insert(validTargets, { type = "player", index = i, entity = character })
             end
         end
@@ -109,8 +109,8 @@ local function executeEnemyTurn(self)
                         minionIndex = minionIndex,
                         entity = minion
                     })
-                -- Check if minion is untargetable
-                elseif not statusEffects:has(minion, "untargetable") then
+                -- Check if minion is untargetable or stealthed
+                elseif not statusEffects:has(minion, "untargetable") and not statusEffects:has(minion, "stealth") and not statusEffects:has(minion, "invisible") then
                     table.insert(validTargets, { 
                         type = "minion", 
                         charIndex = charIndex, 

@@ -727,9 +727,6 @@ function combatSystem:createCombat(party, enemy, isAmbush)
         -- Initialize minion turn tracking
         self.minionsTurnTaken = {}
         
-        -- Import any existing minions from minionManager
-        self:importExistingMinions()
-        
         -- Determine turn order
         self:determineTurnOrder()
         

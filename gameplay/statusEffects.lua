@@ -262,6 +262,145 @@ statusEffects.effects = {
                 color = {0.4, 0.4, 1.0}
             }
         end
+    },
+    -- Stealth System Effects
+    ["stealth"] = {
+        name = "Stealth",
+        description = "Hidden from enemies, cannot be targeted and gains damage bonus",
+        icon = "assets/Icons/StatusEffects/stealth.png",
+        iconSize = 24,
+        statusType = "positive",
+        onTurnStart = function(entity, strength)
+            return {
+                message = entity.name .. " remains hidden in the shadows!",
+                value = 0,
+                color = {0.4, 0.4, 0.6}
+            }
+        end
+    },
+    ["invisible"] = {
+        name = "Invisible",
+        description = "Completely invisible, cannot be targeted",
+        icon = "assets/Icons/StatusEffects/invisible.png",
+        iconSize = 24,
+        statusType = "positive",
+        onTurnStart = function(entity, strength)
+            return {
+                message = entity.name .. " is invisible!",
+                value = 0,
+                color = {0.3, 0.3, 0.5}
+            }
+        end
+    },
+    ["poisoned_weapon"] = {
+        name = "Poisoned Weapon",
+        description = "Weapon is coated with poison, attacks inflict poison",
+        icon = "assets/Icons/StatusEffects/poison_weapon.png",
+        iconSize = 24,
+        statusType = "positive",
+        onTurnStart = function(entity, strength)
+            return {
+                message = entity.name .. "'s weapon drips with poison!",
+                value = 0,
+                color = {0.4, 0.8, 0.2}
+            }
+        end
+    },
+    -- Advanced Accuracy/Combat Effects
+    ["hawkeye"] = {
+        name = "Hawk Eye",
+        description = "Enhanced accuracy and critical hit chance",
+        icon = "assets/Icons/StatusEffects/hawkeye.png",
+        iconSize = 24,
+        statusType = "positive",
+        onTurnStart = function(entity, strength)
+            return {
+                message = entity.name .. " has keen eyes and steady aim!",
+                value = 0,
+                color = {0.9, 0.9, 0.3}
+            }
+        end
+    },
+    ["bloodlust"] = {
+        name = "Bloodlust",
+        description = "Increased attack power but reduced accuracy",
+        icon = "assets/Icons/StatusEffects/bloodlust.png",
+        iconSize = 24,
+        statusType = "mixed",
+        onTurnStart = function(entity, strength)
+            return {
+                message = entity.name .. " is consumed by bloodlust!",
+                value = 0,
+                color = {0.9, 0.2, 0.2}
+            }
+        end
+    },
+    ["guardian_stance"] = {
+        name = "Guardian Stance",
+        description = "Protects allies and reduces incoming damage",
+        icon = "assets/Icons/StatusEffects/guardian_stance.png",
+        iconSize = 24,
+        statusType = "positive",
+        onTurnStart = function(entity, strength)
+            return {
+                message = entity.name .. " stands as a stalwart guardian!",
+                value = 0,
+                color = {0.3, 0.6, 0.9}
+            }
+        end
+    },
+    -- Phase 3 - Special Effects
+    ["elemental_conversion"] = {
+        name = "Elemental Conversion",
+        description = "Converts elemental damage to MP and changes next spell element",
+        icon = "assets/Icons/StatusEffects/elemental_conversion.png",
+        iconSize = 24,
+        statusType = "positive",
+        onTurnStart = function(entity, strength)
+            return {
+                message = entity.name .. " channels elemental energies!",
+                value = 0,
+                color = {0.7, 0.3, 0.9}
+            }
+        end
+    },
+    ["time_stop"] = {
+        name = "Time Stop",
+        description = "Manipulates time, slowing all enemies dramatically",
+        icon = "assets/Icons/StatusEffects/time_stop.png",
+        iconSize = 24,
+        statusType = "positive",
+        onTurnStart = function(entity, strength)
+            return {
+                message = entity.name .. " controls the flow of time!",
+                value = 0,
+                color = {0.9, 0.9, 0.1}
+            }
+        end
+    },
+    ["consecrated_ground"] = {
+        name = "Consecrated Ground",
+        description = "Standing on holy ground, continuous damage to undead",
+        icon = "assets/Icons/StatusEffects/consecrated_ground.png",
+        iconSize = 24,
+        statusType = "special",
+        onTurnStart = function(entity, strength)
+            local damage = 0
+            local message = "The ground burns with holy power!"
+            
+            -- Only damage undead creatures
+            if entity.creatureType and entity.creatureType == "undead" then
+                damage = strength
+                entity.currentHP = math.max(0, entity.currentHP - damage)
+                message = entity.name .. " is burned by consecrated ground for " .. damage .. " damage!"
+            end
+            
+            return {
+                message = message,
+                value = damage,
+                color = {1.0, 0.9, 0.3}
+            }
+        end
     }
 }
 

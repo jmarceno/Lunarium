@@ -2001,6 +2001,999 @@ local skillDefinitions = {
         end,
         maxLevel = 5,
     },
+    TrueSpell = {
+        description = "Cast a spell that bypasses all resistances and defenses, dealing pure arcane damage.",
+        type = "magical",
+        basePower = 200,
+        mpCost = 30,
+        name = "True Spell",
+        element = "arcane",
+        target = "single_enemy",
+        formula = "magical",
+        castingTime = 3,
+        incantationPhrases = {
+            "By the fundamental forces that bind reality...",
+            "I speak the words that cannot be denied...",
+            "Let pure magic flow unobstructed!"
+        },
+        effect = {
+            ignoreResistances = true,
+            ignoreDefenses = true,
+            pureDamage = true,
+        },
+        levelModifier = function(level) 
+            return 1 + (level * 0.15)
+        end,
+        maxLevel = 5,
+    },
+    ArcaneBarrage = {
+        description = "Unleash a devastating barrage of arcane projectiles against all enemies.",
+        type = "magical",
+        basePower = 120,
+        mpCost = 35,
+        name = "Arcane Barrage",
+        element = "arcane",
+        target = "all_enemies",
+        formula = "magical",
+        castingTime = 4,
+        hits = 3,
+        incantationPhrases = {
+            "Weave the threads of raw magic into weapons...",
+            "Let chaos rain upon my enemies...",
+            "Barrage of pure arcane destruction!"
+        },
+        levelModifier = function(level) 
+            return 1 + (level * 0.12)
+        end,
+        maxLevel = 5,
+    },
+    DimensionalRift = {
+        description = "Tear open a rift in space-time, causing random chaotic effects across the battlefield.",
+        type = "magical",
+        basePower = 150,
+        mpCost = 40,
+        name = "Dimensional Rift",
+        element = "chaos",
+        target = "all_enemies",
+        formula = "magical",
+        castingTime = 4,
+        incantationPhrases = {
+            "Reality bends to my supreme will...",
+            "I tear asunder the fabric of existence...",
+            "Let chaos consume the battlefield!"
+        },
+        chaosEffects = {
+            {type = "damage_all", minDamage = 30, maxDamage = 80},
+            {type = "heal_party", minHealing = 20, maxHealing = 60},
+            {type = "status_effect", status = "vulnerable", duration = 3, strength = 1},
+            {type = "status_effect", status = "confusion", duration = 2, strength = 1},
+            {type = "element_change", element = "fire"},
+            {type = "element_change", element = "ice"},
+            {type = "element_change", element = "lightning"},
+        },
+        effectCount = 3, -- Number of random effects to trigger
+        levelModifier = function(level) 
+            return {
+                power = 1 + (level * 0.1),
+                effectCount = 3 + math.floor(level/2)
+            }
+        end,
+        maxLevel = 5,
+    },
+    TimeStop = {
+        description = "Manipulate time itself, dramatically slowing all enemies while empowering yourself.",
+        type = "support",
+        basePower = 0,
+        mpCost = 50,
+        name = "Time Stop",
+        target = "none", -- Affects all enemies
+        castingTime = 2,
+        incantationPhrases = {
+            "Chronos, heed my call to mastery...",
+            "Let the flow of time bend to my will...",
+            "Cease the march of seconds!"
+        },
+        timeStop = 3, -- Duration of time manipulation effect
+        levelModifier = function(level) 
+            return {
+                timeStop = 3 + level -- Longer duration at higher levels
+            }
+        end,
+        maxLevel = 5,
+    },
+
+    ElementalConversion = {
+        description = "Convert incoming elemental damage into MP and change your next spell's element.",
+        type = "support",
+        basePower = 0,
+        mpCost = 25,
+        name = "Elemental Conversion",
+        target = "self",
+        castingTime = 2,
+        incantationPhrases = {
+            "Elements bend to my superior understanding...",
+            "I reshape the very nature of magic itself...",
+            "Transform discord into harmony!"
+        },
+        statusEffect = "elemental_conversion",
+        statusDuration = 3,
+        statusStrength = 50, -- 50% damage to MP conversion
+        levelModifier = function(level) 
+            return {
+                statusDuration = 3 + level,
+                statusStrength = 50 + (level * 10) -- Conversion rate %
+            }
+        end,
+        maxLevel = 5,
+    },
+
+    -- Missing Skills from Job Definitions
+
+    MagicBarrier = {
+        description = "Creates a magical barrier that reduces incoming magic damage.",
+        type = "support",
+        effect = {
+            stat = "magic_resistance",
+            value = 0.3,
+            duration = 3,
+        },
+        basePower = 0,
+        mpCost = 12,
+        name = "Magic Barrier",
+        target = "self",
+        castingTime = 2,
+        incantationPhrases = {
+            "Weave the threads of protection...",
+            "Let arcane shields surround me!"
+        },
+        levelModifier = function(level)
+            return { value = 0.3 + (level * 0.05), duration = 3 + math.floor(level/2) }
+        end,
+        maxLevel = 5,
+    },
+
+    Backstab = {
+        description = "A stealth attack that deals massive damage from behind.",
+        type = "physical",
+        basePower = 200,
+        mpCost = 12,
+        name = "Backstab",
+        damageType = "piercing",
+        target = "single_enemy",
+        formula = "physical",
+        requiresStealth = true, -- Requires stealth status to use
+        critChance = 0.8,
+        critModifier = 3.0,
+        breaksStealthOnUse = true, -- Using this breaks stealth
+        levelModifier = function(level) 
+            return {
+                power = 1 + (level * 0.15),
+                critChance = 0.8 + (level * 0.02)
+            }
+        end,
+        maxLevel = 5,
+    },
+
+    Evasion = {
+        description = "Enter an evasive stance, greatly increasing dodge chance for several turns.",
+        type = "support",
+        effect = {
+            stat = "dodge",
+            value = 30,
+            duration = 3,
+        },
+        basePower = 0,
+        mpCost = 8,
+        name = "Evasion",
+        target = "self",
+        levelModifier = function(level)
+            return { value = 30 + (level * 5), duration = 3 + math.floor(level/2) }
+        end,
+        maxLevel = 5,
+    },
+
+    PoisonBlade = {
+        description = "Coat your weapon with poison, adding poison damage to attacks.",
+        type = "support",
+        statusEffect = "poisoned_weapon",
+        statusDuration = 5,
+        statusStrength = 8, -- Poison damage per hit
+        basePower = 0,
+        mpCost = 10,
+        name = "Poison Blade",
+        target = "self",
+        levelModifier = function(level)
+            return { 
+                statusDuration = 5 + level, 
+                statusStrength = 8 + (level * 2) 
+            }
+        end,
+        maxLevel = 5,
+    },
+
+    Blessing = {
+        description = "A divine blessing that increases all stats for a short time.",
+        type = "support",
+        effect = {
+            stat = "all",
+            value = 2,
+            duration = 3,
+        },
+        basePower = 0,
+        mpCost = 10,
+        name = "Blessing",
+        target = "single_ally",
+        castingTime = 2,
+        incantationPhrases = {
+            "By divine grace, be strengthened...",
+            "Let holy power flow through you!"
+        },
+        levelModifier = function(level)
+            return { value = 2 + level, duration = 3 + math.floor(level/2) }
+        end,
+        maxLevel = 5,
+    },
+
+    Provoke = {
+        description = "Provoke an enemy, forcing them to attack you and reducing their accuracy.",
+        type = "utility",
+        effect = {
+            stat = "taunt",
+            value = true,
+            duration = 2,
+            accuracyDebuff = -10,
+        },
+        basePower = 0,
+        mpCost = 5,
+        name = "Provoke",
+        target = "single_enemy",
+        levelModifier = function(level)
+            return { duration = 2 + level, accuracyDebuff = -10 - (level * 2) }
+        end,
+        maxLevel = 3,
+    },
+
+    GuardianStance = {
+        description = "Adopt a defensive stance that protects nearby allies from damage.",
+        type = "support",
+        statusEffect = "guardian_stance",
+        statusDuration = 3,
+        statusStrength = 30, -- 30% damage reduction
+        basePower = 0,
+        mpCost = 15,
+        name = "Guardian Stance",
+        target = "self",
+        levelModifier = function(level)
+            return { 
+                statusDuration = 3 + level, 
+                statusStrength = 30 + (level * 5) -- Damage reduction %
+            }
+        end,
+        maxLevel = 5,
+    },
+
+    ArcaneAmplify = {
+        description = "Amplify your magical power for the next few spells.",
+        type = "support",
+        effect = {
+            stat = "magic_multiplier",
+            value = 1.4,
+            duration = 3,
+        },
+        basePower = 0,
+        mpCost = 12,
+        name = "Arcane Amplify",
+        target = "self",
+        castingTime = 2,
+        incantationPhrases = {
+            "I channel the raw forces of magic...",
+            "Let power flow unrestrained!"
+        },
+        levelModifier = function(level)
+            return { value = 1.4 + (level * 0.1), duration = 3 + math.floor(level/2) }
+        end,
+        maxLevel = 5,
+    },
+
+    Thunderstorm = {
+        description = "Summon a devastating lightning storm that strikes all enemies multiple times.",
+        type = "magical",
+        basePower = 80,
+        mpCost = 25,
+        name = "Thunderstorm",
+        element = "lightning",
+        target = "all_enemies",
+        formula = "magical",
+        hits = 3,
+        castingTime = 4,
+        incantationPhrases = {
+            "Clouds of destruction, gather overhead...",
+            "Thunder and lightning, obey my command...",
+            "Let the storm consume my enemies!"
+        },
+        levelModifier = function(level) 
+            return 1 + (level * 0.12)
+        end,
+        maxLevel = 5,
+    },
+
+    IceSpike = {
+        description = "Launch a massive spike of ice that can pierce through multiple enemies.",
+        type = "magical",
+        basePower = 140,
+        mpCost = 15,
+        name = "Ice Spike",
+        element = "ice",
+        target = "single_enemy",
+        formula = "magical",
+        castingTime = 3,
+        incantationPhrases = {
+            "Frozen depths, lend me your piercing cold...",
+            "Form lance of eternal ice!"
+        },
+        effect = {
+            chance = 0.4,
+            type = "freeze",
+            duration = 1,
+        },
+        levelModifier = function(level) 
+            return {
+                power = 1 + (level * 0.1),
+                chance = 0.4 + (level * 0.05)
+            }
+        end,
+        maxLevel = 5,
+    },
+
+    DarkVoid = {
+        description = "Create a void of dark energy that drains life from all enemies.",
+        type = "magical",
+        basePower = 110,
+        mpCost = 20,
+        name = "Dark Void",
+        element = "dark",
+        target = "all_enemies",
+        formula = "magical",
+        castingTime = 3,
+        incantationPhrases = {
+            "Darkness beyond the veil, consume the light...",
+            "Let void devour all that exists!"
+        },
+        effect = {
+            lifeDrain = true,
+            drainPercent = 0.3,
+        },
+        levelModifier = function(level) 
+            return {
+                power = 1 + (level * 0.1),
+                drainPercent = 0.3 + (level * 0.05)
+            }
+        end,
+        maxLevel = 5,
+    },
+
+    MeteorShower = {
+        description = "Rain down meteors from the heavens to devastate all enemies.",
+        type = "magical",
+        basePower = 120,
+        mpCost = 40,
+        name = "Meteor Shower",
+        element = "fire",
+        target = "all_enemies",
+        formula = "magical",
+        hits = 4,
+        castingTime = 5,
+        incantationPhrases = {
+            "Celestial bodies, heed my ultimate call...",
+            "Stars themselves shall be my weapons...",
+            "Fall from the heavens in fiery destruction!"
+        },
+        levelModifier = function(level) 
+            return 1 + (level * 0.15)
+        end,
+        maxLevel = 5,
+    },
+
+    Protection = {
+        description = "Grant divine protection, reducing all damage taken for several turns.",
+        type = "support",
+        effect = {
+            stat = "damage_reduction",
+            value = 0.25,
+            duration = 4,
+        },
+        basePower = 0,
+        mpCost = 15,
+        name = "Protection",
+        target = "single_ally",
+        castingTime = 2,
+        incantationPhrases = {
+            "Divine light, shield the faithful...",
+            "Let holy protection surround you!"
+        },
+        levelModifier = function(level)
+            return { 
+                value = 0.25 + (level * 0.05), 
+                duration = 4 + math.floor(level/2) 
+            }
+        end,
+        maxLevel = 5,
+    },
+
+    Revive = {
+        description = "Bring back a fallen ally with a portion of their health.",
+        type = "healing",
+        basePower = 0,
+        mpCost = 25,
+        name = "Revive",
+        target = "fallen_ally",
+        castingTime = 3,
+        incantationPhrases = {
+            "Spirit, return to this mortal coil...",
+            "Death shall not claim you this day...",
+            "Rise and fight once more!"
+        },
+        revive = true,
+        healthPercent = 0.3,
+        levelModifier = function(level)
+            return { 
+                healthPercent = 0.3 + (level * 0.1)
+            }
+        end,
+        maxLevel = 5,
+    },
+
+    HolyLight = {
+        description = "Unleash purifying light that heals allies and damages undead enemies.",
+        type = "magical",
+        basePower = 120,
+        mpCost = 18,
+        name = "Holy Light",
+        element = "holy",
+        target = "all",
+        formula = "magical",
+        castingTime = 3,
+        incantationPhrases = {
+            "Sacred radiance, banish the darkness...",
+            "Let divine light cleanse this battlefield!"
+        },
+        effect = {
+            healAllies = true,
+            damageUndead = true,
+        },
+        levelModifier = function(level) 
+            return 1 + (level * 0.12)
+        end,
+        maxLevel = 5,
+    },
+
+    Regen = {
+        description = "Bestow powerful regeneration that heals over multiple turns.",
+        type = "healing",
+        effect = {
+            stat = "hp_regen",
+            value = 15,
+            duration = 4,
+        },
+        basePower = 0,
+        mpCost = 12,
+        name = "Regen",
+        target = "single_ally",
+        castingTime = 2,
+        incantationPhrases = {
+            "Life energy, flow continuously...",
+            "Restore vitality with each breath!"
+        },
+        levelModifier = function(level)
+            return { 
+                value = 15 + (level * 3), 
+                duration = 4 + math.floor(level/2) 
+            }
+        end,
+        maxLevel = 5,
+    },
+
+    Barrier = {
+        description = "Create a magical barrier that absorbs a specific amount of damage.",
+        type = "support",
+        basePower = 0,
+        mpCost = 20,
+        name = "Barrier",
+        target = "single_ally",
+        castingTime = 2,
+        incantationPhrases = {
+            "Form shield of pure energy...",
+            "Let magic itself protect you!"
+        },
+        effect = {
+            stat = "barrier",
+            value = 100,
+            duration = 5,
+        },
+        levelModifier = function(level)
+            return { 
+                value = 100 + (level * 20), 
+                duration = 5 + level 
+            }
+        end,
+        maxLevel = 5,
+    },
+
+    -- Assassin Skills
+    DeadlyStrike = {
+        description = "A precise, lethal attack that has high critical chance and can instantly kill weak enemies.",
+        type = "physical",
+        basePower = 180,
+        mpCost = 15,
+        name = "Deadly Strike",
+        damageType = "piercing",
+        target = "single_enemy",
+        formula = "physical",
+        effect = {
+            critChance = 0.6,
+            critModifier = 4.0,
+            instantKillChance = 0.1,
+        },
+        levelModifier = function(level) 
+            return {
+                power = 1 + (level * 0.12),
+                critChance = 0.6 + (level * 0.05),
+                instantKillChance = 0.1 + (level * 0.02)
+            }
+        end,
+        maxLevel = 5,
+    },
+
+    Vanish = {
+        description = "Disappear from sight, becoming untargetable and gaining stealth for next attack.",
+        type = "utility",
+        statusEffect = "stealth",
+        statusDuration = 2,
+        statusStrength = 1,
+        applyUntargetable = true, -- Also applies untargetable effect
+        basePower = 0,
+        mpCost = 12,
+        name = "Vanish",
+        target = "self",
+        levelModifier = function(level)
+            return { statusDuration = 2 + level }
+        end,
+        maxLevel = 3,
+    },
+
+    PoisonMastery = {
+        description = "Master the art of poison, making all attacks apply poison and increasing poison damage.",
+        type = "support",
+        effect = {
+            stat = "poison_mastery",
+            value = true,
+            duration = 5,
+            poisonDamageMultiplier = 2.0,
+        },
+        basePower = 0,
+        mpCost = 18,
+        name = "Poison Mastery",
+        target = "self",
+        levelModifier = function(level)
+            return { 
+                duration = 5 + level, 
+                poisonDamageMultiplier = 2.0 + (level * 0.3)
+            }
+        end,
+        maxLevel = 5,
+    },
+
+    ShadowStep = {
+        description = "Instantly teleport behind an enemy and attack with bonus damage.",
+        type = "physical",
+        basePower = 140,
+        mpCost = 10,
+        name = "Shadow Step",
+        damageType = "piercing",
+        target = "single_enemy",
+        formula = "physical",
+        effect = {
+            teleport = true,
+            backstabBonus = 1.5,
+        },
+        levelModifier = function(level) 
+            return {
+                power = 1 + (level * 0.1),
+                backstabBonus = 1.5 + (level * 0.1)
+            }
+        end,
+        maxLevel = 5,
+    },
+
+    VitalStrike = {
+        description = "Strike at vital points, dealing damage based on enemy's missing health.",
+        type = "physical",
+        basePower = 100,
+        mpCost = 12,
+        name = "Vital Strike",
+        damageType = "piercing",
+        target = "single_enemy",
+        formula = "physical",
+        missingHealthMultiplier = 0.5,
+        levelModifier = function(level) 
+            return {
+                power = 1 + (level * 0.08),
+                missingHealthMultiplier = 0.5 + (level * 0.1)
+            }
+        end,
+        maxLevel = 5,
+    },
+
+    Execution = {
+        description = "Attempt to instantly kill an enemy below a certain health threshold.",
+        type = "physical",
+        basePower = 250,
+        mpCost = 20,
+        name = "Execution",
+        damageType = "piercing",
+        target = "single_enemy",
+        formula = "physical",
+        executeThreshold = 0.25,
+        levelModifier = function(level) 
+            return {
+                power = 1 + (level * 0.15),
+                executeThreshold = 0.25 + (level * 0.05)
+            }
+        end,
+        maxLevel = 5,
+    },
+
+    -- Ranger Skills
+    PreciseShot = {
+        description = "A carefully aimed shot that never misses and has increased critical chance.",
+        type = "physical",
+        basePower = 130,
+        mpCost = 8,
+        name = "Precise Shot",
+        damageType = "piercing",
+        target = "single_enemy",
+        formula = "physical",
+        neverMiss = true,
+        critChance = 0.3,
+        levelModifier = function(level) 
+            return {
+                power = 1 + (level * 0.08),
+                critChance = 0.3 + (level * 0.04)
+            }
+        end,
+        maxLevel = 5,
+    },
+
+    TrapMastery = {
+        description = "Enhance your understanding of traps and creature weaknesses, dealing extra damage to beasts and monsters.",
+        type = "physical",
+        basePower = 140,
+        mpCost = 15,
+        name = "Trap Mastery",
+        damageType = "piercing",
+        target = "single_enemy",
+        formula = "physical",
+        creatureTypeBonus = {
+            beast = 2.0,    -- 2x damage to beasts
+            monster = 1.8,  -- 1.8x damage to monsters
+            animal = 1.5    -- 1.5x damage to animals
+        },
+        levelModifier = function(level)
+            return {
+                power = 1 + (level * 0.1),
+                creatureTypeBonus = {
+                    beast = 2.0 + (level * 0.2),
+                    monster = 1.8 + (level * 0.15),
+                    animal = 1.5 + (level * 0.1)
+                }
+            }
+        end,
+        maxLevel = 5,
+    },
+
+    MultiShot = {
+        description = "Fire multiple arrows at different targets simultaneously.",
+        type = "physical",
+        basePower = 90,
+        mpCost = 12,
+        name = "Multi Shot",
+        damageType = "piercing",
+        target = "multiple_enemies",
+        formula = "physical",
+        hits = 3,
+        levelModifier = function(level) 
+            return 1 + (level * 0.06)
+        end,
+        maxLevel = 5,
+    },
+
+    QuickDraw = {
+        description = "Instantly fire an arrow with greatly increased speed and accuracy.",
+        type = "physical",
+        basePower = 110,
+        mpCost = 6,
+        name = "Quick Draw",
+        damageType = "piercing",
+        target = "single_enemy",
+        formula = "physical",
+        castingTime = 0,
+        accuracyBonus = 20,
+        levelModifier = function(level) 
+            return {
+                power = 1 + (level * 0.08),
+                accuracyBonus = 20 + (level * 5)
+            }
+        end,
+        maxLevel = 5,
+    },
+
+    HawkEye = {
+        description = "Enhance vision and accuracy, seeing enemy weaknesses clearly.",
+        type = "support",
+        statusEffect = "hawkeye",
+        statusDuration = 4,
+        statusStrength = 25, -- 25% accuracy bonus
+        basePower = 0,
+        mpCost = 10,
+        name = "Hawk Eye",
+        target = "self",
+        levelModifier = function(level)
+            return { 
+                statusStrength = 25 + (level * 5), -- Accuracy bonus
+                statusDuration = 4 + level
+            }
+        end,
+        maxLevel = 5,
+    },
+
+    CripplingShot = {
+        description = "An arrow that cripples the target, reducing their movement and attack speed.",
+        type = "physical",
+        basePower = 120,
+        mpCost = 10,
+        name = "Crippling Shot",
+        damageType = "piercing",
+        target = "single_enemy",
+        formula = "physical",
+        effect = {
+            stat = "speed_multiplier",
+            value = 0.5,
+            duration = 3,
+            attackSpeedDebuff = 0.7,
+        },
+        levelModifier = function(level) 
+            return {
+                power = 1 + (level * 0.08),
+                value = 0.5 - (level * 0.05),
+                duration = 3 + level
+            }
+        end,
+        maxLevel = 5,
+    },
+
+    -- Berserker Skills
+    Cleave = {
+        description = "A powerful sweeping attack that hits multiple enemies.",
+        type = "physical",
+        basePower = 120,
+        mpCost = 12,
+        name = "Cleave",
+        damageType = "slashing",
+        target = "multiple_enemies",
+        formula = "physical",
+        levelModifier = function(level) 
+            return 1 + (level * 0.1)
+        end,
+        maxLevel = 5,
+    },
+
+    Bloodlust = {
+        description = "Enter a bloodthirsty state, gaining attack power but losing some control.",
+        type = "support",
+        statusEffect = "bloodlust",
+        statusDuration = 4,
+        statusStrength = 40, -- 40% damage bonus (with accuracy penalty)
+        basePower = 0,
+        mpCost = 15,
+        name = "Bloodlust",
+        target = "self",
+        levelModifier = function(level) 
+            return {
+                statusStrength = 40 + (level * 10), -- Damage bonus
+                statusDuration = 4 + level
+            }
+        end,
+        maxLevel = 5,
+    },
+
+    WarCry = {
+        description = "A terrifying battle cry that reduces enemy attack and boosts ally morale.",
+        type = "support",
+        effect = {
+            enemyDebuff = {
+                stat = "attack_multiplier",
+                value = 0.8,
+                duration = 3,
+            },
+            allyBuff = {
+                stat = "attack_multiplier", 
+                value = 1.2,
+                duration = 3,
+            },
+        },
+        basePower = 0,
+        mpCost = 10,
+        name = "War Cry",
+        target = "all",
+        levelModifier = function(level) 
+            return {
+                enemyValue = 0.8 - (level * 0.03),
+                allyValue = 1.2 + (level * 0.05),
+                duration = 3 + level
+            }
+        end,
+        maxLevel = 5,
+    },
+
+    Frenzy = {
+        description = "Attack multiple times in a wild frenzy, accuracy decreases with each hit.",
+        type = "physical",
+        basePower = 70,
+        mpCost = 18,
+        name = "Frenzy",
+        damageType = "slashing",
+        target = "single_enemy",
+        formula = "physical",
+        hits = 5,
+        accuracyDecay = 0.2, -- Each hit is 20% less accurate
+        levelModifier = function(level) 
+            return {
+                power = 1 + (level * 0.08),
+                hits = 5 + math.floor(level/2),
+                accuracyDecay = math.max(0.05, 0.2 - (level * 0.02)) -- Reduce penalty with level
+            }
+        end,
+        maxLevel = 5,
+    },
+
+    BrutalSwing = {
+        description = "A devastating attack that deals massive damage but has long recovery time.",
+        type = "physical",
+        basePower = 250,
+        mpCost = 20,
+        name = "Brutal Swing",
+        damageType = "slashing",
+        target = "single_enemy",
+        formula = "physical",
+        castingTime = 1,
+        stunSelf = 1, -- Stuns self for 1 turn after use
+        levelModifier = function(level) 
+            return {
+                power = 1 + (level * 0.15),
+                stunSelf = math.max(1, 2 - level) -- Reduce self-stun duration with level
+            }
+        end,
+        maxLevel = 5,
+    },
+
+    -- Paladin Skills
+    HolySmite = {
+        description = "A divine strike that deals holy damage and may stun undead enemies.",
+        type = "physical",
+        basePower = 140,
+        mpCost = 12,
+        name = "Holy Smite",
+        element = "holy",
+        damageType = "slashing",
+        target = "single_enemy",
+        formula = "physical",
+        effect = {
+            stunUndead = {
+                chance = 0.6,
+                duration = 2,
+            },
+        },
+        levelModifier = function(level) 
+            return {
+                power = 1 + (level * 0.1),
+                stunChance = 0.6 + (level * 0.05)
+            }
+        end,
+        maxLevel = 5,
+    },
+
+    LayOnHands = {
+        description = "Channel divine power to instantly heal a large amount of damage.",
+        type = "healing",
+        basePower = 150,
+        mpCost = 20,
+        name = "Lay On Hands",
+        target = "single_ally",
+        formula = "healing",
+        castingTime = 2,
+        incantationPhrases = {
+            "Divine power, flow through my hands...",
+            "Let holy energy mend these wounds!"
+        },
+        levelModifier = function(level) 
+            return 1 + (level * 0.15)
+        end,
+        maxLevel = 5,
+    },
+
+    Consecration = {
+        description = "Consecrate the battlefield, creating holy ground that continuously damages undead enemies.",
+        type = "magical",
+        basePower = 80,
+        mpCost = 25,
+        name = "Consecration",
+        element = "holy",
+        target = "all_enemies",
+        formula = "magical",
+        castingTime = 3,
+        incantationPhrases = {
+            "Sacred ground, purify this place...",
+            "Let holiness burn away corruption!"
+        },
+        consecration = 4, -- Duration of consecrated ground effect
+        strength = 15, -- Damage per turn to undead
+        levelModifier = function(level) 
+            return {
+                power = 1 + (level * 0.1),
+                consecration = 4 + level,
+                strength = 15 + (level * 5) -- Increased DoT damage
+            }
+        end,
+        maxLevel = 5,
+    },
+
+    HolyProtection = {
+        description = "Grant divine protection that prevents death once and provides resistance.",
+        type = "support",
+        effect = {
+            stat = "divine_protection",
+            value = true,
+            duration = 5,
+            deathSave = true,
+            damageReduction = 0.2,
+        },
+        basePower = 0,
+        mpCost = 30,
+        name = "Holy Protection",
+        target = "single_ally",
+        castingTime = 3,
+        incantationPhrases = {
+            "Divine aegis, guard the faithful...",
+            "Let death itself be denied!"
+        },
+        levelModifier = function(level) 
+            return {
+                duration = 5 + level,
+                damageReduction = 0.2 + (level * 0.05)
+            }
+        end,
+        maxLevel = 5,
+    },
+
+    RighteousStrike = {
+        description = "A holy attack that gains power based on the user's remaining health.",
+        type = "physical",
+        basePower = 100,
+        mpCost = 8,
+        name = "Righteous Strike",
+        element = "holy",
+        damageType = "slashing",
+        target = "single_enemy",
+        formula = "physical",
+        healthBasedDamage = 1.2, -- Damage multiplier based on health percentage
+        levelModifier = function(level) 
+            return {
+                power = 1 + (level * 0.08),
+                healthBasedDamage = 1.2 + (level * 0.2)
+            }
+        end,
+        maxLevel = 5,
+    },
 }
 
 return skillDefinitions
