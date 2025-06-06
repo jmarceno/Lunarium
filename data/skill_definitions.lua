@@ -38,6 +38,11 @@ local skillDefinitions = {
         maxLevel = 5,
         target = "none",
         basePower = 0,
+        castingTime = 2,
+        incantationPhrases = {
+            "Spirits of the forgotten, heed my call...",
+            "Rise from eternal slumber and grant me wisdom!"
+        },
         levelModifier = function(level) 
             return {
                 passiveBuffs = {
@@ -122,6 +127,11 @@ local skillDefinitions = {
         name = "Summon Guardian Spirit",
         maxLevel = 5,
         target = "none",
+        castingTime = 2,
+        incantationPhrases = {
+            "Guardian of the ethereal realm, I beseech thee...",
+            "Shield us with your spectral might!"
+        },
         basePower = 0,
         levelModifier = function(level) 
             return {
@@ -144,6 +154,7 @@ local skillDefinitions = {
         },
         basePower = 0,
         mpCost = 20,
+        castingTime = 1,
         name = "Shadow Merge",
         target = "self",
         levelModifier = function(level) 
@@ -181,7 +192,9 @@ local skillDefinitions = {
         castingTime = 3,
         maxLevel = 3,
         incantationPhrases = {
-            ["1"] = nil,
+            "Carefully coating the projectiles...",
+            "Applying toxins to the ammunition...",
+            "Preparing venomous payload for deployment!"
         },
         sprite = nil,
         effect = function(caster, target, combatSystem)
@@ -235,6 +248,11 @@ local skillDefinitions = {
         element = "air",
         target = "none",
         basePower = 0,
+        castingTime = 2,
+        incantationPhrases = {
+            "Winds of the tempest, gather to my will...",
+            "Form from storm and lightning!"
+        },
         levelModifier = function(level) 
             return {
                 statModifier = 1 + (level * 0.2)
@@ -251,6 +269,12 @@ local skillDefinitions = {
         element = "random",
         target = "all_enemies",
         formula = "magical",
+        castingTime = 3,
+        incantationPhrases = {
+            "Elements of chaos, converge upon my command...",
+            "Unleash your primal fury...",
+            "Devastate all who dare oppose me!"
+        },
         levelModifier = function(level) return 1 + (level * 0.1) end,
         maxLevel = 5,
     },
@@ -314,6 +338,7 @@ local skillDefinitions = {
         element = "dark",
         target = "single_enemy",
         formula = "magical",
+        castingTime = 1,
         levelModifier = function(level) 
             return {
                 power = 1 + (level * 0.08),
@@ -362,6 +387,7 @@ local skillDefinitions = {
         basePower = 20,
         mpCost = 8,
         name = "Wither",
+        castingTime = 1,
         target = "single_enemy",
         levelModifier = function(level)
             return { value = 20 + (level * 5), duration = 3 + math.floor(level/2) }
@@ -381,6 +407,7 @@ local skillDefinitions = {
         basePower = 0,
         mpCost = 10,
         name = "Blessing of Endurance",
+        castingTime = 1,
         target = "single_ally",
         levelModifier = function(level)
             return { maxHP = 20 + (level * 5), defense = 10 + (level * 2), duration = 3 + math.floor(level/2) }
@@ -422,6 +449,11 @@ local skillDefinitions = {
             magicDefense = 10,
         },
         summonType = "elemental",
+        castingTime = 2,
+        incantationPhrases = {
+            "Stone and earth, answer my dark summons...",
+            "Rise as guardian of crushing might!"
+        },
         mpCost = 25,
         name = "Summon Earth Elemental",
         maxLevel = 5,
@@ -466,6 +498,7 @@ local skillDefinitions = {
         mpCost = 8,
         name = "Curse of Frailty",
         target = "single_enemy",
+        castingTime = 1,
         levelModifier = function(level)
             return { value = -3 - level, duration = 3 + math.floor(level/2) }
         end,
@@ -478,6 +511,7 @@ local skillDefinitions = {
         mpCost = 18,
         name = "Chi Wave",
         damageType = "force",
+        castingTime = 1,
         target = "all_enemies",
         formula = "magical",
         levelModifier = function(level) return 1 + (level * 0.08) end,
@@ -495,6 +529,7 @@ local skillDefinitions = {
         mpCost = 10,
         name = "Hex",
         target = "single_enemy",
+        castingTime = 1,
         levelModifier = function(level)
             return { value = -2 - level, duration = 3 + math.floor(level/2) }
         end,
@@ -528,6 +563,11 @@ local skillDefinitions = {
         element = "water",
         target = "none",
         basePower = 0,
+        castingTime = 2,
+        incantationPhrases = {
+            "Depths of the abyss, heed my call...",
+            "Flow forth as torrential destroyer!"
+        },
         levelModifier = function(level) 
             return {
                 statModifier = 1 + (level * 0.2)
@@ -548,7 +588,7 @@ local skillDefinitions = {
         mpCost = 6,
         name = "Shield Bash",
         damageType = "bludgeoning",
-        castingTime = 1,
+        castingTime = 0,
         target = "single_enemy",
         formula = "physical",
         levelModifier = function(level) 
@@ -569,7 +609,7 @@ local skillDefinitions = {
         damageType = "slashing",
         target = "single_enemy",
         formula = "physical",
-        castingTime = 1,
+        castingTime = 0,
         levelModifier = function(level) return 1 + (level * 0.05) end,
         maxLevel = 5,
     },
@@ -636,6 +676,12 @@ local skillDefinitions = {
         maxLevel = 5,
         target = "none",
         basePower = 0,
+        castingTime = 3,
+        incantationPhrases = {
+            "Flesh shall serve beyond death...",
+            "Rise from putrid decay...",
+            "Walk again in eternal hunger!"
+        },
         levelModifier = function(level) 
             return {
                 statModifier = 1 + (level * 0.2),
@@ -751,7 +797,7 @@ local skillDefinitions = {
         basePower = 0,
         mpCost = 15,
         name = "Mana Shield",
-        castingTime = 2,
+        castingTime = 1,
         target = "self",
         effect = {
             formula = function(caster) 
@@ -777,6 +823,11 @@ local skillDefinitions = {
             duration = 2,
         },
         basePower = 0,
+        castingTime = 2,
+        incantationPhrases = {
+            "Voices from beyond the veil, share your essence...",
+            "Grant me the power of the eternal!"
+        },
         mpCost = 0,
         name = "Spirit Communion",
         target = "self",
@@ -796,6 +847,11 @@ local skillDefinitions = {
         name = "Heal",
         target = "single_ally",
         formula = "healing",
+        castingTime = 2,
+        incantationPhrases = {
+            "Divine light, mend what darkness has broken...",
+            "Restore life to the wounded!"
+        },
         levelModifier = function(level) return 1 + (level * 0.15) end,
         maxLevel = 5,
     },
@@ -803,6 +859,10 @@ local skillDefinitions = {
         description = "Modify a ballista to shoot a net that can immobilize enemies.",
         type = "buff",
         targetFilter = "ballista",
+        incantationPhrases = {
+            "Weaving restraining mesh into the chamber...",
+            "Preparing entangling projectile for deployment!"
+        },
         effect = function(caster, target, combatSystem)
             if target and target.type == "ballista" then
                 -- Save original abilities
@@ -825,7 +885,7 @@ local skillDefinitions = {
         mpCost = 15,
         name = "Ballista Net Shot",
         target = "minion",
-        castingTime = 1,
+        castingTime = 2,
         levelModifier = function(level)
             return 1 + (level * 0.1) -- 10% more effectiveness per level
         end,
@@ -866,6 +926,11 @@ local skillDefinitions = {
         },
         basePower = 0,
         mpCost = 15,
+        castingTime = 2,
+        incantationPhrases = {
+            "Dark energies, empower my servants...",
+            "Feed on shadow and become stronger!"
+        },
         name = "Dark Command",
         target = "all_minions",
         levelModifier = function(level) 
@@ -940,7 +1005,7 @@ local skillDefinitions = {
             "Storms, heed my call!",
             "Strike down with thunder's might!",
         },
-        castingTime = 2,
+        castingTime = 3,
         mpCost = 10,
         name = "Thunder Bolt",
         damageType = "lightning",
@@ -1028,6 +1093,11 @@ local skillDefinitions = {
             sacrificeMinion = true,
         },
         basePower = 0,
+        castingTime = 2,
+        incantationPhrases = {
+            "Your unlife feeds my power...",
+            "Through sacrifice, I grow stronger!"
+        },
         mpCost = 10,
         name = "Death Pact",
         target = "single_minion",
@@ -1064,6 +1134,11 @@ local skillDefinitions = {
             magicDefense = 12,
         },
         summonType = "elemental",
+        castingTime = 2,
+        incantationPhrases = {
+            "Infernal flames, coalesce into form...",
+            "Burn forth as avatar of destruction!"
+        },
         mpCost = 25,
         name = "Summon Fire Elemental",
         maxLevel = 5,
@@ -1119,6 +1194,7 @@ local skillDefinitions = {
             duration = 3,
         },
         basePower = 0,
+        castingTime = 1,
         mpCost = 10,
         name = "Elemental Affinity",
         target = "self",
@@ -1143,6 +1219,7 @@ local skillDefinitions = {
         },
         basePower = 0,
         mpCost = 12,
+        castingTime = 1,
         name = "Divine Favor",
         target = "single_ally",
         levelModifier = function(level) 
@@ -1163,6 +1240,7 @@ local skillDefinitions = {
         },
         basePower = 0,
         mpCost = 30,
+        castingTime = 1,
         name = "Arcane Mastery",
         target = "self",
         levelModifier = function(level) 
@@ -1194,6 +1272,12 @@ local skillDefinitions = {
             magicDefense = 18,
         },
         summonType = "undead",
+        castingTime = 3,
+        incantationPhrases = {
+            "Spectral essence, tear through the veil...",
+            "Manifest as harbinger of shadow...",
+            "Walk among the living once more!"
+        },
         mpCost = 40,
         name = "Raise Wraith",
         maxLevel = 5,
@@ -1244,6 +1328,11 @@ local skillDefinitions = {
         mpCost = 20,
         name = "Summon Nature Spirit",
         maxLevel = 5,
+        castingTime = 2,
+        incantationPhrases = {
+            "Ancient forest, lend me your verdant guardian...",
+            "Emerge from root and branch!"
+        },
         target = "none",
         basePower = 0,
         levelModifier = function(level) 
@@ -1270,6 +1359,7 @@ local skillDefinitions = {
         name = "Curse of Weakness",
         element = "dark",
         target = "single_enemy",
+        castingTime = 1,
         levelModifier = function(level) 
             return {
                 value = 0.7 - (level * 0.05),
@@ -1318,6 +1408,7 @@ local skillDefinitions = {
         basePower = 0,
         mpCost = 15,
         name = "Ancestral Guidance",
+        castingTime = 1,
         target = "all_allies",
         levelModifier = function(level) 
             return {
@@ -1386,6 +1477,7 @@ local skillDefinitions = {
         },
         basePower = 0,
         mpCost = 15,
+        castingTime = 1,
         name = "Elemental Mastery",
         target = "all_minions",
         levelModifier = function(level) 
@@ -1414,6 +1506,10 @@ local skillDefinitions = {
         description = "Modify a ballista to shoot flaming projectiles for 2 turns.",
         type = "buff",
         targetFilter = "ballista",
+        incantationPhrases = {
+            "Igniting combustible charges in the chamber...",
+            "Preparing incendiary ammunition for deployment!"
+        },
         effect = function(caster, target, combatSystem)
             if target and target.type == "ballista" then
                 -- Save original abilities
@@ -1436,7 +1532,7 @@ local skillDefinitions = {
         mpCost = 15,
         name = "Ballista Fire Mod",
         target = "minion",
-        castingTime = 1,
+        castingTime = 2,
         levelModifier = function(level)
             return 1 + (level * 0.1) -- 10% more effectiveness per level
         end,
@@ -1577,6 +1673,7 @@ local skillDefinitions = {
         mpCost = 8,
         name = "Haste",
         target = "single_ally",
+        castingTime = 1,
         levelModifier = function(level)
             return { value = 10 + (level * 2), duration = 3 + math.floor(level/2) }
         end,
@@ -1593,6 +1690,11 @@ local skillDefinitions = {
         basePower = 0,
         mpCost = 8,
         name = "Inspire",
+        castingTime = 2,
+        incantationPhrases = {
+            "Let darkness fuel your fury...",
+            "Strike with the wrath of the abyss!"
+        },
         target = "single_ally",
         levelModifier = function(level)
             return { value = 5 + (level * 2), duration = 3 + math.floor(level/2) }
@@ -1704,6 +1806,7 @@ local skillDefinitions = {
         },
         basePower = 0,
         mpCost = 6,
+        castingTime = 1,
         name = "Evil Eye",
         target = "single_enemy",
         levelModifier = function(level)
@@ -1715,6 +1818,10 @@ local skillDefinitions = {
         description = "Modify a ballista to shoot freezing projectiles for 2 turns.",
         type = "buff",
         targetFilter = "ballista",
+        incantationPhrases = {
+            "Applying frost enchantments to the projectiles...",
+            "Preparing crystalline ammunition for deployment!"
+        },
         effect = function(caster, target, combatSystem)
             if target and target.type == "ballista" then
                 -- Save original abilities
@@ -1737,7 +1844,7 @@ local skillDefinitions = {
         mpCost = 15,
         name = "Ballista Ice Mod",
         target = "minion",
-        castingTime = 1,
+        castingTime = 2,
         levelModifier = function(level)
             return 1 + (level * 0.1) -- 10% more effectiveness per level
         end,
@@ -1787,6 +1894,11 @@ local skillDefinitions = {
         mpCost = 20,
         name = "Raise Skeleton",
         maxLevel = 5,
+        castingTime = 2,
+        incantationPhrases = {
+            "Bones of the fallen, heed my dark call...",
+            "Rise and serve in eternal war!"
+        },
         target = "none",
         basePower = 0,
         levelModifier = function(level) 

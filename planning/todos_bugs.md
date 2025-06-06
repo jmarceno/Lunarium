@@ -1,11 +1,5 @@
 ### TODOs
 
-- Add incantation phrases to spells and show them somewhere on screen while the spell is ticking
-  - This would require a new field at skills to hold a list of phrases that will be said
-  - A system to be sure to show all the phrases and to only show the last one on cast - How to control the timming as each spell has a different cast time and will have a different number of phrases (add more phrases to spells that have a longer cast?)
-  - Add speach bubbles over the char portrait at screens/ui_slices/partyPanel.lua, and show the phrases there
-
-
 - Add quests and other things tied to the lore documents
 - How to deal with damage out of combat in the dungeon?
   - Deaths
