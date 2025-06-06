@@ -11,7 +11,7 @@ The Incantation Phrases System adds immersive speech bubbles that appear above c
 - **Post-Cast Retention**: Speech bubbles remain visible for 2 seconds after spell completion
 - **Multi-line Support**: Speech bubbles automatically handle line breaks and text wrapping
 - **Auto-sizing**: Bubbles resize based on accumulated text content
-- **Visual Integration**: Bubbles position above character portraits without UI overlap
+- **Visual Integration**: Bubbles position above character slots with automatic boundary detection
 
 ## Technical Implementation
 
@@ -30,7 +30,8 @@ The Incantation Phrases System adds immersive speech bubbles that appear above c
 3. **UI Integration** (`screens/ui_slices/partyPanel.lua`)
    - Integrates speech bubbles into combat party panel
    - Accesses spell queue for active incantations
-   - Positions bubbles above character portraits
+   - Positions bubbles above character slots with boundary awareness
+   - Implements adaptive sizing based on available slot space
 
 ### Data Structure
 
@@ -144,16 +145,18 @@ incantationPhrases = {
 
 - **Background**: Light gray with rounded corners
 - **Border**: Darker gray outline
-- **Tail**: Points to character portrait
+- **Tail**: Points to character, positioned within bubble bounds
 - **Text**: Dark text, centered in bubble
-- **Positioning**: Above character portrait, screen-edge aware
+- **Positioning**: Above character slot, slot-boundary aware
+- **Adaptive Sizing**: Dynamically sized based on available character slot space
 
 ### Text Handling
 
 - **Line Breaks**: Automatic on `\n` characters
-- **Wrapping**: Respects maximum bubble width (200px)
+- **Wrapping**: Respects dynamic maximum bubble width (up to 300px or slot width)
 - **Spacing**: 2px between lines for readability
 - **Centering**: Text centered horizontally in bubble
+- **Boundary Awareness**: Bubbles stay within character slot boundaries
 
 ### Animation States
 
@@ -164,10 +167,47 @@ incantationPhrases = {
 
 ## Performance Considerations
 
-- **Efficient Text Measurement**: Cached font metrics
+- **Efficient Text Measurement**: Cached font metrics with real-time size calculation
 - **Minimal Memory Usage**: Phrases stored only during casting
 - **Optimized Rendering**: Bubbles drawn only for active casters
 - **Automatic Cleanup**: Post-cast timers prevent memory leaks
+- **Smart Positioning**: Boundary calculations performed only during active casting
+
+## Positioning System
+
+### Slot-Based Positioning
+
+The speech bubble system uses intelligent positioning that considers each character's allocated space in the party panel:
+
+- **Slot Center Alignment**: Bubbles center on the character's entire slot rather than just the portrait
+- **Dynamic Width Calculation**: Maximum bubble width is determined by available slot space (up to 300px)
+- **Boundary Enforcement**: Bubbles are constrained to stay within their character's slot boundaries
+- **Edge Character Handling**: Characters at panel edges receive adjusted positioning to prevent overflow
+
+### Positioning Algorithm
+
+```lua
+-- Calculate character slot center and boundaries
+local slotCenterX = x + width / 2
+local leftBound = x + 10  -- Slot left edge with margin
+local rightBound = x + width - 10  -- Slot right edge with margin
+
+-- Determine optimal bubble width based on available space
+local availableWidth = width - 20
+local maxBubbleWidth = math.min(300, availableWidth)
+
+-- Calculate actual bubble dimensions
+local bubbleWidth, _ = speechBubble:calculateSize(text, maxBubbleWidth, font)
+
+-- Adjust position to ensure bubble stays within slot bounds
+if bubbleX - bubbleWidth/2 < leftBound then
+    bubbleX = leftBound + bubbleWidth/2
+elseif bubbleX + bubbleWidth/2 > rightBound then
+    bubbleX = rightBound - bubbleWidth/2
+end
+```
+
+This ensures optimal visual presentation regardless of character position or phrase length.
 
 ## Integration Points
 
@@ -216,9 +256,9 @@ end
 - Ensure combat system reference is passed to party panel
 
 **Text Overlap**:
-- Adjust bubble positioning in `speechBubble.lua`
-- Modify maximum bubble width if needed
-- Check screen edge detection logic
+- Bubbles are automatically constrained to character slot boundaries
+- Maximum bubble width adapts to available space per character
+- Positioning automatically adjusts to prevent off-screen overflow
 
 **Timing Issues**:
 - Verify phrase interval calculations
@@ -259,6 +299,7 @@ partyPanel:setCombatMode(true, party)   -- Combat mode setup
 - **v1.1**: Added post-cast display retention
 - **v1.2**: Improved text wrapping and bubble sizing
 - **v1.3**: Enhanced phrase timing distribution
+- **v1.4**: Improved positioning with slot-boundary awareness and adaptive sizing
 
 ---
 
