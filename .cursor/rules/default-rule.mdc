@@ -14,6 +14,7 @@ Remember that you are using Lua, a language that do not have types and can have 
 Do not try to run any script/program inside the project if you were not explicitly asked to
 You should always try your best to support Mouse and Keyboard on any feature you implement
 We have a balance dashboard at @balance_dashboard.html and @balance_analyzer.py and a content manager dashboard at @manage.html and @app.py, everytime a change affects how content (content in everything at /data folder, but for balance analyzer is anything that affects combat damage calculations) is structured or a new field is added, you should review the impact on those dashboards and update them.
+Every time you update a a feature, check if the documentation at /docs folder, need updating
 
 Do not commit code unless you were specifically asked to
 You are not allowed to run the game
