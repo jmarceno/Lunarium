@@ -214,10 +214,32 @@ local partyPanel = {
                 for _, spell in ipairs(self.combatSystem.spellQueue) do
                     if spell.caster == character and spell.incantationPhrases 
                        and #spell.incantationPhrases > 0 and spell.accumulatedText ~= "" then
-                        -- Draw speech bubble above character portrait with accumulated text
-                        local portraitCenterX = x + portraitSpace/2
-                        local portraitTopY = self.y + 15
-                        speechBubble:draw(spell.accumulatedText, portraitCenterX, portraitTopY, 200, i)
+                        -- Calculate better bubble positioning based on character slot
+                        local slotCenterX = x + width / 2  -- Center of the entire character slot
+                        local bubbleTopY = self.y + 5  -- Above the character slot
+                        
+                        -- Calculate available width for this character slot
+                        local availableWidth = width - 20  -- Leave some margin
+                        local maxBubbleWidth = math.min(300, availableWidth) -- Max 300px or slot width
+                        
+                        -- Adjust horizontal position to ensure bubble stays within character's allocated space
+                        -- Calculate potential bubble width first
+                        local font = love.graphics.getFont()
+                        local bubbleWidth, _ = speechBubble:calculateSize(spell.accumulatedText, maxBubbleWidth, font)
+                        
+                        -- Position bubble to stay within character slot bounds
+                        local bubbleX = slotCenterX
+                        local leftBound = x + 10  -- Left edge of character slot with margin
+                        local rightBound = x + width - 10  -- Right edge of character slot with margin
+                        
+                        -- Ensure bubble doesn't extend beyond slot boundaries
+                        if bubbleX - bubbleWidth/2 < leftBound then
+                            bubbleX = leftBound + bubbleWidth/2
+                        elseif bubbleX + bubbleWidth/2 > rightBound then
+                            bubbleX = rightBound - bubbleWidth/2
+                        end
+                        
+                        speechBubble:draw(spell.accumulatedText, bubbleX, bubbleTopY, maxBubbleWidth, i)
                     end
                 end
             end
