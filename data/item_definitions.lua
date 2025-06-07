@@ -99,7 +99,7 @@ local itemDefinitions = {
             type = "cure_status",
         },
         type = "consumable",
-        locations = {"Delzor", "Kael"}
+        locations = {"Delzor", "Kael", "Sahriq", "Khulaan", "Vargstad"}
     },
     SacredBlade = {
         name = "Sacred Blade",
@@ -421,7 +421,7 @@ local itemDefinitions = {
             type = "heal",
         },
         type = "consumable",
-        locations = {"Delzor", "Kael"}
+        locations = {"Delzor", "Kael", "Sahriq", "Khulaan", "Vargstad"}
     },
     Mace = {
         name = "Mace",
@@ -690,7 +690,7 @@ local itemDefinitions = {
             type = "restore_mp",
         },
         type = "consumable",
-        locations = {"Delzor", "Kael"}
+        locations = {"Delzor", "Kael", "Sahriq", "Khulaan", "Vargstad"}
     },
     EngineerGarb = {
         name = "Engineer Garb",
@@ -872,6 +872,583 @@ local itemDefinitions = {
         magicAttack = 5,
         locations = {"Delzor", "Kael"}
     },
+    
+    -- SAHRIQ ITEMS (Desert City)
+    DesertScimitar = {
+        name = "Desert Scimitar",
+        requirements = {
+            STR = 10,
+            DEX = 8,
+        },
+        slot = "weapon",
+        type = "weapon",
+        attack = 18,
+        subType = "sword",
+        value = 320,
+        jobs = {
+            ["1"] = "Fighter",
+            ["2"] = "Rogue",
+            ["3"] = "Ranger",
+        },
+        description = "A curved blade perfectly balanced for desert combat.",
+        magicAttack = 0,
+        critRate = 8,
+        locations = {"Sahriq"}
+    },
+    SandWalkerBoots = {
+        name = "Sand Walker Boots",
+        requirements = {
+            DEX = 8,
+        },
+        magicDefense = 4,
+        slot = "feet",
+        type = "armor",
+        value = 180,
+        defense = 6,
+        evasion = 8,
+        jobs = {
+            ["1"] = "Ranger",
+            ["2"] = "Rogue",
+            ["3"] = "Assassin",
+        },
+        description = "Specially crafted boots that allow silent movement across sand.",
+        locations = {"Sahriq"}
+    },
+    DesertRobe = {
+        name = "Desert Robe",
+        requirements = {
+            WIS = 8,
+        },
+        magicDefense = 10,
+        slot = "body",
+        type = "armor",
+        value = 280,
+        defense = 8,
+        jobs = {
+            ["1"] = "Mage",
+            ["2"] = "BlackMage",
+            ["3"] = "WhiteMage",
+            ["4"] = "Cleric",
+        },
+        description = "A flowing robe that protects against desert heat and sandstorms.",
+        locations = {"Sahriq"}
+    },
+    SandWalkersCharm = {
+        name = "Sand Walker's Charm",
+        requirements = {
+            DEX = 6,
+        },
+        magicDefense = 4,
+        slot = "amulet",
+        type = "accessory",
+        value = 220,
+        defense = 3,
+        evasion = 5,
+        jobs = {
+            ["1"] = "Ranger",
+            ["2"] = "Rogue",
+            ["3"] = "Fighter",
+        },
+        description = "A charm blessed by desert nomads that aids in navigation.",
+        locations = {"Sahriq"}
+    },
+    DesertRemedy = {
+        value = 45,
+        name = "Desert Remedy",
+        description = "A potent cure for desert ailments and poisons.",
+        effect = {
+            amount = 40,
+            target = "single",
+            type = "heal",
+            status = "poison",
+            statusType = "cure_status",
+        },
+        type = "consumable",
+        locations = {"Sahriq"}
+    },
+    DjinnsBlessing = {
+        name = "Djinn's Blessing",
+        requirements = {
+            WIS = 12,
+        },
+        attributes = {
+            WIS = 3,
+            INT = 2,
+        },
+        slot = "amulet",
+        type = "accessory",
+        value = 680,
+        magicAttack = 8,
+        magicDefense = 8,
+        jobs = {
+            ["1"] = "Mage",
+            ["2"] = "BlackMage",
+            ["3"] = "WhiteMage",
+        },
+        description = "A mystical amulet containing the essence of a grateful djinn.",
+        locations = {"Sahriq"}
+    },
+    
+    -- KHULAAN ITEMS (Steppe City)  
+    SteppeSpear = {
+        name = "Steppe Spear",
+        requirements = {
+            STR = 12,
+            DEX = 10,
+        },
+        slot = "weapon",
+        type = "weapon",
+        attack = 22,
+        subType = "spear",
+        value = 420,
+        jobs = {
+            ["1"] = "Fighter",
+            ["2"] = "Knight",
+            ["3"] = "Berserker",
+        },
+        description = "A long spear used by steppe warriors for mounted combat.",
+        magicAttack = 0,
+        locations = {"Khulaan"}
+    },
+    NomadLeathers = {
+        name = "Nomad Leathers",
+        requirements = {
+            DEX = 12,
+        },
+        magicDefense = 8,
+        slot = "body",
+        type = "armor",
+        value = 380,
+        defense = 14,
+        evasion = 6,
+        jobs = {
+            ["1"] = "Ranger",
+            ["2"] = "Fighter",
+            ["3"] = "Berserker",
+        },
+        description = "Tough leather armor worn by nomadic horsemen.",
+        locations = {"Khulaan"}
+    },
+    WolfSpiritTotem = {
+        name = "Wolf Spirit Totem",
+        requirements = {
+            WIS = 10,
+        },
+        attributes = {
+            WIS = 2,
+            DEX = 1,
+        },
+        slot = "offhand",
+        type = "accessory",
+        value = 350,
+        magicAttack = 6,
+        defense = 4,
+        jobs = {
+            ["1"] = "Ranger",
+            ["2"] = "Cleric",
+            ["3"] = "WhiteMage",
+        },
+        description = "A totem carved from sacred wolf bone, imbued with ancestral spirits.",
+        locations = {"Khulaan"}
+    },
+    ShamanicBrew = {
+        value = 80,
+        name = "Shamanic Brew",
+        description = "A mystical potion that restores both health and mana.",
+        effect = {
+            amount = 60,
+            target = "single",
+            type = "heal",
+            mpAmount = 40,
+            mpType = "restore_mp",
+        },
+        type = "consumable",
+        locations = {"Khulaan"}
+    },
+    StormRidersCloak = {
+        name = "Storm Rider's Cloak",
+        requirements = {
+            DEX = 14,
+            WIS = 10,
+        },
+        magicDefense = 12,
+        slot = "body",
+        type = "armor",
+        value = 580,
+        defense = 16,
+        evasion = 12,
+        jobs = {
+            ["1"] = "Ranger",
+            ["2"] = "Rogue",
+            ["3"] = "Assassin",
+        },
+        description = "A mystical cloak that seems to move with the wind itself.",
+        locations = {"Khulaan"}
+    },
+    AncestralBlade = {
+        name = "Ancestral Blade",
+        requirements = {
+            STR = 16,
+            WIS = 12,
+        },
+        element = "spirit",
+        slot = "weapon",
+        type = "weapon",
+        attack = 28,
+        subType = "sword",
+        value = 1200,
+        jobs = {
+            ["1"] = "Fighter",
+            ["2"] = "Knight",
+            ["3"] = "Paladin",
+        },
+        description = "An ancient blade passed down through generations of steppe warriors.",
+        magicAttack = 12,
+        locations = {"Khulaan"}
+    },
+    
+    -- VARGSTAD ITEMS (Mountain/Coastal City)
+    FrostbiteAxe = {
+        name = "Frostbite Axe",
+        requirements = {
+            STR = 16,
+        },
+        element = "ice",
+        slot = "weapon",
+        type = "weapon",
+        attack = 26,
+        subType = "axe",
+        value = 620,
+        jobs = {
+            ["1"] = "Fighter",
+            ["2"] = "Berserker",
+        },
+        description = "An axe forged from ice-cold mountain steel.",
+        magicAttack = 8,
+        locations = {"Vargstad"}
+    },
+    VikingChainmail = {
+        name = "Viking Chainmail",
+        requirements = {
+            STR = 14,
+        },
+        magicDefense = 6,
+        slot = "body",
+        type = "armor",
+        value = 520,
+        defense = 18,
+        jobs = {
+            ["1"] = "Fighter",
+            ["2"] = "Knight",
+            ["3"] = "Berserker",
+        },
+        description = "Heavy chainmail worn by northern warriors.",
+        locations = {"Vargstad"}
+    },
+    SeafoamTrident = {
+        name = "Seafoam Trident",
+        requirements = {
+            STR = 14,
+            DEX = 12,
+        },
+        element = "water",
+        slot = "weapon",
+        type = "weapon",
+        attack = 24,
+        subType = "spear",
+        value = 580,
+        jobs = {
+            ["1"] = "Fighter",
+            ["2"] = "Knight",
+        },
+        description = "A three-pronged weapon imbued with the power of the sea.",
+        magicAttack = 10,
+        locations = {"Vargstad"}
+    },
+    AuroraStone = {
+        name = "Aurora Stone",
+        requirements = {
+            WIS = 14,
+        },
+        attributes = {
+            WIS = 4,
+            INT = 3,
+        },
+        slot = "amulet",
+        type = "accessory",
+        value = 850,
+        magicAttack = 12,
+        magicDefense = 12,
+        jobs = {
+            ["1"] = "Mage",
+            ["2"] = "BlackMage",
+            ["3"] = "WhiteMage",
+        },
+        description = "A crystalline stone that captures the essence of the northern lights.",
+        locations = {"Vargstad"}
+    },
+    KrakensHeart = {
+        name = "Kraken's Heart",
+        requirements = {
+            STR = 18,
+            WIS = 15,
+        },
+        attributes = {
+            STR = 4,
+            WIS = 3,
+        },
+        slot = "amulet",
+        type = "accessory",
+        value = 1500,
+        attack = 8,
+        magicAttack = 15,
+        defense = 10,
+        magicDefense = 15,
+        jobs = {
+            ["1"] = "Fighter",
+            ["2"] = "Knight",
+            ["3"] = "Paladin",
+            ["4"] = "Mage",
+        },
+        description = "The still-beating heart of an ancient sea monster, pulsing with dark power.",
+        locations = {"Vargstad"}
+    },
+    Dragonslayer = {
+        name = "Dragonslayer",
+        requirements = {
+            STR = 20,
+            WIS = 16,
+        },
+        element = "dragon",
+        slot = "weapon",
+        type = "weapon",
+        attack = 35,
+        subType = "sword",
+        value = 2500,
+        jobs = {
+            ["1"] = "Fighter",
+            ["2"] = "Knight",
+            ["3"] = "Paladin",
+        },
+        description = "The ultimate weapon, forged specifically to slay dragons.",
+        magicAttack = 25,
+        critRate = 10,
+        locations = {"Vargstad"}
+    },
+    
+    -- Quest reward items for the new cities
+    RareSpices = {
+        value = 25,
+        name = "Rare Spices",
+        description = "Exotic spices that temporarily boost combat abilities.",
+        effect = {
+            amount = 10,
+            target = "single",
+            type = "buff_attack",
+            duration = 3
+        },
+        type = "consumable",
+        locations = {"Sahriq"}
+    },
+    PeacemakersMedal = {
+        name = "Peacemaker's Medal",
+        requirements = {
+            WIS = 8,
+        },
+        attributes = {
+            WIS = 2,
+            INT = 1,
+        },
+        slot = "amulet",
+        type = "accessory",
+        value = 320,
+        defense = 2,
+        magicDefense = 4,
+        jobs = {
+            ["1"] = "Cleric",
+            ["2"] = "Paladin",
+            ["3"] = "WhiteMage",
+        },
+        description = "A medal awarded for successful diplomatic missions.",
+        locations = {"Khulaan"}
+    },
+    HonoredWarriorsAxe = {
+        name = "Honored Warrior's Axe",
+        requirements = {
+            STR = 16,
+        },
+        slot = "weapon",
+        type = "weapon",
+        attack = 24,
+        subType = "axe",
+        value = 680,
+        jobs = {
+            ["1"] = "Fighter",
+            ["2"] = "Berserker",
+        },
+        description = "An axe blessed in sacred funeral rites, wielded by honored warriors.",
+        magicAttack = 6,
+        locations = {"Vargstad"}
+    },
+    SerpentsBaneHarpoon = {
+        name = "Serpent's Bane Harpoon",
+        requirements = {
+            STR = 14,
+            DEX = 12,
+        },
+        element = "water",
+        slot = "weapon",
+        type = "weapon",
+        attack = 26,
+        subType = "spear",
+        value = 780,
+        jobs = {
+            ["1"] = "Fighter",
+            ["2"] = "Ranger",
+        },
+        description = "A specialized harpoon designed for hunting sea monsters.",
+        magicAttack = 8,
+        critRate = 12,
+        locations = {"Vargstad"}
+    },
+    SandwormSlayer = {
+        name = "Sandworm Slayer",
+        requirements = {
+            STR = 14,
+            DEX = 10,
+        },
+        element = "earth",
+        slot = "weapon",
+        type = "weapon",
+        attack = 25,
+        subType = "sword",
+        value = 720,
+        jobs = {
+            ["1"] = "Fighter",
+            ["2"] = "Knight",
+        },
+        description = "A blade forged from sandworm chitin, effective against burrowing enemies.",
+        magicAttack = 8,
+        locations = {"Sahriq"}
+    },
+    SlimeCrusher = {
+        name = "Slime Crusher",
+        requirements = {
+            STR = 12,
+        },
+        slot = "weapon",
+        type = "weapon",
+        attack = 20,
+        subType = "mace",
+        value = 480,
+        jobs = {
+            ["1"] = "Fighter",
+            ["2"] = "Cleric",
+        },
+        description = "A mace designed specifically for crushing gelatinous enemies.",
+        magicAttack = 4,
+        locations = {"Kael"}
+    },
+    NecromancersBane = {
+        name = "Necromancer's Bane",
+        requirements = {
+            STR = 16,
+            WIS = 12,
+        },
+        element = "holy",
+        slot = "weapon",
+        type = "weapon",
+        attack = 28,
+        subType = "sword",
+        value = 950,
+        jobs = {
+            ["1"] = "Fighter",
+            ["2"] = "Knight",
+            ["3"] = "Paladin",
+        },
+        description = "A holy blade that deals extra damage to undead creatures.",
+        magicAttack = 15,
+        locations = {"Kael"}
+    },
+    DemonResistantCloak = {
+        name = "Demon-Resistant Cloak",
+        requirements = {
+            WIS = 10,
+        },
+        magicDefense = 15,
+        slot = "body",
+        type = "armor",
+        value = 520,
+        defense = 12,
+        jobs = {
+            ["1"] = "Mage",
+            ["2"] = "BlackMage",
+            ["3"] = "WhiteMage",
+            ["4"] = "Cleric",
+        },
+        description = "A cloak woven with protective wards against demonic influence.",
+        locations = {"Kael"}
+    },
+    HiveSplitter = {
+        name = "Hive Splitter",
+        requirements = {
+            STR = 14,
+            DEX = 10,
+        },
+        slot = "weapon",
+        type = "weapon",
+        attack = 23,
+        subType = "axe",
+        value = 640,
+        jobs = {
+            ["1"] = "Fighter",
+            ["2"] = "Berserker",
+        },
+        description = "An axe with serrated edges, perfect for breaking through insect carapaces.",
+        magicAttack = 5,
+        critRate = 8,
+        locations = {"Kael"}
+    },
+    PanthersAgilityCharm = {
+        name = "Panther's Agility Charm",
+        requirements = {
+            DEX = 12,
+        },
+        attributes = {
+            DEX = 3,
+        },
+        slot = "amulet",
+        type = "accessory",
+        value = 480,
+        evasion = 12,
+        jobs = {
+            ["1"] = "Rogue",
+            ["2"] = "Assassin",
+            ["3"] = "Ranger",
+        },
+        description = "A charm that grants the wearer the agility of a hunting panther.",
+        locations = {"Kael"}
+    },
+    LuckyCharm = {
+        name = "Lucky Charm",
+        requirements = {},
+        attributes = {
+            DEX = 1,
+            INT = 1,
+        },
+        slot = "amulet",
+        type = "accessory",
+        value = 180,
+        evasion = 3,
+        jobs = {
+            ["1"] = "Fighter",
+            ["2"] = "Rogue",
+            ["3"] = "Mage",
+            ["4"] = "Cleric",
+        },
+        description = "A small charm said to bring good fortune to its bearer.",
+        locations = {"Delzor"}
+    },
 }
 
 local monsterParts = {
@@ -970,6 +1547,104 @@ local monsterParts = {
         rarity = 4,
         type = "monster_part",
         locations = {"Delzor", "Kael"}
+    },
+    -- New crafting materials for city-specific recipes
+    DesertSand = {
+        value = 15,
+        name = "Desert Sand",
+        description = "Magical sand from the deep desert, used in crafting.",
+        rarity = 2,
+        type = "crafting_material",
+        locations = {"Sahriq"}
+    },
+    IceCrystal = {
+        value = 35,
+        name = "Ice Crystal",
+        description = "A crystal formed from eternal ice of the northern peaks.",
+        rarity = 3,
+        type = "crafting_material",
+        locations = {"Vargstad"}
+    },
+    SeaPearl = {
+        value = 50,
+        name = "Sea Pearl",
+        description = "A lustrous pearl from the deep ocean waters.",
+        rarity = 3,
+        type = "crafting_material",
+        locations = {"Vargstad"}
+    },
+    -- Basic crafting materials available everywhere
+    IronOre = {
+        value = 8,
+        name = "Iron Ore",
+        description = "Raw iron ore used in smithing.",
+        rarity = 1,
+        type = "crafting_material",
+        locations = {"Delzor", "Kael", "Sahriq", "Khulaan", "Vargstad"}
+    },
+    Wood = {
+        value = 5,
+        name = "Wood",
+        description = "Strong timber used in crafting weapons and tools.",
+        rarity = 1,
+        type = "crafting_material",
+        locations = {"Delzor", "Kael", "Sahriq", "Khulaan", "Vargstad"}
+    },
+    Coal = {
+        value = 10,
+        name = "Coal",
+        description = "Fuel used in smithing for high-temperature forging.",
+        rarity = 1,
+        type = "crafting_material",
+        locations = {"Delzor", "Kael", "Sahriq", "Khulaan", "Vargstad"}
+    },
+    Cloth = {
+        value = 6,
+        name = "Cloth",
+        description = "Woven fabric used in making robes and light armor.",
+        rarity = 1,
+        type = "crafting_material",
+        locations = {"Delzor", "Kael", "Sahriq", "Khulaan", "Vargstad"}
+    },
+    MonsterHide = {
+        value = 12,
+        name = "Monster Hide",
+        description = "Tough hide from defeated monsters, used in armor crafting.",
+        rarity = 2,
+        type = "crafting_material",
+        locations = {"Delzor", "Kael", "Sahriq", "Khulaan", "Vargstad"}
+    },
+    MonsterBone = {
+        value = 15,
+        name = "Monster Bone",
+        description = "Dense bone from large monsters, used in weapon crafting.",
+        rarity = 2,
+        type = "crafting_material",
+        locations = {"Delzor", "Kael", "Sahriq", "Khulaan", "Vargstad"}
+    },
+    MagicCrystal = {
+        value = 25,
+        name = "Magic Crystal",
+        description = "A crystal infused with magical energy.",
+        rarity = 2,
+        type = "crafting_material",
+        locations = {"Delzor", "Kael", "Sahriq", "Khulaan", "Vargstad"}
+    },
+    SpiderSilk = {
+        value = 18,
+        name = "Spider Silk",
+        description = "Strong silk from giant spiders, used in fine crafting.",
+        rarity = 2,
+        type = "crafting_material",
+        locations = {"Delzor", "Kael", "Sahriq", "Khulaan", "Vargstad"}
+    },
+    SilverOre = {
+        value = 20,
+        name = "Silver Ore",
+        description = "Precious silver ore used in crafting holy items.",
+        rarity = 2,
+        type = "crafting_material",
+        locations = {"Delzor", "Kael", "Sahriq", "Khulaan", "Vargstad"}
     },
 }
 

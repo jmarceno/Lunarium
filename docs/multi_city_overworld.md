@@ -108,4 +108,53 @@ Content such as quests, shop items, and smithing recipes are now filtered based 
 *   **`screens/inn.lua`**:
     *   Quest-related functionality has been removed as per user correction. Inns do not offer quests in this system.
 *   **Other screens (e.g., `shop.lua`, `smith.lua`)**:
-    *   These will require modification to filter their respective content (items, recipes) based on `GAME.currentCityData.name` and the new `locations` field in their data definitions. (This was part of the plan but specific implementation details for these screens are not covered in this summary of *already completed* changes). 
+    *   These will require modification to filter their respective content (items, recipes) based on `GAME.currentCityData.name` and the new `locations` field in their data definitions. (This was part of the plan but specific implementation details for these screens are not covered in this summary of *already completed* changes).
+
+## Content Expansion for New Cities (Updated)
+
+The following cities have been expanded with comprehensive content:
+
+### **Sahriq** (Desert City, reputation needed: 400)
+*   **Quests (6 total):**
+    *   Desert Bandits (Kill) - Level 4, Medium difficulty
+    *   Oasis Protection (Kill) - Level 5, Medium difficulty  
+    *   Ancient Relic Hunt (Collect) - Level 6, Medium difficulty
+    *   Desert Caravan Escort (Escort) - Level 7, Hard difficulty
+    *   The Bound Djinn (Boss) - Level 11, Hard difficulty
+    *   The Great Sandworm (Boss) - Level 12, Hard difficulty
+*   **Unique Items:** Desert Scimitar, Sand Walker Boots, Desert Robe, Sand Walker's Charm, Desert Remedy, Djinn's Blessing, Sandworm Slayer
+*   **Crafting Materials:** Desert Sand (unique to Sahriq)
+*   **Smith Recipes:** Desert-themed weapons and armor using desert-specific materials
+
+### **Khulaan** (Steppe City, reputation needed: 600)
+*   **Quests (6 total):**
+    *   Horse Thieves (Kill) - Level 8, Medium difficulty
+    *   Spirit Wolf Pack (Kill) - Level 9, Medium difficulty
+    *   Shamanic Ingredients (Collect) - Level 10, Medium difficulty
+    *   Tribal Diplomacy (Escort) - Level 11, Hard difficulty
+    *   Thunder Horse Taming (Boss) - Level 13, Hard difficulty
+    *   Sky Burial Guardian (Boss) - Level 14, Hard difficulty
+*   **Unique Items:** Steppe Spear, Nomad Leathers, Wolf Spirit Totem, Shamanic Brew, Storm Rider's Cloak, Ancestral Blade, Peacemaker's Medal
+*   **Crafting Materials:** Wolf Pelt and existing materials for steppe-themed crafting
+*   **Smith Recipes:** Nomadic weapons and spiritual accessories
+
+### **Vargstad** (Mountain/Coastal City, reputation needed: 800)
+*   **Quests (6 total):**
+    *   Frost Giant Raids (Kill) - Level 12, Hard difficulty
+    *   Mystery of the Northern Lights (Explore) - Level 14, Hard difficulty
+    *   Viking Funeral Rites (Escort) - Level 15, Hard difficulty
+    *   Sea Serpent Menace (Boss) - Level 16, Hard difficulty
+    *   Into the Kraken's Depths (Boss) - Level 18, Hard difficulty
+    *   The Dragon King's Awakening (Boss) - Level 20, Hard difficulty
+*   **Unique Items:** Frostbite Axe, Viking Chainmail, Seafoam Trident, Aurora Stone, Kraken's Heart, Dragonslayer, Honored Warrior's Axe, Serpent's Bane Harpoon
+*   **Crafting Materials:** Ice Crystal, Sea Pearl (unique to Vargstad)
+*   **Smith Recipes:** High-tier northern and naval-themed equipment
+
+### **Reputation Progression Balance**
+Each city provides sufficient quest rewards to enable progression to the next city:
+*   **Delzor → Kael:** 200 reputation needed
+*   **Kael → Sahriq:** 400 reputation needed  
+*   **Sahriq → Khulaan:** 600 reputation needed
+*   **Khulaan → Vargstad:** 800 reputation needed
+
+The quest rewards scale appropriately with city difficulty, ensuring players can accumulate enough reputation through completing available quests in each location. 

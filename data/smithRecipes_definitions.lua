@@ -13,7 +13,7 @@ local smithRecipes = {
         },
         goldCost = 50,
         category = "Weapons",
-        locations = {"Delzor", "Kael"}
+        locations = {"Delzor", "Kael", "Sahriq", "Khulaan", "Vargstad"}
     },
     {
         name = "Steel Dagger",
@@ -65,7 +65,7 @@ local smithRecipes = {
         },
         goldCost = 45,
         category = "Armor",
-        locations = {"Delzor", "Kael"}
+        locations = {"Delzor", "Kael", "Sahriq", "Khulaan", "Vargstad"}
     },
     {
         name = "Chain Mail",
@@ -130,6 +130,129 @@ local smithRecipes = {
         goldCost = 100,
         category = "Accessories",
         locations = {"Delzor", "Kael"}
+    },
+    
+    -- SAHRIQ RECIPES (Desert City)
+    {
+        name = "Desert Scimitar",
+        description = "A curved blade forged for desert warfare.",
+        result = "DesertScimitar",
+        materials = {
+            ["Iron Ore"] = 3,
+            ["Desert Sand"] = 2,
+            ["Monster Bone"] = 1
+        },
+        goldCost = 120,
+        category = "Weapons",
+        locations = {"Sahriq"}
+    },
+    {
+        name = "Desert Robe",
+        description = "A flowing robe that protects against sandstorms.",
+        result = "DesertRobe",
+        materials = {
+            ["Cloth"] = 4,
+            ["Spider Silk"] = 2,
+            ["Magic Crystal"] = 1
+        },
+        goldCost = 90,
+        category = "Armor",
+        locations = {"Sahriq"}
+    },
+    {
+        name = "Sand Walker Boots",
+        description = "Boots designed for silent movement across sand.",
+        result = "SandWalkerBoots",
+        materials = {
+            ["Monster Hide"] = 3,
+            ["Desert Sand"] = 1,
+            ["Iron Ore"] = 1
+        },
+        goldCost = 70,
+        category = "Armor",
+        locations = {"Sahriq"}
+    },
+    
+    -- KHULAAN RECIPES (Steppe City)
+    {
+        name = "Steppe Spear",
+        description = "A long spear favored by horsemen.",
+        result = "SteppeSpear",
+        materials = {
+            ["Iron Ore"] = 4,
+            ["Wood"] = 3,
+            ["Wolf Pelt"] = 1
+        },
+        goldCost = 150,
+        category = "Weapons",
+        locations = {"Khulaan"}
+    },
+    {
+        name = "Nomad Leathers",
+        description = "Tough armor worn by steppe nomads.",
+        result = "NomadLeathers",
+        materials = {
+            ["Monster Hide"] = 4,
+            ["Wolf Pelt"] = 2,
+            ["Iron Ore"] = 1
+        },
+        goldCost = 130,
+        category = "Armor",
+        locations = {"Khulaan"}
+    },
+    {
+        name = "Wolf Spirit Totem",
+        description = "A sacred totem imbued with ancestral spirits.",
+        result = "WolfSpiritTotem",
+        materials = {
+            ["Monster Bone"] = 2,
+            ["Wolf Pelt"] = 1,
+            ["Magic Crystal"] = 1
+        },
+        goldCost = 110,
+        category = "Accessories",
+        locations = {"Khulaan"}
+    },
+    
+    -- VARGSTAD RECIPES (Mountain/Coastal City)
+    {
+        name = "Frostbite Axe",
+        description = "An axe forged from ice-cold mountain steel.",
+        result = "FrostbiteAxe",
+        materials = {
+            ["Iron Ore"] = 5,
+            ["Ice Crystal"] = 3,
+            ["Monster Bone"] = 2
+        },
+        goldCost = 200,
+        category = "Weapons",
+        locations = {"Vargstad"}
+    },
+    {
+        name = "Viking Chainmail",
+        description = "Heavy chainmail worn by northern warriors.",
+        result = "VikingChainmail",
+        materials = {
+            ["Iron Ore"] = 6,
+            ["Coal"] = 3,
+            ["Monster Hide"] = 2
+        },
+        goldCost = 180,
+        category = "Armor",
+        locations = {"Vargstad"}
+    },
+    {
+        name = "Seafoam Trident",
+        description = "A trident imbued with the power of the sea.",
+        result = "SeafoamTrident",
+        materials = {
+            ["Iron Ore"] = 4,
+            ["Sea Pearl"] = 2,
+            ["Magic Crystal"] = 2
+        },
+        goldCost = 220,
+        category = "Weapons",
+        locations = {"Vargstad"}
     }
 }
 
