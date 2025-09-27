@@ -2,6 +2,9 @@
 
 A retro-style role-playing game built with LÖVE2D, featuring dungeon exploration, turn-based combat, and character progression.
 
+# Disclaimer and Why ?
+Lunarium was made to experiment with AI assisted programming, except from the game-design, which was done by hand by me, all the code and assets (exluding sounds) are made using AI.
+After 8 years designig and code games, I wanted to to know could realistic be done with AI. The answer is a lot, if you already know how to make a game :P.
 
 ## Overview
 
@@ -103,5 +106,6 @@ The status effects system has been updated with the following improvements:
 - Life drain is calculated after mitigation by barrier.
 - Multi-hit skills can apply effects per hit with the perHit flag.
 - Purify skill now properly removes negative effects and applies healing.
+
 
 This implementation standardizes all the status effects, improves visual feedback, and ensures effects are consistently used throughout combat calculations.
