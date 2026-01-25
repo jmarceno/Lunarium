@@ -29,6 +29,9 @@ local combatSystem = {
     }
 }
 
+-- Cached physical layout texture to avoid recreating it every time
+local cachedPhysicalLayoutTexture = nil
+
 -- Create a small combat room map
 function combatSystem:createCombatRoom(theme)
     -- Default theme if none provided
@@ -154,18 +157,22 @@ function combatSystem:createCombatRoom(theme)
     end
     
     -- Create the physical layout texture needed by raycaster
-    local physicalLayoutData = love.image.newImageData(roomSize, roomSize)
-    for y = 0, roomSize-1 do
-        for x = 0, roomSize-1 do
-            -- Use 1.0 for walls (white), 0.0 for open spaces (black)
-            local value = 0.0
-            if room:getCell(x+1, y+1) > 0 then
-                value = 1.0
+    -- Use cached version if available since the layout (grid) is always the same (10x10 box)
+    if not cachedPhysicalLayoutTexture then
+        local physicalLayoutData = love.image.newImageData(roomSize, roomSize)
+        for y = 0, roomSize-1 do
+            for x = 0, roomSize-1 do
+                -- Use 1.0 for walls (white), 0.0 for open spaces (black)
+                local value = 0.0
+                if room:getCell(x+1, y+1) > 0 then
+                    value = 1.0
+                end
+                physicalLayoutData:setPixel(x, y, value, value, value, 1.0)
             end
-            physicalLayoutData:setPixel(x, y, value, value, value, 1.0)
         end
+        cachedPhysicalLayoutTexture = love.graphics.newImage(physicalLayoutData)
     end
-    room.physicalLayoutTexture = love.graphics.newImage(physicalLayoutData)
+    room.physicalLayoutTexture = cachedPhysicalLayoutTexture
     
     -- Set dimensions for shader use
     room.dimensions = {roomSize, roomSize}
