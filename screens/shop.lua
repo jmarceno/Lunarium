@@ -16,9 +16,6 @@ function shop:init()
     self.pageOffset = 0
     self.itemsPerPage = 6
     
-    -- Load background image directly using love.graphics
-    self.backgroundImage = love.graphics.newImage("assets/ShopScreen.png")
-    
     -- Categories
     self.categories = {
         "All",
@@ -558,7 +555,7 @@ function shop:enter()
     
     -- Ensure background image is loaded
     if not self.backgroundImage then
-        self.backgroundImage = love.graphics.newImage("assets/ShopScreen.png")
+        self.backgroundImage = assetManager:loadUIImage("assets/ShopScreen.png")
     end
     
     -- Load shop inventory

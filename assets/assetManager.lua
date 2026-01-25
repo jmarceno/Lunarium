@@ -28,6 +28,9 @@ local assetManager = {
 }
 
 function assetManager:init()
+    -- Initialize UI images cache
+    self.images.ui = {}
+
     -- Load character portraits
     self:loadPortraits()
     
@@ -1347,6 +1350,33 @@ function assetManager:getNormalMap(type, id)
         return self.normalMaps.monsterSprites[id]
     end
     return nil
+end
+
+-- Load and cache a UI image
+function assetManager:loadUIImage(path)
+    -- Initialize UI images table if it doesn't exist
+    if not self.images.ui then
+        self.images.ui = {}
+    end
+
+    -- Check if already loaded
+    if self.images.ui[path] then
+        return self.images.ui[path]
+    end
+
+    -- Try to load the image
+    local success, image = pcall(function()
+        return love.graphics.newImage(path)
+    end)
+
+    if success and image then
+        self.images.ui[path] = image
+        -- print("Loaded UI image: " .. path)
+        return image
+    else
+        print("Failed to load UI image: " .. path)
+        return nil
+    end
 end
 
 return assetManager
