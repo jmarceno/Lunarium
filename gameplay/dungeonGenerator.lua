@@ -26,7 +26,8 @@ function Map:new(width, height)
             floor = {},   -- Floor texture for each cell
             ceiling = {}, -- Ceiling texture for each cell (new)
             roomId = {}   -- Store which room/area each cell belongs to (for consistent texturing)
-        }
+        },
+        isDirty = true -- Flag to track if map textures need updating
     }
     
     -- Initialize map with all walls
@@ -108,6 +109,7 @@ function Map:setFloorTexture(x, y, texture)
     end
     
     self.textures.floor[y][x] = texture
+    self.isDirty = true
     return true
 end
 
@@ -134,6 +136,7 @@ function Map:setCeilingTexture(x, y, texture)
     end
     
     self.textures.ceiling[y][x] = texture
+    self.isDirty = true
     return true
 end
 

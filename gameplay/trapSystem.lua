@@ -636,6 +636,8 @@ function trapSystem:updateTrapHintFactors(map, playerX, playerY)
     
     -- Update trap hint factors
     for _, trap in ipairs(map.activeTraps) do
+        local oldHintFactor = trap.hintFactor or 0.0
+
         if trap.isTrapActive and not trap.isTrapDisarmed then
             -- If already detected, maintain a minimum hint level
             if trap.isTrapDetected then
@@ -644,45 +646,48 @@ function trapSystem:updateTrapHintFactors(map, playerX, playerY)
                 -- Line of Sight Check before proximity checks
                 if not hasLineOfSight(map, playerX, playerY, trap.x, trap.y) then
                     trap.hintFactor = 0.0 -- No line of sight, no hint
-                    goto next_trap -- Continue to the next trap in the loop
-                end
+                else
+                    local distance = math.sqrt((trap.x - playerX)^2 + (trap.y - playerY)^2)
+                    if distance <= detectionRange then
+                        -- Calculate hint factor based on distance and multiplier
+                        local baseFactor = (1.0 - (distance / detectionRange)) * hintMultiplier
+                        trap.hintFactor = math.min(0.5, baseFactor)  -- Increased cap from 0.3 to 0.5 for more visible hints
 
-                local distance = math.sqrt((trap.x - playerX)^2 + (trap.y - playerY)^2)
-                if distance <= detectionRange then
-                    -- Calculate hint factor based on distance and multiplier
-                    local baseFactor = (1.0 - (distance / detectionRange)) * hintMultiplier
-                    trap.hintFactor = math.min(0.5, baseFactor)  -- Increased cap from 0.3 to 0.5 for more visible hints
-                    
-                    -- Increased chance to detect the trap passively 
-                    -- Base chance increases as player gets closer to the trap
-                    local distanceFactor = 1.0 - (distance / detectionRange)
-                    local passiveDetectBaseChance = 0.05 + (distanceFactor * 0.1)  -- 5-15% base chance depending on proximity
-                    local rogueBonus = 0
-                    
-                    if GAME.party then
-                        for _, member in ipairs(GAME.party) do
-                            if member.class == "Rogue" then
-                                rogueBonus = 0.15 + (distanceFactor * 0.1)  -- 15-25% bonus for rogues
-                                break
-                            elseif member.class == "Mage" then
-                                rogueBonus = 0.05 + (distanceFactor * 0.05)  -- 5-10% bonus for mages
-                                break
+                        -- Increased chance to detect the trap passively
+                        -- Base chance increases as player gets closer to the trap
+                        local distanceFactor = 1.0 - (distance / detectionRange)
+                        local passiveDetectBaseChance = 0.05 + (distanceFactor * 0.1)  -- 5-15% base chance depending on proximity
+                        local rogueBonus = 0
+
+                        if GAME.party then
+                            for _, member in ipairs(GAME.party) do
+                                if member.class == "Rogue" then
+                                    rogueBonus = 0.15 + (distanceFactor * 0.1)  -- 15-25% bonus for rogues
+                                    break
+                                elseif member.class == "Mage" then
+                                    rogueBonus = 0.05 + (distanceFactor * 0.05)  -- 5-10% bonus for mages
+                                    break
+                                end
                             end
                         end
+
+                        -- Check for passive detection with improved chance
+                        if math.random() < (passiveDetectBaseChance + rogueBonus) then
+                            self:checkTrapDetection(trap, map, playerX, playerY) -- Pass map and player coords
+                        end
+                    else
+                        trap.hintFactor = 0.0
                     end
-                    
-                    -- Check for passive detection with improved chance
-                    if math.random() < (passiveDetectBaseChance + rogueBonus) then
-                        self:checkTrapDetection(trap, map, playerX, playerY) -- Pass map and player coords
-                    end
-                else
-                    trap.hintFactor = 0.0
                 end
             end
         else
             trap.hintFactor = 0.0
         end
-        ::next_trap:: -- Label for goto
+
+        -- Check if hint factor changed significantly (epsilon check to avoid floating point jitter)
+        if math.abs((trap.hintFactor or 0.0) - oldHintFactor) > 0.001 then
+            map.isDirty = true
+        end
     end
 end
 

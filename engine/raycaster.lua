@@ -413,10 +413,20 @@ function raycaster:prepareMapData(map)
     if not map.floorImageData then
         map.floorImageData = love.image.newImageData(map.width, map.height, "rgba16f")
         map.floorsTexture = love.graphics.newImage(map.floorImageData)
+        map.isDirty = true
     end
     if not map.ceilingImageData then
         map.ceilingImageData = love.image.newImageData(map.width, map.height, "rgba16f")
         map.ceilingsTexture = love.graphics.newImage(map.ceilingImageData)
+        map.isDirty = true
+    end
+
+    -- Check if debug mode changed
+    local debugChanged = (map.lastDebugState ~= GAME.debug)
+
+    -- Check if map needs updating (optimization)
+    if not map.isDirty and not debugChanged then
+        return map
     end
 
     -- Always update floor and ceiling data textures
@@ -459,6 +469,10 @@ function raycaster:prepareMapData(map)
       map.dimensions = {map.width, map.height}
     end
     
+    -- Mark map as clean
+    map.isDirty = false
+    map.lastDebugState = GAME.debug
+
     return map
 end
 
