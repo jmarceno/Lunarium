@@ -1,5 +1,6 @@
 -- Screen Manager
 local layoutHelper = require("utils/layoutHelper")
+local scaling = require("utils/scaling")
 local screenManager = {
     fonts = {},
     colors = {},
@@ -62,10 +63,9 @@ function screenManager:initUI()
             soundsEnabled = true, -- Allow enabling/disabling sounds per button
             
             update = function(self, dt)
-                local mx, my = love.mouse.getPosition()
+                local mx, my = GAME.mouseX, GAME.mouseY
                 
                 -- Convert screen coordinates to game coordinates for hover detection
-                local scaling = require("utils/scaling")
                 local gameMx, gameMy = scaling:toGameCoords(mx, my)
                 
                 local wasHovering = self.hover
@@ -329,7 +329,7 @@ function screenManager:initUI()
             
             update = function(self, dt)
                 if self.dragging then
-                    local mx = love.mouse.getX()
+                    local mx = GAME.mouseX
                     local percentage = math.max(0, math.min(1, (mx - self.x) / self.width))
                     self.value = self.min + percentage * (self.max - self.min)
                     
@@ -483,7 +483,7 @@ function screenManager:initUI()
                         local optionY = self.y + self.height + (i - 1) * 30
                         
                         -- Highlight on hover
-                        local mx, my = love.mouse.getPosition()
+                        local mx, my = GAME.mouseX, GAME.mouseY
                         if mx >= self.x and mx <= self.x + self.width and
                            my >= optionY and my <= optionY + 30 then
                             love.graphics.setColor(0.4, 0.4, 0.6, 1.0)
